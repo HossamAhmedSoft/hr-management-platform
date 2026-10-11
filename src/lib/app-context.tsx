@@ -370,6 +370,16 @@ export function AppProvider({
       )
     );
 
+    // Audit trail log
+    await addAuditLog({
+      actor_id: currentUser?.id || "admin",
+      action: "approve",
+      entity_type: "point_event",
+      entity_id: id,
+      reason: rationale || "Approved by HR reviewer",
+      after_value: { status: "approved" },
+    });
+
     if (targetEvt?.member_id) {
       await addNotification({
         user_id: targetEvt.member_id,
@@ -403,6 +413,16 @@ export function AppProvider({
       )
     );
 
+    // Audit trail log
+    await addAuditLog({
+      actor_id: currentUser?.id || "admin",
+      action: "reject",
+      entity_type: "point_event",
+      entity_id: id,
+      reason: rationale || "Rejected during review",
+      after_value: { status: "rejected" },
+    });
+
     if (targetEvt?.member_id) {
       await addNotification({
         user_id: targetEvt.member_id,
@@ -430,6 +450,15 @@ export function AppProvider({
     if (created) {
       setEvaluations((prev) => [created, ...prev]);
 
+      // Audit trail log
+      await addAuditLog({
+        actor_id: currentUser?.id || "evaluator",
+        action: "create",
+        entity_type: "evaluation",
+        entity_id: created.id,
+        after_value: { member_id: evalData.member_id, total_score: evalData.total_score },
+      });
+
       if (evalData.member_id) {
         await addNotification({
           user_id: evalData.member_id,
@@ -451,16 +480,26 @@ export function AppProvider({
     if (created) {
       setIncidents((prev) => [created, ...prev]);
 
+      // Audit trail log
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        action: "create",
+        entity_type: "incident",
+        entity_id: created.id,
+        reason: incident.title,
+        after_value: { member_id: incident.member_id, level: incident.level },
+      });
+
       if (incident.member_id) {
         await addNotification({
           user_id: incident.member_id,
           title: locale === "ar" ? "إشعار إداري رسمي" : "Administrative Notice",
           message:
             locale === "ar"
-              ? `تم تسجيل إشعار (${incident.level}) بخصوص: ${incident.title}.`
-              : `A notice (${incident.level}) was recorded: ${incident.title}.`,
+              ? `تم تسجيل إشعار (${incident.level}) بخصوص: ${incident.title}. يمكنك مراجعة الإشعار وتقديم تظلم خلال 7 أيام عمل.`
+              : `A notice (${incident.level}) was recorded: ${incident.title}. You may review and file an appeal within 7 working days.`,
           type: "general",
-          link: `/${locale}/incidents`,
+          link: `/${locale}/appeals`,
           is_read: false,
         });
       }

@@ -72,7 +72,7 @@ import {
 export default function EducationPage() {
   const { locale, currentUser } = useApp();
   const isAr = locale === "ar";
-  const userRole = currentUser?.role || "super_admin";
+  const userRole = currentUser?.role || "member";
 
   // Check roles:
   const isHRorAdmin =
