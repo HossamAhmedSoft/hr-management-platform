@@ -294,26 +294,6 @@ export default function LoginPage() {
                 </Button>
               </form>
 
-              {/* Mode Toggle Switch */}
-              <div className="pt-1 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsFirstTimeSetup(!isFirstTimeSetup);
-                    setErrorMessage("");
-                  }}
-                  className="text-xs text-[#1a73e8] dark:text-[#8ab4f8] hover:underline font-semibold cursor-pointer"
-                >
-                  {isFirstTimeSetup
-                    ? isAr
-                      ? "لديك حساب بالفعل؟ الدخول إلى الحساب"
-                      : "Already initialized? Sign In instead"
-                    : isAr
-                    ? "⚡ تهيئة حساب مدير النظام (Super Admin)"
-                    : "⚡ Initialize Super Admin Account"}
-                </button>
-              </div>
-
               {/* Administrative Footnote */}
               <div className="pt-2 text-center">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
