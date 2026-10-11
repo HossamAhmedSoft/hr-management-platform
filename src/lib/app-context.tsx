@@ -32,6 +32,7 @@ import {
   clearSession,
   canAccessRoute,
 } from "@/lib/auth-service";
+import { dbService } from "@/lib/db-service";
 
 interface AppContextType {
   currentUser: Profile;
@@ -86,7 +87,7 @@ export function AppProvider({
   const [locale, setLocale] = useState<"en" | "ar">(initialLocale);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
-  const [teams] = useState<Team[]>(MOCK_TEAMS);
+  const [teams, setTeams] = useState<Team[]>(MOCK_TEAMS);
   const [tasks, setTasks] = useState<Task[]>(MOCK_TASKS);
   const [pointEvents, setPointEvents] = useState<PointEvent[]>(MOCK_POINT_EVENTS);
   const [evaluations, setEvaluations] = useState<Evaluation[]>(MOCK_EVALUATIONS);
@@ -111,6 +112,40 @@ export function AppProvider({
     document.documentElement.setAttribute("dir", locale === "ar" ? "rtl" : "ltr");
     document.documentElement.setAttribute("lang", locale);
   }, [locale]);
+
+  // Initial live synchronization from Supabase database
+  useEffect(() => {
+    let isMounted = true;
+    async function syncDatabase() {
+      try {
+        const [liveTeams, liveTasks, livePoints, liveEvaluations, liveAppeals, liveIncidents, liveFeedback] =
+          await Promise.all([
+            dbService.getTeams(),
+            dbService.getTasks(),
+            dbService.getPointEvents(),
+            dbService.getEvaluations(),
+            dbService.getAppeals(),
+            dbService.getIncidents(),
+            dbService.getFeedbackSessions(),
+          ]);
+
+        if (!isMounted) return;
+        if (liveTeams && liveTeams.length > 0) setTeams(liveTeams);
+        if (liveTasks && liveTasks.length > 0) setTasks(liveTasks);
+        if (livePoints && livePoints.length > 0) setPointEvents(livePoints);
+        if (liveEvaluations && liveEvaluations.length > 0) setEvaluations(liveEvaluations);
+        if (liveAppeals && liveAppeals.length > 0) setAppeals(liveAppeals);
+        if (liveIncidents && liveIncidents.length > 0) setIncidents(liveIncidents);
+        if (liveFeedback && liveFeedback.length > 0) setFeedbackSessions(liveFeedback);
+      } catch (err) {
+        console.warn("Using fallback local seed:", err);
+      }
+    }
+    syncDatabase();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Persist session whenever user changes
   const handleSetCurrentUser = (user: Profile) => {
@@ -145,17 +180,15 @@ export function AppProvider({
     }
   };
 
-  const addTask = (newTask: Omit<Task, "id" | "created_at" | "updated_at">) => {
-    const task: Task = {
-      ...newTask,
-      id: `task-${Date.now()}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setTasks((prev) => [task, ...prev]);
+  const addTask = async (newTask: Omit<Task, "id" | "created_at" | "updated_at">) => {
+    const created = await dbService.createTask(newTask);
+    if (created) {
+      setTasks((prev) => [created, ...prev]);
+    }
   };
 
-  const updateTaskStatus = (taskId: string, newStatus: Task["status"]) => {
+  const updateTaskStatus = async (taskId: string, newStatus: Task["status"]) => {
+    await dbService.updateTaskStatus(taskId, newStatus);
     setTasks((prev) =>
       prev.map((t) =>
         t.id === taskId
@@ -165,17 +198,15 @@ export function AppProvider({
     );
   };
 
-  const addPointEvent = (newEvent: Omit<PointEvent, "id" | "created_at" | "updated_at">) => {
-    const event: PointEvent = {
-      ...newEvent,
-      id: `point-${Date.now()}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setPointEvents((prev) => [event, ...prev]);
+  const addPointEvent = async (newEvent: Omit<PointEvent, "id" | "created_at" | "updated_at">) => {
+    const created = await dbService.createPointEvent(newEvent);
+    if (created) {
+      setPointEvents((prev) => [created, ...prev]);
+    }
   };
 
-  const approvePointEvent = (id: string, rationale?: string) => {
+  const approvePointEvent = async (id: string, rationale?: string) => {
+    await dbService.updatePointEventStatus(id, "approved", rationale);
     setPointEvents((prev) =>
       prev.map((p) =>
         p.id === id
@@ -192,7 +223,8 @@ export function AppProvider({
     );
   };
 
-  const rejectPointEvent = (id: string, rationale?: string) => {
+  const rejectPointEvent = async (id: string, rationale?: string) => {
+    await dbService.updatePointEventStatus(id, "rejected", rationale);
     setPointEvents((prev) =>
       prev.map((p) =>
         p.id === id
@@ -209,14 +241,11 @@ export function AppProvider({
     );
   };
 
-  const submitAppeal = (newAppeal: Omit<Appeal, "id" | "created_at" | "updated_at">) => {
-    const appeal: Appeal = {
-      ...newAppeal,
-      id: `appeal-${Date.now()}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setAppeals((prev) => [appeal, ...prev]);
+  const submitAppeal = async (newAppeal: Omit<Appeal, "id" | "created_at" | "updated_at">) => {
+    const created = await dbService.createAppeal(newAppeal);
+    if (created) {
+      setAppeals((prev) => [created, ...prev]);
+    }
   };
 
   return (
