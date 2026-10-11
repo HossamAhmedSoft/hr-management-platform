@@ -226,9 +226,29 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
     return true;
   }
 
-  // Restricted from standard member: Members Directory, Tracks & Committees, and Educational Tracks
-  if (cleanPath === "/members" || cleanPath === "/teams" || cleanPath === "/education") {
-    return role === "super_admin" || role === "hr_admin" || role === "hr_reviewer" || role === "team_lead";
+  // Restricted from standard member: Members Directory & Committees
+  if (cleanPath === "/members" || cleanPath === "/teams") {
+    return (
+      role === "super_admin" ||
+      role === "hr_admin" ||
+      role === "hr_reviewer" ||
+      role === "team_lead" ||
+      role === "track_lead"
+    );
+  }
+
+  // Educational Tracks & Academy: Accessible to HR, Leads, Instructors, Mentors, and Attendees (Hidden from core-team member)
+  if (cleanPath === "/education") {
+    return (
+      role === "super_admin" ||
+      role === "hr_admin" ||
+      role === "hr_reviewer" ||
+      role === "team_lead" ||
+      role === "track_lead" ||
+      role === "lead_instructor" ||
+      role === "ta_mentor" ||
+      role === "attendee"
+    );
   }
 
   if (cleanPath === "/policy" || cleanPath === "/audit-log") {

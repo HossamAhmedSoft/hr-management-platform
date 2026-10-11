@@ -14,6 +14,7 @@ import {
   EducationalTrack,
   Attendee,
   AuditLog,
+  Notification,
 } from "@/types";
 import {
   saveSession,
@@ -56,6 +57,10 @@ interface AppContextType {
   addFeedbackSession: (session: Omit<FeedbackSession, "id" | "created_at" | "updated_at">) => void;
   addAuditLog: (log: Omit<AuditLog, "id" | "created_at">) => void;
   unreadNotificationsCount: number;
+  notifications: Notification[];
+  addNotification: (notif: Omit<Notification, "id" | "created_at">) => Promise<Notification>;
+  markNotificationAsRead: (id: string) => Promise<void>;
+  markAllNotificationsAsRead: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -92,7 +97,8 @@ export function AppProvider({
   const [educationalTracks] = useState<EducationalTrack[]>([]);
   const [attendees] = useState<Attendee[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [unreadNotificationsCount] = useState<number>(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const unreadNotificationsCount = notifications.filter((n) => !n.is_read).length;
 
   // Load saved theme on client mount
   useEffect(() => {
@@ -139,6 +145,7 @@ export function AppProvider({
           liveIncidents,
           liveFeedback,
           liveAuditLogs,
+          liveNotifications,
         ] = await Promise.all([
           dbService.getProfiles(),
           dbService.getTeams(),
@@ -149,6 +156,7 @@ export function AppProvider({
           dbService.getIncidents(),
           dbService.getFeedbackSessions(),
           dbService.getAuditLogs(),
+          dbService.getNotifications(),
         ]);
 
         if (!isMounted) return;
@@ -161,6 +169,7 @@ export function AppProvider({
         if (liveIncidents) setIncidents(liveIncidents);
         if (liveFeedback) setFeedbackSessions(liveFeedback);
         if (liveAuditLogs) setAuditLogs(liveAuditLogs);
+        if (liveNotifications) setNotifications(liveNotifications);
       } catch (err) {
         console.warn("Error loading live database:", err);
       }
@@ -170,6 +179,26 @@ export function AppProvider({
       isMounted = false;
     };
   }, []);
+
+  // Live notification refresh on user change
+  useEffect(() => {
+    let isMounted = true;
+    async function loadUserNotifications() {
+      if (!currentUser?.id) return;
+      try {
+        const notifs = await dbService.getNotifications();
+        if (isMounted && notifs) {
+          setNotifications(notifs);
+        }
+      } catch (err) {
+        console.warn("Error refreshing notifications:", err);
+      }
+    }
+    loadUserNotifications();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id, currentUser?.email]);
 
   // Persist session whenever user changes
   const handleSetCurrentUser = (user: Profile) => {
@@ -209,15 +238,55 @@ export function AppProvider({
     }
   };
 
+  const addNotification = async (notif: Omit<Notification, "id" | "created_at">) => {
+    const created = await dbService.createNotification(notif);
+    setNotifications((prev) => [created, ...prev]);
+    return created;
+  };
+
+  const markNotificationAsRead = async (id: string) => {
+    await dbService.markNotificationAsRead(id);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+    );
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    await dbService.markAllNotificationsAsRead(currentUser?.id);
+    setNotifications((prev) =>
+      prev.map((n) => (!currentUser?.id || n.user_id === currentUser.id ? { ...n, is_read: true } : n))
+    );
+  };
+
   const addTask = async (newTask: Omit<Task, "id" | "created_at" | "updated_at">) => {
     const created = await dbService.createTask(newTask);
     if (created) {
       setTasks((prev) => [created, ...prev]);
+
+      // Dispatch notifications to all assignees
+      if (newTask.assignees && newTask.assignees.length > 0) {
+        for (const assignee of newTask.assignees) {
+          if (assignee.profile_id) {
+            await addNotification({
+              user_id: assignee.profile_id,
+              title: locale === "ar" ? "مهمة عمل جديدة مسندة إليك" : "New Task Assigned",
+              message:
+                locale === "ar"
+                  ? `تم تكليفك بمهمة جديدة: "${newTask.title}". الموعد النهائي: ${new Date(newTask.deadline).toLocaleDateString("ar-EG")}`
+                  : `You have been assigned task: "${newTask.title}". Deadline: ${new Date(newTask.deadline).toLocaleDateString()}`,
+              type: "task_assigned",
+              link: `/${locale}/tasks`,
+              is_read: false,
+            });
+          }
+        }
+      }
     }
   };
 
   const updateTaskStatus = async (taskId: string, newStatus: Task["status"]) => {
     await dbService.updateTaskStatus(taskId, newStatus);
+    const targetTask = tasks.find((t) => t.id === taskId);
     setTasks((prev) =>
       prev.map((t) =>
         t.id === taskId
@@ -225,17 +294,67 @@ export function AppProvider({
           : t
       )
     );
+
+    if (targetTask) {
+      if (newStatus === "completed" && targetTask.assignees) {
+        for (const assignee of targetTask.assignees) {
+          if (assignee.profile_id) {
+            await addNotification({
+              user_id: assignee.profile_id,
+              title: locale === "ar" ? "تم اعتماد إنجاز المهمة بنجاح" : "Task Completed & Approved",
+              message:
+                locale === "ar"
+                  ? `تمت مراجعة واعتماد مخرجات المهمة: "${targetTask.title}" بنجاح.`
+                  : `Your deliverable for task: "${targetTask.title}" has been reviewed and approved.`,
+              type: "task_review",
+              link: `/${locale}/tasks`,
+              is_read: false,
+            });
+          }
+        }
+      } else if (newStatus === "submitted" && targetTask.created_by) {
+        await addNotification({
+          user_id: targetTask.created_by,
+          title: locale === "ar" ? "تم تسليم مخرجات مهمة للمراجعة" : "Deliverable Submitted for Review",
+          message:
+            locale === "ar"
+              ? `قام العضو بتسليم مخرجات المهمة: "${targetTask.title}".`
+              : `A deliverable was submitted for task: "${targetTask.title}".`,
+          type: "task_review",
+          link: `/${locale}/tasks`,
+          is_read: false,
+        });
+      }
+    }
   };
 
   const addPointEvent = async (newEvent: Omit<PointEvent, "id" | "created_at" | "updated_at">) => {
     const created = await dbService.createPointEvent(newEvent);
     if (created) {
       setPointEvents((prev) => [created, ...prev]);
+
+      if (newEvent.member_id) {
+        const isPos = newEvent.direction === "positive";
+        await addNotification({
+          user_id: newEvent.member_id,
+          title: isPos
+            ? (locale === "ar" ? "تسجيل نقاط تميز إيجابية (+)" : "Positive Points Awarded (+)")
+            : (locale === "ar" ? "إشعار رسمي بتسجيل خصم نقاط (-)" : "Point Deduction Notice (-)"),
+          message:
+            locale === "ar"
+              ? `${isPos ? "+" : ""}${newEvent.value} نقطة — السبب: ${newEvent.explanation}`
+              : `${isPos ? "+" : ""}${newEvent.value} pts — Reason: ${newEvent.explanation}`,
+          type: "point_submitted",
+          link: `/${locale}/points`,
+          is_read: false,
+        });
+      }
     }
   };
 
   const approvePointEvent = async (id: string, rationale?: string) => {
     await dbService.updatePointEventStatus(id, "approved", rationale);
+    const targetEvt = pointEvents.find((p) => p.id === id);
     setPointEvents((prev) =>
       prev.map((p) =>
         p.id === id
@@ -250,10 +369,25 @@ export function AppProvider({
           : p
       )
     );
+
+    if (targetEvt?.member_id) {
+      await addNotification({
+        user_id: targetEvt.member_id,
+        title: locale === "ar" ? "اعتماد رسمي لحركة النقاط" : "Official Point Verification",
+        message:
+          locale === "ar"
+            ? `تم اعتماد النقاط (${targetEvt.direction === "positive" ? "+" : ""}${targetEvt.value} نقطة) نهائياً في رصيدك.`
+            : `Point event (${targetEvt.direction === "positive" ? "+" : ""}${targetEvt.value} pts) has been officially verified.`,
+        type: "point_decision",
+        link: `/${locale}/points`,
+        is_read: false,
+      });
+    }
   };
 
   const rejectPointEvent = async (id: string, rationale?: string) => {
     await dbService.updatePointEventStatus(id, "rejected", rationale);
+    const targetEvt = pointEvents.find((p) => p.id === id);
     setPointEvents((prev) =>
       prev.map((p) =>
         p.id === id
@@ -268,6 +402,20 @@ export function AppProvider({
           : p
       )
     );
+
+    if (targetEvt?.member_id) {
+      await addNotification({
+        user_id: targetEvt.member_id,
+        title: locale === "ar" ? "قرار مراجعة حركة النقاط" : "Point Verification Decision",
+        message:
+          locale === "ar"
+            ? `تم رفض واقعة النقاط بعد المراجعة: ${rationale || targetEvt.explanation}`
+            : `Point entry was rejected: ${rationale || targetEvt.explanation}`,
+        type: "point_decision",
+        link: `/${locale}/points`,
+        is_read: false,
+      });
+    }
   };
 
   const submitAppeal = async (newAppeal: Omit<Appeal, "id" | "created_at" | "updated_at">) => {
@@ -281,6 +429,20 @@ export function AppProvider({
     const created = await dbService.createEvaluation(evalData);
     if (created) {
       setEvaluations((prev) => [created, ...prev]);
+
+      if (evalData.member_id) {
+        await addNotification({
+          user_id: evalData.member_id,
+          title: locale === "ar" ? "صدور نتيجة التقييم الشهري" : "Monthly Evaluation Published",
+          message:
+            locale === "ar"
+              ? `تم اعتماد تقييمك الشهري الرسمي بدرجة ${evalData.total_score || 0}/100.`
+              : `Your official monthly evaluation is finalized with score ${evalData.total_score || 0}/100.`,
+          type: "evaluation_finalized",
+          link: `/${locale}/evaluations`,
+          is_read: false,
+        });
+      }
     }
   };
 
@@ -288,6 +450,20 @@ export function AppProvider({
     const created = await dbService.createIncident(incident);
     if (created) {
       setIncidents((prev) => [created, ...prev]);
+
+      if (incident.member_id) {
+        await addNotification({
+          user_id: incident.member_id,
+          title: locale === "ar" ? "إشعار إداري رسمي" : "Administrative Notice",
+          message:
+            locale === "ar"
+              ? `تم تسجيل إشعار (${incident.level}) بخصوص: ${incident.title}.`
+              : `A notice (${incident.level}) was recorded: ${incident.title}.`,
+          type: "general",
+          link: `/${locale}/incidents`,
+          is_read: false,
+        });
+      }
     }
   };
 
@@ -340,6 +516,10 @@ export function AppProvider({
         addFeedbackSession,
         addAuditLog,
         unreadNotificationsCount,
+        notifications,
+        addNotification,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
       }}
     >
       {children}

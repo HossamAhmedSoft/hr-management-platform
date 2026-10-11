@@ -88,16 +88,32 @@ export default function EvaluationsPage() {
     }));
   };
 
+  // Robust user matching helper
+  const isMatchUser = (targetId?: string) => {
+    if (!targetId || !currentUser) return false;
+    if (targetId === currentUser.id) return true;
+    if (currentUser.email && targetId.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    const targetProf = availableUsers.find((u) => u.id === targetId);
+    if (
+      targetProf?.email &&
+      currentUser.email &&
+      targetProf.email.toLowerCase() === currentUser.email.toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  };
+
   // Scoped evaluations based on role
   const visibleEvaluations = evaluations.filter((e) => {
     if (isMember) {
       // Ordinary member ONLY sees their own evaluations!
-      return e.member_id === currentUser?.id;
+      return isMatchUser(e.member_id);
     }
     if (userRole === "team_lead" && currentUser?.team_id) {
       // Team lead sees evaluations of their team members
       const evalMember = availableUsers.find((u) => u.id === e.member_id);
-      return evalMember?.team_id === currentUser.team_id || e.member_id === currentUser.id;
+      return evalMember?.team_id === currentUser.team_id || isMatchUser(e.member_id);
     }
     return true;
   });

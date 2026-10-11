@@ -62,19 +62,56 @@ export default function TasksPage() {
     }
   }, [teams, newTeam, availableUsers, newAssignee]);
 
+  // Bulletproof matching helper for tasks
+  const isAssignedToUser = (task: Task) => {
+    if (!currentUser) return false;
+    if (task.created_by === currentUser.id) return true;
+
+    if (task.assignees && Array.isArray(task.assignees)) {
+      for (const a of task.assignees) {
+        if (!a) continue;
+        if (a.profile_id === currentUser.id || a.profile?.id === currentUser.id) return true;
+        if (
+          currentUser.email &&
+          a.profile?.email &&
+          a.profile.email.toLowerCase() === currentUser.email.toLowerCase()
+        ) {
+          return true;
+        }
+        const matched = availableUsers.find((u) => u.id === a.profile_id);
+        if (matched) {
+          if (matched.id === currentUser.id) return true;
+          if (
+            currentUser.email &&
+            matched.email &&
+            matched.email.toLowerCase() === currentUser.email.toLowerCase()
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+
+    if (currentUser.team_id && task.team_id === currentUser.team_id) {
+      return true;
+    }
+
+    return false;
+  };
+
   // Scoped tasks based on user role
   const visibleTasks = tasks.filter((t) => {
     if (isMember) {
-      // Ordinary member only sees tasks assigned directly to them, created by them, or in their team
-      const isAssigned =
-        t.created_by === currentUser?.id ||
-        t.assignees?.some((a) => a.profile_id === currentUser?.id) ||
-        (currentUser?.team_id && t.team_id === currentUser?.team_id);
-      return Boolean(isAssigned);
+      // Ordinary member sees tasks assigned to them, created by them, or matching their team
+      return isAssignedToUser(t);
     }
     if (userRole === "team_lead" && currentUser?.team_id) {
-      // Team lead sees tasks in their team or created by them
-      return t.team_id === currentUser.team_id || t.created_by === currentUser.id;
+      // Team lead sees tasks in their team, created by them, or assigned to them
+      return (
+        t.team_id === currentUser.team_id ||
+        t.created_by === currentUser.id ||
+        isAssignedToUser(t)
+      );
     }
     return true;
   });
@@ -83,6 +120,15 @@ export default function TasksPage() {
     if (filterStatus === "all") return true;
     return t.status === filterStatus;
   });
+
+  const getAssigneeInfo = (task: Task) => {
+    if (!task.assignees || task.assignees.length === 0) {
+      return isAr ? "غير محدد" : "Unassigned";
+    }
+    const a = task.assignees[0];
+    const user = a.profile || availableUsers.find((u) => u.id === a.profile_id);
+    return user?.full_name || (isAr ? "عضو مكلف" : "Assigned Member");
+  };
 
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,10 +142,13 @@ export default function TasksPage() {
     }
     if (!newTitle.trim()) return;
 
+    const chosenAssigneeUser = availableUsers.find((u) => u.id === newAssignee);
+    const resolvedTeamId = newTeam || chosenAssigneeUser?.team_id || teams[0]?.id || "team-general";
+
     addTask({
-      title: newTitle,
-      description: newDesc,
-      team_id: newTeam || teams[0]?.id || "team-general",
+      title: newTitle.trim(),
+      description: newDesc.trim(),
+      team_id: resolvedTeamId,
       created_by: currentUser?.id || "admin",
       status: "assigned",
       priority: newPriority,
@@ -110,6 +159,7 @@ export default function TasksPage() {
               id: `assignee_${Date.now()}`,
               task_id: "",
               profile_id: newAssignee,
+              profile: chosenAssigneeUser,
               assigned_at: new Date().toISOString(),
               assigned_by: currentUser?.id || "admin",
             },
@@ -221,9 +271,26 @@ export default function TasksPage() {
               <h3 className="font-bold text-sm text-foreground mb-1.5">
                 {task.title}
               </h3>
-              <p className="text-xs text-muted-foreground line-clamp-3 mb-4">
+              <p className="text-xs text-muted-foreground line-clamp-3 mb-3">
                 {task.description}
               </p>
+
+              {/* Assignee & Personal Assignment Badge */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground my-2 pb-2 border-b border-border/40">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-semibold text-foreground text-[11px]">
+                    {isAr ? "المكلف:" : "Assignee:"}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-muted text-foreground text-[11px] font-medium">
+                    {getAssigneeInfo(task)}
+                  </span>
+                </div>
+                {isAssignedToUser(task) && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[#e8f0fe] dark:bg-[#1a73e8]/25 text-[#1a73e8] dark:text-[#8ab4f8] border border-[#d2e3fc] dark:border-[#1a73e8]/30">
+                    {isAr ? "مكلف بها أنت" : "Assigned to You"}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="pt-3 border-t border-border/60 space-y-3">
@@ -345,7 +412,14 @@ export default function TasksPage() {
                   </label>
                   <select
                     value={newAssignee}
-                    onChange={(e) => setNewAssignee(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewAssignee(val);
+                      const user = availableUsers.find((u) => u.id === val);
+                      if (user?.team_id) {
+                        setNewTeam(user.team_id);
+                      }
+                    }}
                     className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                   >
                     {availableUsers.map((u) => (

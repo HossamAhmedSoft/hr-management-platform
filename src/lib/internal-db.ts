@@ -10,6 +10,7 @@ import {
   EducationalTrack,
   Attendee,
   AuditLog,
+  Notification,
 } from "@/types";
 import { generateId } from "./utils";
 
@@ -106,15 +107,23 @@ export const internalDB = {
     return getTable<Task>("tasks", []);
   },
 
-  createTask(taskData: Omit<Task, "id" | "created_at" | "updated_at">): Task {
+  setTasks(tasks: Task[]): void {
+    setTable("tasks", tasks);
+  },
+
+  createTask(
+    taskData: Omit<Task, "id" | "created_at" | "updated_at"> & { id?: string; created_at?: string }
+  ): Task {
     const tasks = this.getTasks();
+    const taskId = taskData.id || `task_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newTask: Task = {
       ...taskData,
-      id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      created_at: new Date().toISOString(),
+      id: taskId,
+      created_at: taskData.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    setTable("tasks", [newTask, ...tasks]);
+    const filtered = tasks.filter((t) => t.id !== taskId);
+    setTable("tasks", [newTask, ...filtered]);
     return newTask;
   },
 
@@ -130,6 +139,10 @@ export const internalDB = {
   // ── Points Ledger ──────────────────────────────────────
   getPointEvents(): PointEvent[] {
     return getTable<PointEvent>("point_events", []);
+  },
+
+  setPointEvents(events: PointEvent[]): void {
+    setTable("point_events", events);
   },
 
   createPointEvent(eventData: Omit<PointEvent, "id" | "created_at" | "updated_at">): PointEvent {
@@ -172,6 +185,10 @@ export const internalDB = {
     return getTable<Evaluation>("evaluations", []);
   },
 
+  setEvaluations(evals: Evaluation[]): void {
+    setTable("evaluations", evals);
+  },
+
   createEvaluation(evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">): Evaluation {
     const evals = this.getEvaluations();
     const newEval: Evaluation = {
@@ -204,6 +221,10 @@ export const internalDB = {
   // ── Escalation Incidents ───────────────────────────────
   getIncidents(): Incident[] {
     return getTable<Incident>("incidents", []);
+  },
+
+  setIncidents(incidents: Incident[]): void {
+    setTable("incidents", incidents);
   },
 
   createIncident(incident: Omit<Incident, "id" | "created_at" | "updated_at">): Incident {
@@ -257,6 +278,47 @@ export const internalDB = {
     return log;
   },
 
+  // ── Attendance Events ──────────────────────────────────
+  getAttendanceEvents(): any[] {
+    return getTable<any>("attendance_events", []);
+  },
+
+  setAttendanceEvents(events: any[]): void {
+    setTable("attendance_events", events);
+  },
+
+  // ── Notifications ──────────────────────────────────────
+  getNotifications(): Notification[] {
+    return getTable<Notification>("notifications", []);
+  },
+
+  createNotification(
+    notif: Omit<Notification, "id" | "created_at"> & { id?: string }
+  ): Notification {
+    const notifs = this.getNotifications();
+    const newNotif: Notification = {
+      ...notif,
+      id: notif.id || `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      created_at: new Date().toISOString(),
+    };
+    setTable("notifications", [newNotif, ...notifs]);
+    return newNotif;
+  },
+
+  markNotificationAsRead(id: string): boolean {
+    const notifs = this.getNotifications();
+    const updated = notifs.map((n) => (n.id === id ? { ...n, is_read: true } : n));
+    setTable("notifications", updated);
+    return true;
+  },
+
+  markAllNotificationsAsRead(userId?: string): boolean {
+    const notifs = this.getNotifications();
+    const updated = notifs.map((n) => (!userId || n.user_id === userId ? { ...n, is_read: true } : n));
+    setTable("notifications", updated);
+    return true;
+  },
+
   // ── Clear Database ─────────────────────────────────────
   clearAll(): void {
     if (typeof window === "undefined") return;
@@ -272,6 +334,8 @@ export const internalDB = {
       "educational_tracks",
       "attendees",
       "audit_logs",
+      "attendance_events",
+      "notifications",
       "passwords",
     ];
     tables.forEach((t) => localStorage.removeItem(`${STORAGE_PREFIX}${t}`));

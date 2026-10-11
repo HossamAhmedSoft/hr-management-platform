@@ -29,6 +29,9 @@ import { useApp } from "@/lib/app-context";
 export default function IncidentsPage() {
   const { incidents, addIncident, availableUsers, currentUser, locale } = useApp();
   const isAr = locale === "ar";
+  const userRole = currentUser?.role || "member";
+  const isMember = userRole === "member";
+  const canLogIncident = userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
 
   const [isNewIncidentOpen, setIsNewIncidentOpen] = useState(false);
   const [targetMemberId, setTargetMemberId] = useState(availableUsers[0]?.id || "");
@@ -42,6 +45,26 @@ export default function IncidentsPage() {
       setTargetMemberId(availableUsers[0].id);
     }
   }, [availableUsers, targetMemberId]);
+
+  // Robust matching helper
+  const isMatchUser = (targetId?: string) => {
+    if (!targetId || !currentUser) return false;
+    if (targetId === currentUser.id) return true;
+    if (currentUser.email && targetId.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    const targetProf = availableUsers.find((u) => u.id === targetId);
+    if (
+      targetProf?.email &&
+      currentUser.email &&
+      targetProf.email.toLowerCase() === currentUser.email.toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const visibleIncidents = isMember
+    ? incidents.filter((inc) => isMatchUser(inc.target_member_id || inc.member_id))
+    : incidents;
 
   const handleCreateIncident = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,14 +151,16 @@ export default function IncidentsPage() {
             : "4-level progressive vertical stepper ladder with color graduation from Blue to Yellow to Orange to Red."
         }
       >
-        <Button
-          size="sm"
-          onClick={() => setIsNewIncidentOpen(true)}
-          className="gap-2 bg-[#ea4335] hover:bg-[#d93025] text-white"
-        >
-          <Plus className="w-4 h-4" />
-          {isAr ? "تسجيل واقعة تصعيد" : "Log Escalation Incident"}
-        </Button>
+        {canLogIncident && (
+          <Button
+            size="sm"
+            onClick={() => setIsNewIncidentOpen(true)}
+            className="gap-2 bg-[#ea4335] hover:bg-[#d93025] text-white"
+          >
+            <Plus className="w-4 h-4" />
+            {isAr ? "تسجيل واقعة تصعيد" : "Log Escalation Incident"}
+          </Button>
+        )}
       </PageHeader>
 
       {/* Vertical Stepper Escalation Ladder (from ui ana item 4) */}
@@ -198,7 +223,7 @@ export default function IncidentsPage() {
         </h3>
 
         <div className="space-y-3">
-          {incidents.length === 0 ? (
+          {visibleIncidents.length === 0 ? (
             <Card className="p-12 text-center text-muted-foreground border-dashed">
               <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-40 text-emerald-500" />
               <p className="text-sm font-semibold">
@@ -211,7 +236,7 @@ export default function IncidentsPage() {
               </p>
             </Card>
           ) : (
-            incidents.map((inc) => (
+            visibleIncidents.map((inc) => (
             <Card
               key={inc.id}
               className="p-4 border border-border bg-card hover:shadow-xs transition-all space-y-3"

@@ -16,6 +16,8 @@ import {
   Plus,
   Scale,
   ExternalLink,
+  CheckSquare,
+  Calendar,
 } from "lucide-react";
 import { StatsCard } from "@/components/common/stats-card";
 import { PageHeader } from "@/components/common/page-header";
@@ -35,10 +37,12 @@ import {
   POLICY_POINT_CATEGORIES,
   POLICY_POINT_CAP_CATEGORIES,
 } from "@/lib/policy-catalog";
+import { Task } from "@/types";
 
 export default function DashboardPage() {
   const {
     currentUser,
+    availableUsers,
     locale,
     teams,
     tasks,
@@ -67,20 +71,77 @@ export default function DashboardPage() {
   const [disputeReason, setDisputeReason] = useState("");
   const [newExplanation, setNewExplanation] = useState("");
   const [newSelectedCategory, setNewSelectedCategory] = useState(POLICY_POINT_CATEGORIES[0]?.id || "");
+  const [targetMemberId, setTargetMemberId] = useState(availableUsers[0]?.id || "");
+
+  React.useEffect(() => {
+    if (!targetMemberId && availableUsers.length > 0) {
+      setTargetMemberId(availableUsers[0].id);
+    }
+  }, [availableUsers, targetMemberId]);
+
+  // Robust matching helper across IDs and emails
+  const isMatchUser = (targetId?: string) => {
+    if (!targetId || !currentUser) return false;
+    if (targetId === currentUser.id) return true;
+    if (currentUser.email && targetId.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    const targetProf = availableUsers.find((u) => u.id === targetId);
+    if (
+      targetProf?.email &&
+      currentUser.email &&
+      targetProf.email.toLowerCase() === currentUser.email.toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  // Helper to determine if a task belongs to current user
+  const isTaskAssigned = (t: Task) => {
+    if (!currentUser) return false;
+    if (t.created_by === currentUser.id) return true;
+    if (t.assignees && Array.isArray(t.assignees)) {
+      for (const a of t.assignees) {
+        if (!a) continue;
+        if (a.profile_id === currentUser.id || a.profile?.id === currentUser.id) return true;
+        if (
+          currentUser.email &&
+          a.profile?.email &&
+          a.profile.email.toLowerCase() === currentUser.email.toLowerCase()
+        ) {
+          return true;
+        }
+        const matched = availableUsers.find((u) => u.id === a.profile_id);
+        if (
+          matched &&
+          (matched.id === currentUser.id ||
+            (currentUser.email &&
+              matched.email?.toLowerCase() === currentUser.email.toLowerCase()))
+        ) {
+          return true;
+        }
+      }
+    }
+    if (currentUser.team_id && t.team_id === currentUser.team_id) return true;
+    return false;
+  };
+
+  const userActiveTasks = tasks.filter(
+    (t) => isTaskAssigned(t) && t.status !== "completed" && t.status !== "cancelled"
+  );
 
   // Role-scoped records for current dashboard view
   const userPointEvents = isMember
-    ? pointEvents.filter((p) => p.member_id === currentUser?.id)
+    ? pointEvents.filter((p) => isMatchUser(p.member_id))
     : userRole === "team_lead" && currentUser?.team_id
-    ? pointEvents.filter((p) => p.team_id === currentUser.team_id || p.member_id === currentUser.id)
+    ? pointEvents.filter((p) => p.team_id === currentUser.team_id || isMatchUser(p.member_id))
     : pointEvents;
 
   const userEvaluations = isMember
-    ? evaluations.filter((e) => e.member_id === currentUser?.id)
+    ? evaluations.filter((e) => isMatchUser(e.member_id))
     : userRole === "team_lead" && currentUser?.team_id
     ? evaluations.filter((e) => {
-        const m = teams.find((t) => t.id === currentUser.team_id);
-        return e.member_id === currentUser.id;
+        const target = availableUsers.find((u) => u.id === e.member_id);
+        return target?.team_id === currentUser.team_id || isMatchUser(e.member_id);
       })
     : evaluations;
 
@@ -101,7 +162,7 @@ export default function DashboardPage() {
       }, 0) / userEvaluations.length))
     : 100;
   const activeWarningsCount = isMember
-    ? incidents.filter((i) => i.member_id === currentUser?.id && i.status === "open").length
+    ? incidents.filter((i) => isMatchUser(i.member_id) && i.status === "open").length
     : incidents.filter((i) => i.status === "open").length;
   const avgEvalScore = userEvaluations.length > 0
     ? (userEvaluations.reduce((sum, e) => sum + (e.total_score || 0), 0) / userEvaluations.length).toFixed(1)
@@ -226,6 +287,91 @@ export default function DashboardPage() {
           accentColor="red"
         />
       </div>
+
+      {/* 2.5. Active Tasks Section */}
+      <Card className="border border-border bg-card shadow-2xs">
+        <CardHeader className="pb-3 border-b border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckSquare className="w-4 h-4 text-[#1a73e8]" />
+              <div>
+                <CardTitle className="text-sm font-bold text-foreground">
+                  {isAr
+                    ? isMember
+                      ? "مهامي وتكليفاتي الحالية"
+                      : "أحدث المهام والتكليفات التنفيذية"
+                    : isMember
+                    ? "My Active Assigned Tasks"
+                    : "Active Task Deliverables"}
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isAr
+                    ? "متابعة المهام المسندة، المواعيد النهائية، وحالة تسليم المخرجات."
+                    : "Track deliverables, milestones, submission evidence, and deadlines."}
+                </p>
+              </div>
+            </div>
+            <Link href={`/${locale}/tasks`}>
+              <Button variant="ghost" size="sm" className="text-xs text-[#1a73e8] gap-1">
+                <span>{isAr ? "كافة المهام" : "All Tasks"}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {userActiveTasks.length === 0 ? (
+            <div className="py-6 text-center text-muted-foreground">
+              <CheckCircle className="w-6 h-6 mx-auto mb-1 text-emerald-600 opacity-60" />
+              <p className="text-xs font-semibold">
+                {isAr
+                  ? "لا توجد مهام نشطة مسندة إليك حالياً"
+                  : "No active tasks assigned to you right now"}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {isAr
+                  ? "ستظهر هنا أي تكليفات جديدة فور إسنادها لك من قائد الفريق أو الإدارة."
+                  : "Any deliverables assigned by your team lead or admin will appear here."}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {userActiveTasks.map((t) => (
+                <div
+                  key={t.id}
+                  className="p-3.5 rounded-xl border border-border/70 bg-background/50 hover:bg-background transition-all space-y-2 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                        {t.priority}
+                      </span>
+                      <StatusBadge status={t.status} />
+                    </div>
+                    <h4 className="font-bold text-xs text-foreground line-clamp-1">
+                      {t.title}
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                      {t.description}
+                    </p>
+                  </div>
+                  <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[11px]">
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(t.deadline).toLocaleDateString()}
+                    </span>
+                    <Link href={`/${locale}/tasks`}>
+                      <span className="font-semibold text-[#1a73e8] hover:underline text-xs">
+                        {isAr ? "تسليم / تفاصيل" : "Deliver →"}
+                      </span>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 3. Escalation Ladder Component (Vertical Stepper from ui ana) */}
       <Card className="border border-border bg-card shadow-2xs">
@@ -580,6 +726,23 @@ export default function DashboardPage() {
             <div className="space-y-4 pt-2 text-xs">
               <div>
                 <label className="font-bold text-foreground">
+                  {isAr ? "العضو المستهدف باللائحة:" : "Target Member:"}
+                </label>
+                <select
+                  value={targetMemberId}
+                  onChange={(e) => setTargetMemberId(e.target.value)}
+                  className="w-full mt-1 h-9 rounded-md border border-border bg-background px-3 text-xs"
+                >
+                  {availableUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-foreground">
                   {isAr ? "فئة النقطة المعتمدة باللائحة:" : "Policy Category:"}
                 </label>
                 <select
@@ -627,10 +790,11 @@ export default function DashboardPage() {
                   className="bg-[#1a73e8] hover:bg-[#1765cc] text-white"
                   onClick={() => {
                     const cat = POLICY_POINT_CATEGORIES.find((c) => c.id === newSelectedCategory);
-                    if (cat && newExplanation.trim() && currentUser) {
+                    const targetU = availableUsers.find((u) => u.id === targetMemberId) || currentUser;
+                    if (cat && newExplanation.trim() && currentUser && targetU) {
                       addPointEvent({
-                        member_id: currentUser.id,
-                        team_id: currentUser.team_id || teams[0]?.id || "",
+                        member_id: targetU.id,
+                        team_id: targetU.team_id || currentUser.team_id || teams[0]?.id || "",
                         event_date: new Date().toISOString().split("T")[0],
                         category_id: cat.id,
                         direction: cat.direction,

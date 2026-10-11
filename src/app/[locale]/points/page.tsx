@@ -75,16 +75,32 @@ export default function PointsPage() {
     }
   }, [selectableUsers, targetMember]);
 
+  // Robust user matching helper
+  const isMatchUser = (targetId?: string) => {
+    if (!targetId || !currentUser) return false;
+    if (targetId === currentUser.id) return true;
+    if (currentUser.email && targetId.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    const targetProf = availableUsers.find((u) => u.id === targetId);
+    if (
+      targetProf?.email &&
+      currentUser.email &&
+      targetProf.email.toLowerCase() === currentUser.email.toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  };
+
   // Scoped point events based on role
   const visibleEvents = pointEvents.filter((p) => {
     if (isMember) {
       // Ordinary member ONLY sees their own point events!
-      return p.member_id === currentUser?.id;
+      return isMatchUser(p.member_id);
     }
     if (userRole === "team_lead" && currentUser?.team_id) {
       // Team lead sees point events of their team members or themselves
       const targetUser = availableUsers.find((u) => u.id === p.member_id);
-      return targetUser?.team_id === currentUser.team_id || p.member_id === currentUser.id;
+      return targetUser?.team_id === currentUser.team_id || isMatchUser(p.member_id);
     }
     return true;
   });

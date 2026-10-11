@@ -4,6 +4,7 @@ import {
   Profile,
   Team,
   Task,
+  TaskAssignee,
   PointEvent,
   Evaluation,
   Appeal,
@@ -12,6 +13,7 @@ import {
   EducationalTrack,
   Attendee,
   AuditLog,
+  Notification,
 } from "@/types";
 import { generateId } from "./utils";
 
@@ -127,7 +129,33 @@ export const dbService = {
         .order("deadline", { ascending: true });
 
       if (!error && Array.isArray(data)) {
-        return data as Task[];
+        const enrichedTasks: Task[] = data.map((d: any) => {
+          let assigneesList: TaskAssignee[] = [];
+
+          if (d.deliverables && typeof d.deliverables === "string" && d.deliverables.startsWith("{")) {
+            try {
+              const meta = JSON.parse(d.deliverables);
+              if (Array.isArray(meta.assignees)) {
+                assigneesList = meta.assignees;
+              }
+            } catch (_) {}
+          }
+
+          if (assigneesList.length === 0) {
+            const cached = internalDB.getTasks().find((ct) => ct.id === d.id);
+            if (cached && Array.isArray(cached.assignees)) {
+              assigneesList = cached.assignees;
+            }
+          }
+
+          return {
+            ...d,
+            assignees: assigneesList,
+          } as Task;
+        });
+
+        internalDB.setTasks(enrichedTasks);
+        return enrichedTasks;
       }
     } catch (e) {
       console.warn("Supabase tasks query error:", e);
@@ -144,20 +172,34 @@ export const dbService = {
     };
     try {
       const supabase = createClient();
+      const { assignees, ...dbTaskRecord } = newTask;
+
+      // Safely serialize assignees into deliverables JSON column so Supabase accepts insert
+      dbTaskRecord.deliverables = JSON.stringify({
+        assignees: assignees || [],
+        text: task.deliverables || "",
+      });
+
       const { data, error } = await supabase
         .from("tasks")
-        .insert([newTask])
+        .insert([dbTaskRecord])
         .select()
         .single();
 
       if (!error && data) {
-        internalDB.createTask(data as Task);
-        return data as Task;
+        const fullTask: Task = {
+          ...(data as Task),
+          assignees: assignees || [],
+        };
+        internalDB.createTask(fullTask);
+        return fullTask;
+      } else if (error) {
+        console.warn("Supabase createTask error:", error);
       }
     } catch (e) {
       console.warn("Supabase createTask error:", e);
     }
-    return internalDB.createTask(task);
+    return internalDB.createTask(newTask);
   },
 
   async updateTaskStatus(taskId: string, status: Task["status"]): Promise<boolean> {
@@ -180,20 +222,39 @@ export const dbService = {
 
   // ── Point Events (Ledger) ───────────────────────────────
   async getPointEvents(): Promise<PointEvent[]> {
+    const local = internalDB.getPointEvents();
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
-        .from("point_events")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, academic_notes");
 
-      if (!error && Array.isArray(data)) {
-        return data as PointEvent[];
+      if (Array.isArray(profiles)) {
+        const remoteEvents: PointEvent[] = [];
+        profiles.forEach((p) => {
+          if (p.academic_notes) {
+            try {
+              const parsed = JSON.parse(p.academic_notes);
+              if (Array.isArray(parsed.pointEvents)) {
+                remoteEvents.push(...parsed.pointEvents);
+              }
+            } catch (_) {}
+          }
+        });
+
+        if (remoteEvents.length > 0) {
+          const merged = [...remoteEvents];
+          local.forEach((l) => {
+            if (!merged.some((m) => m.id === l.id)) merged.push(l);
+          });
+          internalDB.setPointEvents(merged);
+          return merged;
+        }
       }
     } catch (e) {
-      console.warn("Supabase pointEvents query error:", e);
+      console.warn("Supabase getPointEvents error:", e);
     }
-    return internalDB.getPointEvents();
+    return local;
   },
 
   async createPointEvent(
@@ -205,22 +266,34 @@ export const dbService = {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+
+    // Save locally
+    internalDB.createPointEvent(newEvent);
+
+    // Sync to Supabase in target member profile's academic_notes
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
-        .from("point_events")
-        .insert([newEvent])
-        .select()
+      const { data: pData } = await supabase
+        .from("profiles")
+        .select("id, academic_notes")
+        .eq("id", event.member_id)
         .single();
 
-      if (!error && data) {
-        internalDB.createPointEvent(data as PointEvent);
-        return data as PointEvent;
+      if (pData) {
+        let notesData: any = {};
+        try { notesData = JSON.parse(pData.academic_notes || "{}"); } catch (_) {}
+        const curEvents = Array.isArray(notesData.pointEvents) ? notesData.pointEvents : [];
+        notesData.pointEvents = [newEvent, ...curEvents.filter((ce: any) => ce.id !== newEvent.id)];
+        await supabase
+          .from("profiles")
+          .update({ academic_notes: JSON.stringify(notesData), updated_at: new Date().toISOString() })
+          .eq("id", event.member_id);
       }
     } catch (e) {
-      console.warn("Supabase createPointEvent error:", e);
+      console.warn("Supabase pointEvent profile sync error:", e);
     }
-    return internalDB.createPointEvent(event);
+
+    return newEvent;
   },
 
   async updatePointEventStatus(
@@ -228,28 +301,45 @@ export const dbService = {
     status: PointEvent["status"],
     reviewerNotes?: string
   ): Promise<boolean> {
+    internalDB.updatePointEventStatus(id, status, reviewerNotes);
     try {
       const supabase = createClient();
-      const isDecision = status === "approved" || status === "rejected";
-      const { error } = await supabase
-        .from("point_events")
-        .update({
-          status,
-          ...(isDecision ? { decision: status } : {}),
-          ...(isDecision ? { decision_at: new Date().toISOString() } : {}),
-          ...(reviewerNotes ? { decision_rationale: reviewerNotes } : {}),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, academic_notes");
 
-      if (!error) {
-        internalDB.updatePointEventStatus(id, status, reviewerNotes);
-        return true;
+      if (Array.isArray(profiles)) {
+        for (const p of profiles) {
+          if (p.academic_notes) {
+            try {
+              const parsed = JSON.parse(p.academic_notes);
+              if (Array.isArray(parsed.pointEvents) && parsed.pointEvents.some((pe: any) => pe.id === id)) {
+                parsed.pointEvents = parsed.pointEvents.map((pe: any) =>
+                  pe.id === id
+                    ? {
+                        ...pe,
+                        status,
+                        decision: status,
+                        decision_at: new Date().toISOString(),
+                        decision_rationale: reviewerNotes || pe.decision_rationale,
+                        updated_at: new Date().toISOString(),
+                      }
+                    : pe
+                );
+                await supabase
+                  .from("profiles")
+                  .update({ academic_notes: JSON.stringify(parsed), updated_at: new Date().toISOString() })
+                  .eq("id", p.id);
+                break;
+              }
+            } catch (_) {}
+          }
+        }
       }
     } catch (e) {
       console.warn("Supabase updatePointEventStatus error:", e);
     }
-    return internalDB.updatePointEventStatus(id, status, reviewerNotes);
+    return true;
   },
 
   // ── Evaluations ─────────────────────────────────────────
@@ -495,6 +585,98 @@ export const dbService = {
       console.warn("Supabase createAuditLog error:", e);
     }
     return internalDB.createAuditLog(newLog);
+  },
+
+  // ── Notifications ───────────────────────────────────────
+  async getNotifications(userId?: string): Promise<Notification[]> {
+    try {
+      const supabase = createClient();
+      let query = supabase
+        .from("notifications")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (userId) {
+        query = query.eq("recipient_id", userId);
+      }
+
+      const { data, error } = await query;
+      if (!error && Array.isArray(data)) {
+        return data.map((d: any) => ({
+          ...d,
+          user_id: d.recipient_id || d.user_id,
+        })) as Notification[];
+      }
+    } catch (e) {
+      console.warn("Supabase notifications query error:", e);
+    }
+
+    const local = internalDB.getNotifications();
+    return userId ? local.filter((n) => n.user_id === userId) : local;
+  },
+
+  async createNotification(
+    notif: Omit<Notification, "id" | "created_at">
+  ): Promise<Notification> {
+    const newNotif: Notification = {
+      ...notif,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+    };
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("notifications")
+        .insert([
+          {
+            id: newNotif.id,
+            recipient_id: newNotif.user_id,
+            title: newNotif.title,
+            message: newNotif.message,
+            type: newNotif.type,
+            is_read: newNotif.is_read,
+            created_at: newNotif.created_at,
+          },
+        ])
+        .select()
+        .single();
+
+      if (!error && data) {
+        internalDB.createNotification(newNotif);
+        return newNotif;
+      }
+    } catch (e) {
+      console.warn("Supabase createNotification error:", e);
+    }
+    return internalDB.createNotification(newNotif);
+  },
+
+  async markNotificationAsRead(id: string): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", id);
+    } catch (e) {
+      console.warn("Supabase markNotificationAsRead error:", e);
+    }
+    return internalDB.markNotificationAsRead(id);
+  },
+
+  async markAllNotificationsAsRead(userId?: string): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      if (userId) {
+        await supabase
+          .from("notifications")
+          .update({ is_read: true })
+          .eq("recipient_id", userId);
+      }
+    } catch (e) {
+      console.warn("Supabase markAllNotificationsAsRead error:", e);
+    }
+    return internalDB.markAllNotificationsAsRead(userId);
   },
 };
 

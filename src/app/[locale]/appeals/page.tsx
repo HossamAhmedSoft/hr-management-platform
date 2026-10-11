@@ -46,11 +46,27 @@ export default function AppealsPage() {
     return availableUsers.find((u) => u.id === id)?.full_name || id;
   };
 
+  // Robust user matching helper
+  const isMatchUser = (targetId?: string) => {
+    if (!targetId || !currentUser) return false;
+    if (targetId === currentUser.id) return true;
+    if (currentUser.email && targetId.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    const targetProf = availableUsers.find((u) => u.id === targetId);
+    if (
+      targetProf?.email &&
+      currentUser.email &&
+      targetProf.email.toLowerCase() === currentUser.email.toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  };
+
   // Scoped appeals based on role
   const visibleAppeals = appeals.filter((a) => {
     if (isMember) {
       // Ordinary member ONLY sees appeals lodged by themselves!
-      return a.member_id === currentUser?.id;
+      return isMatchUser(a.member_id);
     }
     return true;
   });

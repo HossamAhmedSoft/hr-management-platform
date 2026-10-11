@@ -561,3 +561,267 @@ export interface FilterParams {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }
+
+// ── Technical Tracks & Participants Domain (Production) ───────
+
+export type ParticipantStatus = "active" | "inactive" | "completed" | "withdrawn" | "suspended";
+
+export interface Participant {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  university?: string;
+  faculty_department?: string;
+  academic_year?: string;
+  registration_date: string;
+  status: ParticipantStatus;
+  notes?: string; // Restricted to instructors & HR
+  created_at: string;
+  updated_at: string;
+}
+
+export type TrackCategory =
+  | "web"
+  | "mobile"
+  | "cybersecurity"
+  | "embedded"
+  | "uiux"
+  | "ai_ml"
+  | "other";
+
+export type TechnicalTrackStatus =
+  | "draft"
+  | "registration_open"
+  | "active"
+  | "completed"
+  | "archived";
+
+export interface TechnicalTrack {
+  id: string;
+  name: string;
+  name_ar: string;
+  description: string;
+  category: TrackCategory;
+  cohort: string;
+  start_date: string;
+  end_date: string;
+  reg_open_date?: string;
+  reg_close_date?: string;
+  lead_id?: string;
+  lead_name?: string;
+  mentor_ids?: string[];
+  max_capacity: number;
+  attendance_requirements: number; // e.g., 75%
+  assignment_weight: number; // default 30%
+  attendance_weight: number; // default 40%
+  participation_weight: number; // default 20%
+  conduct_weight: number; // default 10%
+  certificate_min_score: number; // default 75%
+  status: TechnicalTrackStatus;
+  syllabus?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export type EnrollmentStatus = "pending" | "active" | "completed" | "withdrawn" | "rejected";
+export type CompletionStatus = "in_progress" | "certified" | "failed" | "withdrawn";
+
+export interface TrackEnrollment {
+  id: string;
+  participant_id: string;
+  participant?: Participant;
+  track_id: string;
+  track?: TechnicalTrack;
+  cohort: string;
+  enrollment_date: string;
+  status: EnrollmentStatus;
+  current_progress: number; // 0 - 100%
+  final_result: number; // calculated 100-pt score
+  completion_status: CompletionStatus;
+  withdrawal_date?: string;
+  withdrawal_reason?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SessionStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
+
+export interface TrackSession {
+  id: string;
+  track_id: string;
+  cohort: string;
+  title: string;
+  description?: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  instructor_id?: string;
+  instructor_name?: string;
+  location_or_link: string;
+  materials_url?: string;
+  recording_url?: string;
+  status: SessionStatus;
+  cancellation_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type TrackAttendanceStatus = "present" | "absent" | "excused" | "late" | "pending";
+
+export interface TrackAttendanceRecord {
+  id: string;
+  session_id: string;
+  track_id: string;
+  enrollment_id: string;
+  participant_id: string;
+  status: TrackAttendanceStatus;
+  recorded_by: string;
+  recorder_name?: string;
+  notes?: string;
+  excuse_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrackAssignment {
+  id: string;
+  track_id: string;
+  cohort: string;
+  title: string;
+  description: string;
+  instructions: string;
+  resources_url?: string;
+  publication_date: string;
+  deadline: string;
+  max_score: number;
+  weight_in_track?: number;
+  required_deliverables: string;
+  submission_format: string; // e.g. "GitHub Repo URL / Figma Link / Google Drive"
+  late_policy: string;
+  revision_policy: string;
+  reviewer_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type TrackSubmissionStatus =
+  | "not_started"
+  | "in_progress"
+  | "submitted"
+  | "submitted_late"
+  | "under_review"
+  | "needs_revision"
+  | "resubmitted"
+  | "graded"
+  | "missing"
+  | "excused";
+
+export interface TrackSubmission {
+  id: string;
+  assignment_id: string;
+  enrollment_id: string;
+  participant_id: string;
+  submission_url: string;
+  submitted_at: string;
+  status: TrackSubmissionStatus;
+  score: number | null; // out of assignment.max_score
+  reviewer_feedback?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  deadline_extension_date?: string;
+  extended_by?: string;
+  extension_reason?: string;
+  revision_history?: Array<{
+    date: string;
+    url: string;
+    note: string;
+  }>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BonusCategory =
+  | "exceptional_project"
+  | "additional_effort"
+  | "helping_peers"
+  | "voluntary_contribution"
+  | "competition"
+  | "other";
+
+export interface TrackBonus {
+  id: string;
+  enrollment_id: string;
+  track_id: string;
+  participant_id: string;
+  amount: number;
+  category: BonusCategory;
+  description: string;
+  evidence_url?: string;
+  recorded_by: string;
+  approval_status: "pending" | "approved" | "rejected";
+  approval_reason?: string;
+  rejection_reason?: string;
+  approved_by?: string;
+  approved_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrackEvaluation {
+  id: string;
+  enrollment_id: string;
+  participant_id: string;
+  track_id: string;
+  cohort: string;
+  evaluator_id: string;
+  evaluator_name?: string;
+  attendance_score: number; // max 40
+  assignment_score: number; // max 30
+  participation_score: number; // max 20
+  conduct_score: number; // max 10
+  raw_total: number; // 0 - 100
+  bonus_points: number; // bonus separate
+  final_official_score: number; // capped at 100 unless approved policy
+  is_certified: boolean; // >= 75% and attendance >= 75%
+  feedback_notes?: string;
+  private_instructor_notes?: string;
+  version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CertificateStatus = "eligible" | "issued" | "revoked";
+
+export interface TrackCertificate {
+  id: string;
+  enrollment_id: string;
+  participant_id: string;
+  track_id: string;
+  cohort: string;
+  certificate_code: string; // e.g. GDG-NCTU-2026-WEB-001
+  issue_date: string;
+  status: CertificateStatus;
+  official_score: number;
+  issued_by: string;
+  verification_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrackFollowUp {
+  id: string;
+  enrollment_id: string;
+  participant_id: string;
+  track_id: string;
+  risk_factors: string[]; // ['low_attendance', 'missing_assignments', 'deadline_overdue']
+  responsible_person_id: string;
+  responsible_person_name?: string;
+  action_plan: string;
+  due_date: string;
+  outcome?: string;
+  status: "open" | "in_progress" | "resolved" | "escalated";
+  created_at: string;
+  updated_at: string;
+}

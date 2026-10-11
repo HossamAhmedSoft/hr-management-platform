@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   Menu,
   Moon,
@@ -13,10 +14,16 @@ import {
   AlertTriangle,
   SlidersHorizontal,
   LogOut,
+  CheckSquare,
+  Award,
+  TrendingUp,
+  CheckCheck,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useApp } from "@/lib/app-context";
+import { Notification } from "@/types";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -32,6 +39,10 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     pointEvents,
     appeals,
     tasks,
+    notifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    availableUsers,
     logout,
   } = useApp();
 
@@ -39,19 +50,25 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const isAr = locale === "ar";
   const isMember = currentUser?.role === "member";
 
-  // Notifications scoped to user role
-  const memberTasks = isMember
-    ? tasks.filter(
-        (t) =>
-          (t.created_by === currentUser?.id ||
-            t.assignees?.some((a) => a.profile_id === currentUser?.id)) &&
-          (t.status === "assigned" || t.status === "in_progress")
-      )
-    : [];
+  // Robust matching helper
+  const isMatchUser = (targetId?: string) => {
+    if (!targetId || !currentUser) return false;
+    if (targetId === currentUser.id) return true;
+    if (currentUser.email && targetId.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    const targetProf = availableUsers.find((u) => u.id === targetId);
+    if (
+      targetProf?.email &&
+      currentUser.email &&
+      targetProf.email.toLowerCase() === currentUser.email.toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  };
 
-  const memberPointUpdates = isMember
-    ? pointEvents.filter((p) => p.member_id === currentUser?.id && p.status === "approved").slice(0, 3)
-    : [];
+  // Real user notifications from dbService / AppContext
+  const userNotifications = notifications.filter((n) => isMatchUser(n.user_id));
+  const unreadCount = userNotifications.filter((n) => !n.is_read).length;
 
   const pendingPoints = !isMember
     ? pointEvents.filter((p) => p.status === "pending_review")
@@ -60,7 +77,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const pendingAppeals = !isMember
     ? appeals.filter((a) => a.status === "submitted" || a.status === "under_review")
     : appeals.filter(
-        (a) => a.member_id === currentUser?.id && (a.status === "submitted" || a.status === "under_review")
+        (a) => isMatchUser(a.member_id) && (a.status === "submitted" || a.status === "under_review")
       );
 
   const pendingTasksToApprove = !isMember
@@ -68,8 +85,8 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     : [];
 
   const totalNotifications = isMember
-    ? memberTasks.length + memberPointUpdates.length + pendingAppeals.length
-    : pendingPoints.length + pendingAppeals.length + pendingTasksToApprove.length;
+    ? unreadCount + pendingAppeals.length
+    : unreadCount + pendingPoints.length + pendingAppeals.length + pendingTasksToApprove.length;
 
   const getRoleBadge = (role: string) => {
     switch (role) {
@@ -192,56 +209,140 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             {/* Notifications Dropdown */}
             {showNotifications && (
               <div
-                className={`absolute top-10 z-50 w-80 p-3 bg-card rounded-lg shadow-lg border border-border ${
+                className={`absolute top-10 z-50 w-88 sm:w-96 p-3 bg-card rounded-xl shadow-xl border border-border ${
                   isAr ? "left-0" : "right-0"
                 }`}
               >
-                <div className="flex items-center justify-between pb-2 border-b border-border">
-                  <span className="text-xs font-bold text-foreground">
-                    {isAr ? "مركز الإشعارات والتنبيهات" : "Notification Feed"}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {totalNotifications} {isAr ? "معلق" : "pending"}
-                  </span>
+                <div className="flex items-center justify-between pb-2.5 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-foreground">
+                      {isAr ? "مركز الإشعارات والتنبيهات" : "Notification Feed"}
+                    </span>
+                    {unreadCount > 0 && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-[#1a73e8] text-white">
+                        {unreadCount} {isAr ? "جديد" : "new"}
+                      </span>
+                    )}
+                  </div>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={() => markAllNotificationsAsRead()}
+                      className="text-[11px] text-[#1a73e8] dark:text-[#8ab4f8] hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                    >
+                      <CheckCheck className="w-3 h-3" />
+                      <span>{isAr ? "تحديد الكل كمقروء" : "Mark all read"}</span>
+                    </button>
+                  )}
                 </div>
-                <div className="py-2 space-y-2 text-xs max-h-60 overflow-y-auto">
-                  {totalNotifications === 0 ? (
-                    <div className="py-6 text-center text-muted-foreground">
-                      <CheckCircle className="w-6 h-6 mx-auto mb-1 opacity-40 text-emerald-600" />
+
+                <div className="py-2 space-y-2 text-xs max-h-80 overflow-y-auto">
+                  {userNotifications.length === 0 && pendingPoints.length === 0 && pendingAppeals.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground">
+                      <CheckCircle className="w-7 h-7 mx-auto mb-1.5 opacity-40 text-emerald-600" />
                       <p className="text-xs font-semibold">
-                        {isAr ? "لا توجد إشعارات معلقة" : "No pending notifications"}
+                        {isAr ? "لا توجد إشعارات جديدة حالياً" : "No new notifications"}
                       </p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {isAr ? "كل الحركات والتظلمات معتمدة ومستقرة." : "All ledgers and appeals are up to date."}
+                        {isAr
+                          ? "ستظهر هنا أي تكليفات أو نقاط أو تقييمات تصدرها الإدارة."
+                          : "Any new tasks, point adjustments, or evaluations will appear here."}
                       </p>
                     </div>
                   ) : (
                     <>
-                      {pendingPoints.map((p) => (
-                        <div key={p.id} className="p-2.5 rounded-md bg-[#e8f0fe] dark:bg-[#1a73e8]/20 flex items-start gap-2">
+                      {/* Real User Live Notifications */}
+                      {userNotifications.map((n) => {
+                        const isTask = n.type === "task_assigned" || n.type === "task_deadline";
+                        const isReview = n.type === "task_review";
+                        const isPoint = n.type === "point_submitted" || n.type === "point_decision";
+                        const isEval = n.type === "evaluation_finalized" || n.type === "evaluation_submitted";
+
+                        return (
+                          <Link
+                            key={n.id}
+                            href={n.link || `/${locale}`}
+                            onClick={() => {
+                              markNotificationAsRead(n.id);
+                              setShowNotifications(false);
+                            }}
+                            className={`p-2.5 rounded-lg flex items-start gap-2.5 transition-colors border block ${
+                              !n.is_read
+                                ? "bg-[#e8f0fe] dark:bg-[#1a73e8]/15 border-[#d2e3fc] dark:border-[#1a73e8]/30"
+                                : "bg-muted/40 hover:bg-muted/70 border-transparent"
+                            }`}
+                          >
+                            <div className="p-1 rounded bg-background shrink-0 mt-0.5 shadow-2xs">
+                              {isTask && <CheckSquare className="w-4 h-4 text-[#1a73e8]" />}
+                              {isReview && <CheckCircle className="w-4 h-4 text-emerald-600" />}
+                              {isPoint && <Award className="w-4 h-4 text-[#b06000] dark:text-[#fbbc04]" />}
+                              {isEval && <TrendingUp className="w-4 h-4 text-purple-600" />}
+                              {!isTask && !isReview && !isPoint && !isEval && (
+                                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="font-bold text-foreground text-xs truncate">
+                                  {n.title}
+                                </p>
+                                {!n.is_read && (
+                                  <span className="w-2 h-2 rounded-full bg-[#1a73e8] shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">
+                                {n.message}
+                              </p>
+                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground/80 mt-1">
+                                <Clock className="w-3 h-3" />
+                                <span>
+                                  {new Date(n.created_at).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })} • {new Date(n.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+
+                      {/* Admin Pending Action Items */}
+                      {!isMember && pendingPoints.map((p) => (
+                        <Link
+                          key={p.id}
+                          href={`/${locale}/points`}
+                          onClick={() => setShowNotifications(false)}
+                          className="p-2.5 rounded-lg bg-[#e8f0fe]/80 dark:bg-[#1a73e8]/10 border border-[#d2e3fc] dark:border-[#1a73e8]/25 flex items-start gap-2 block hover:bg-[#e8f0fe] transition-colors"
+                        >
                           <CheckCircle className="w-4 h-4 text-[#1a73e8] mt-0.5 shrink-0" />
                           <div>
-                            <p className="font-semibold text-foreground">
+                            <p className="font-bold text-foreground">
                               {isAr ? "طلب تسجيل نقاط بانتظار المراجعة" : "Point Entry Pending Review"}
                             </p>
-                            <p className="text-[11px] text-muted-foreground line-clamp-1">
+                            <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
                               {p.explanation}
                             </p>
                           </div>
-                        </div>
+                        </Link>
                       ))}
+
                       {pendingAppeals.map((a) => (
-                        <div key={a.id} className="p-2.5 rounded-md bg-[#fef7e0] dark:bg-[#fbbc04]/20 flex items-start gap-2">
+                        <Link
+                          key={a.id}
+                          href={`/${locale}/appeals`}
+                          onClick={() => setShowNotifications(false)}
+                          className="p-2.5 rounded-lg bg-[#fef7e0]/80 dark:bg-[#fbbc04]/10 border border-[#feefc3] dark:border-[#fbbc04]/25 flex items-start gap-2 block hover:bg-[#fef7e0] transition-colors"
+                        >
                           <AlertTriangle className="w-4 h-4 text-[#b06000] mt-0.5 shrink-0" />
                           <div>
-                            <p className="font-semibold text-foreground">
+                            <p className="font-bold text-foreground">
                               {isAr ? "تظلم جديد بانتظار المراجعة المحايدة" : "Appeal Awaiting Review"}
                             </p>
-                            <p className="text-[11px] text-muted-foreground line-clamp-1">
+                            <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
                               {a.grounds || a.objection || (isAr ? "طلب طعن قيد النظر" : "Dispute under review")}
                             </p>
                           </div>
-                        </div>
+                        </Link>
                       ))}
                     </>
                   )}

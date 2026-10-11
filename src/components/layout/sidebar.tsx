@@ -96,7 +96,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     },
     {
       href: `/${locale}/education`,
-      label: isAr ? "المسارات التعليمية" : "Educational Tracks",
+      label: isAr ? "المسارات التقنية والأكاديمية" : "Technical Tracks & Academy",
       icon: GraduationCap,
       color: "text-[#34a853] dark:text-[#81c995]",
     },
