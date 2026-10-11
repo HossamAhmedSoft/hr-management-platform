@@ -107,7 +107,7 @@ function isTaskAssignedToUser(task: Partial<Task>, user: Profile, availableUsers
   if (!user) return false;
   if (task.created_by === user.id) return true;
 
-  if (task.assignees && Array.isArray(task.assignees)) {
+  if (task.assignees && Array.isArray(task.assignees) && task.assignees.length > 0) {
     for (const a of task.assignees) {
       if (!a) continue;
       if (a.profile_id === user.id || a.profile?.id === user.id) return true;
@@ -130,10 +130,7 @@ function isTaskAssignedToUser(task: Partial<Task>, user: Profile, availableUsers
         }
       }
     }
-  }
-
-  if (user.team_id && task.team_id === user.team_id) {
-    return true;
+    return false;
   }
 
   return false;
@@ -186,6 +183,16 @@ assert(
   "Unrelated Team Task Isolation",
   !isTaskAssignedToUser(aiTask, mockUsers[0], mockUsers),
   "AI task correctly hidden from Web track member"
+);
+
+// Test 2.3B: Peer Member Task Isolation in Same Team
+const peerWebMember = { id: "usr_web_peer", email: "peer@gdgnctu.com", full_name: "Peer Member", role: "member" as const, team_id: "team_web", status: "active" as const, join_date: "2026-01-01", created_at: "2026-01-01", updated_at: "2026-01-01" };
+assert(
+  "SYNC",
+  "TEST-07B",
+  "Peer Member Task Isolation in Same Team",
+  !isTaskAssignedToUser(directTask, peerWebMember, mockUsers),
+  "Web task assigned to Youssef is strictly hidden from peer member in the same web team"
 );
 
 // Test 2.4: Real-Time Notification Lifecycle

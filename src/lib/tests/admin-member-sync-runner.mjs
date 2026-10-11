@@ -19,7 +19,7 @@ function isTaskAssignedToUser(task, user, availableUsers = []) {
   if (!user) return false;
   if (task.created_by === user.id) return true;
 
-  if (task.assignees && Array.isArray(task.assignees)) {
+  if (task.assignees && Array.isArray(task.assignees) && task.assignees.length > 0) {
     for (const a of task.assignees) {
       if (!a) continue;
       if (a.profile_id === user.id || a.profile?.id === user.id) return true;
@@ -42,10 +42,7 @@ function isTaskAssignedToUser(task, user, availableUsers = []) {
         }
       }
     }
-  }
-
-  if (user.team_id && task.team_id === user.team_id) {
-    return true;
+    return false;
   }
 
   return false;
@@ -91,20 +88,21 @@ try {
   assert("TEST-02", "Task Assignment via Email Cross-Lookup", false, e.message);
 }
 
-// TEST 3: Task Matching via Team ID fallback
+// TEST 3: Peer Task Isolation (Task Assigned to Member 1 is Hidden from Member 2 in Same Team)
 try {
   const task3 = {
     id: "task_003",
-    title: "Web Team Sprint Planning",
+    title: "Web Frontend Architecture Refactor",
     team_id: "team_web",
     created_by: "usr_admin_1",
-    assignees: []
+    assignees: [{ id: "as_3", profile_id: "usr_member_1" }]
   };
-  const memberUser = mockAvailableUsers[0];
-  const matched = isTaskAssignedToUser(task3, memberUser, mockAvailableUsers);
-  assert("TEST-03", "Task Assignment via Team Fallback", matched, `Matched task in team "${task3.team_id}" for user in same team`);
+  // Member 2 is also in team_web, but not an assignee of task3
+  const otherWebMember = { id: "usr_member_2", email: "othermember@gdgnctu.com", full_name: "Omar Member", role: "member", team_id: "team_web" };
+  const matched = isTaskAssignedToUser(task3, otherWebMember, mockAvailableUsers);
+  assert("TEST-03", "Peer Task Isolation in Same Team", !matched, `Task assigned to Youssef is strictly hidden from peer Omar in same team (${!matched})`);
 } catch (e) {
-  assert("TEST-03", "Task Assignment via Team Fallback", false, e.message);
+  assert("TEST-03", "Peer Task Isolation in Same Team", false, e.message);
 }
 
 // TEST 4: Unrelated Task Is Correctly Hidden from Member

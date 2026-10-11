@@ -469,6 +469,7 @@ export interface Event {
 export interface Notification {
   id: string;
   user_id: string;
+  recipient_email?: string;
   title: string;
   message: string;
   type: NotificationType;

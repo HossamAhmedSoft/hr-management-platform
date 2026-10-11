@@ -267,8 +267,11 @@ export function AppProvider({
       if (newTask.assignees && newTask.assignees.length > 0) {
         for (const assignee of newTask.assignees) {
           if (assignee.profile_id) {
+            const matchedUser = availableUsers.find((u) => u.id === assignee.profile_id);
+            const userEmail = assignee.profile?.email || matchedUser?.email;
             await addNotification({
               user_id: assignee.profile_id,
+              recipient_email: userEmail,
               title: locale === "ar" ? "مهمة عمل جديدة مسندة إليك" : "New Task Assigned",
               message:
                 locale === "ar"
@@ -335,8 +338,10 @@ export function AppProvider({
 
       if (newEvent.member_id) {
         const isPos = newEvent.direction === "positive";
+        const targetMember = availableUsers.find((u) => u.id === newEvent.member_id);
         await addNotification({
           user_id: newEvent.member_id,
+          recipient_email: targetMember?.email,
           title: isPos
             ? (locale === "ar" ? "تسجيل نقاط تميز إيجابية (+)" : "Positive Points Awarded (+)")
             : (locale === "ar" ? "إشعار رسمي بتسجيل خصم نقاط (-)" : "Point Deduction Notice (-)"),
@@ -381,8 +386,10 @@ export function AppProvider({
     });
 
     if (targetEvt?.member_id) {
+      const targetMember = availableUsers.find((u) => u.id === targetEvt.member_id);
       await addNotification({
         user_id: targetEvt.member_id,
+        recipient_email: targetMember?.email,
         title: locale === "ar" ? "اعتماد رسمي لحركة النقاط" : "Official Point Verification",
         message:
           locale === "ar"
@@ -424,8 +431,10 @@ export function AppProvider({
     });
 
     if (targetEvt?.member_id) {
+      const targetMember = availableUsers.find((u) => u.id === targetEvt.member_id);
       await addNotification({
         user_id: targetEvt.member_id,
+        recipient_email: targetMember?.email,
         title: locale === "ar" ? "قرار مراجعة حركة النقاط" : "Point Verification Decision",
         message:
           locale === "ar"
@@ -460,8 +469,10 @@ export function AppProvider({
       });
 
       if (evalData.member_id) {
+        const targetMember = availableUsers.find((u) => u.id === evalData.member_id);
         await addNotification({
           user_id: evalData.member_id,
+          recipient_email: targetMember?.email,
           title: locale === "ar" ? "صدور نتيجة التقييم الشهري" : "Monthly Evaluation Published",
           message:
             locale === "ar"
@@ -491,8 +502,10 @@ export function AppProvider({
       });
 
       if (incident.member_id) {
+        const targetMember = availableUsers.find((u) => u.id === incident.member_id);
         await addNotification({
           user_id: incident.member_id,
+          recipient_email: targetMember?.email,
           title: locale === "ar" ? "إشعار إداري رسمي" : "Administrative Notice",
           message:
             locale === "ar"

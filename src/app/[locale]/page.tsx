@@ -95,11 +95,11 @@ export default function DashboardPage() {
     return false;
   };
 
-  // Helper to determine if a task belongs to current user
+  // Helper to determine if a task belongs strictly to current user
   const isTaskAssigned = (t: Task) => {
     if (!currentUser) return false;
     if (t.created_by === currentUser.id) return true;
-    if (t.assignees && Array.isArray(t.assignees)) {
+    if (t.assignees && Array.isArray(t.assignees) && t.assignees.length > 0) {
       for (const a of t.assignees) {
         if (!a) continue;
         if (a.profile_id === currentUser.id || a.profile?.id === currentUser.id) return true;
@@ -120,8 +120,8 @@ export default function DashboardPage() {
           return true;
         }
       }
+      return false;
     }
-    if (currentUser.team_id && t.team_id === currentUser.team_id) return true;
     return false;
   };
 

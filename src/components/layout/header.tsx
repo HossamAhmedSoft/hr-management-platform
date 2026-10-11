@@ -50,11 +50,24 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const isAr = locale === "ar";
   const isMember = currentUser?.role === "member";
 
+  const [readTaskIds, setReadTaskIds] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem("gdg_read_task_notifs");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Robust matching helper
-  const isMatchUser = (targetId?: string) => {
-    if (!targetId || !currentUser) return false;
-    if (targetId === currentUser.id) return true;
-    if (currentUser.email && targetId.toLowerCase() === currentUser.email.toLowerCase()) return true;
+  const isMatchUser = (targetId?: string, targetEmail?: string) => {
+    if (!currentUser) return false;
+    if (targetEmail && currentUser.email && targetEmail.toLowerCase() === currentUser.email.toLowerCase()) {
+      return true;
+    }
+    if (targetId && targetId === currentUser.id) return true;
+    if (currentUser.email && targetId && targetId.toLowerCase() === currentUser.email.toLowerCase()) return true;
     const targetProf = availableUsers.find((u) => u.id === targetId);
     if (
       targetProf?.email &&
@@ -67,7 +80,55 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   };
 
   // Real user notifications from dbService / AppContext
-  const userNotifications = notifications.filter((n) => isMatchUser(n.user_id));
+  const directNotifications = notifications.filter((n) => isMatchUser(n.user_id, n.recipient_email));
+
+  // User's specifically assigned tasks
+  const myAssignedTasks = tasks.filter((t) => {
+    if (!currentUser) return false;
+    if (t.assignees && Array.isArray(t.assignees) && t.assignees.length > 0) {
+      return t.assignees.some((a) => {
+        if (!a) return false;
+        if (a.profile_id === currentUser.id || a.profile?.id === currentUser.id) return true;
+        if (
+          currentUser.email &&
+          a.profile?.email &&
+          a.profile.email.toLowerCase() === currentUser.email.toLowerCase()
+        ) {
+          return true;
+        }
+        const matched = availableUsers.find((u) => u.id === a.profile_id);
+        if (
+          matched &&
+          (matched.id === currentUser.id ||
+            (currentUser.email &&
+              matched.email?.toLowerCase() === currentUser.email.toLowerCase()))
+        ) {
+          return true;
+        }
+        return false;
+      });
+    }
+    return false;
+  });
+
+  // Guaranteed derived task notifications for assignees
+  const derivedTaskNotifs = myAssignedTasks
+    .filter((t) => !directNotifications.some((n) => n.link?.includes(t.id) || (n.message && n.message.includes(t.title))))
+    .map((t) => ({
+      id: `derived_task_${t.id}`,
+      user_id: currentUser?.id || "",
+      recipient_email: currentUser?.email,
+      title: isAr ? "مهمة عمل جديدة مسندة إليك" : "New Task Assigned",
+      message: isAr
+        ? `تم تكليفك بمهمة: "${t.title}". الموعد النهائي: ${new Date(t.deadline).toLocaleDateString("ar-EG")}`
+        : `You have been assigned to task: "${t.title}". Deadline: ${new Date(t.deadline).toLocaleDateString()}`,
+      type: "task_assigned" as const,
+      link: `/${locale}/tasks`,
+      is_read: readTaskIds.includes(t.id) || t.status === "completed",
+      created_at: t.created_at || new Date().toISOString(),
+    }));
+
+  const userNotifications = [...derivedTaskNotifs, ...directNotifications];
   const unreadCount = userNotifications.filter((n) => !n.is_read).length;
 
   const pendingPoints = !isMember
@@ -226,7 +287,15 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                   </div>
                   {unreadCount > 0 && (
                     <button
-                      onClick={() => markAllNotificationsAsRead()}
+                      onClick={() => {
+                        markAllNotificationsAsRead();
+                        const allIds = myAssignedTasks.map((t) => t.id);
+                        const updated = Array.from(new Set([...readTaskIds, ...allIds]));
+                        setReadTaskIds(updated);
+                        if (typeof window !== "undefined") {
+                          localStorage.setItem("gdg_read_task_notifs", JSON.stringify(updated));
+                        }
+                      }}
                       className="text-[11px] text-[#1a73e8] dark:text-[#8ab4f8] hover:underline flex items-center gap-1 font-medium cursor-pointer"
                     >
                       <CheckCheck className="w-3 h-3" />
@@ -262,7 +331,16 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                             key={n.id}
                             href={n.link || `/${locale}`}
                             onClick={() => {
-                              markNotificationAsRead(n.id);
+                              if (n.id.startsWith("derived_task_")) {
+                                const taskId = n.id.replace("derived_task_", "");
+                                const updated = Array.from(new Set([...readTaskIds, taskId]));
+                                setReadTaskIds(updated);
+                                if (typeof window !== "undefined") {
+                                  localStorage.setItem("gdg_read_task_notifs", JSON.stringify(updated));
+                                }
+                              } else {
+                                markNotificationAsRead(n.id);
+                              }
                               setShowNotifications(false);
                             }}
                             className={`p-2.5 rounded-lg flex items-start gap-2.5 transition-colors border block ${

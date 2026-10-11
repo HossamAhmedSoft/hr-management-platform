@@ -62,12 +62,12 @@ export default function TasksPage() {
     }
   }, [teams, newTeam, availableUsers, newAssignee]);
 
-  // Bulletproof matching helper for tasks
+  // Bulletproof matching helper for tasks: strictly requires user to be an assigned member
   const isAssignedToUser = (task: Task) => {
     if (!currentUser) return false;
     if (task.created_by === currentUser.id) return true;
 
-    if (task.assignees && Array.isArray(task.assignees)) {
+    if (task.assignees && Array.isArray(task.assignees) && task.assignees.length > 0) {
       for (const a of task.assignees) {
         if (!a) continue;
         if (a.profile_id === currentUser.id || a.profile?.id === currentUser.id) return true;
@@ -90,10 +90,7 @@ export default function TasksPage() {
           }
         }
       }
-    }
-
-    if (currentUser.team_id && task.team_id === currentUser.team_id) {
-      return true;
+      return false;
     }
 
     return false;
