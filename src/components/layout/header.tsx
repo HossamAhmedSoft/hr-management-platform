@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useApp } from "@/lib/app-context";
 import { Notification } from "@/types";
+import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -179,27 +180,28 @@ export function Header({ onToggleSidebar }: HeaderProps) {
       </div>
 
       {/* 2. Main Header Content Bar */}
-      <div className="flex items-center justify-between h-16 px-4 md:px-6">
-        {/* Left: Mobile Toggle + Title in English */}
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between h-14 sm:h-16 px-3 sm:px-4 md:px-6">
+        {/* Left: Mobile Toggle + Title */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={onToggleSidebar}
-            className="p-2 rounded-md text-muted-foreground hover:bg-muted lg:hidden"
+            className="p-1.5 sm:p-2 rounded-lg text-muted-foreground hover:bg-muted lg:hidden shrink-0"
             aria-label="Toggle menu"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-foreground tracking-tight">
-                GDG NCTU - Management Portal
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <h1 className="text-sm sm:text-base font-bold text-foreground tracking-tight truncate">
+                <span className="sm:hidden">GDG NCTU</span>
+                <span className="hidden sm:inline">GDG NCTU - Management Portal</span>
               </h1>
-              <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-semibold rounded bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] border border-[#d2e3fc] dark:border-[#1a73e8]/30">
+              <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-semibold rounded bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] border border-[#d2e3fc] dark:border-[#1a73e8]/30 shrink-0">
                 M3 Console
               </span>
             </div>
-            <p className="text-[11px] text-muted-foreground hidden sm:block">
+            <p className="text-[11px] text-muted-foreground hidden sm:block truncate">
               {isAr
                 ? "منظومة قواعد ونقاط الأداء وإدارة العمليات — جامعة القاهرة التكنولوجية الجديدة"
                 : "Rules, Points System & Performance Management Portal"}
@@ -224,17 +226,17 @@ export function Header({ onToggleSidebar }: HeaderProps) {
         </div>
 
         {/* Right: Controls & User Profile */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Language Switcher */}
           <Button
             variant="ghost"
             size="sm"
             onClick={toggleLocale}
-            className="h-8 px-2 rounded-md text-xs font-semibold gap-1.5 text-foreground hover:bg-muted"
+            className="h-8 px-1.5 sm:px-2 rounded-lg text-xs font-semibold gap-1 text-foreground hover:bg-muted"
             title="Switch Language"
           >
             <Globe className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>{locale === "en" ? "عربي" : "EN"}</span>
+            <span className="text-[11px] sm:text-xs">{locale === "en" ? "عربي" : "EN"}</span>
           </Button>
 
           {/* Theme Toggle */}
@@ -242,7 +244,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             variant="ghost"
             size="icon"
             onClick={toggleTheme}
-            className="h-8 w-8 rounded-md hover:bg-muted"
+            className="h-8 w-8 rounded-lg hover:bg-muted"
             title="Toggle Dark/Light"
           >
             {theme === "light" ? (
@@ -258,7 +260,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
               variant="ghost"
               size="icon"
               onClick={() => setShowNotifications(!showNotifications)}
-              className="h-8 w-8 rounded-md relative hover:bg-muted"
+              className="h-8 w-8 rounded-lg relative hover:bg-muted"
               title="Notifications"
             >
               <Bell className="w-4 h-4 text-muted-foreground" />
@@ -269,40 +271,48 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
             {/* Notifications Dropdown */}
             {showNotifications && (
-              <div
-                className={`absolute top-10 z-50 w-88 sm:w-96 p-3 bg-card rounded-xl shadow-xl border border-border ${
-                  isAr ? "left-0" : "right-0"
-                }`}
-              >
-                <div className="flex items-center justify-between pb-2.5 border-b border-border">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-foreground">
-                      {isAr ? "مركز الإشعارات والتنبيهات" : "Notification Feed"}
-                    </span>
-                    {unreadCount > 0 && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-[#1a73e8] text-white">
-                        {unreadCount} {isAr ? "جديد" : "new"}
+              <>
+                {/* Mobile backdrop */}
+                <div
+                  className="fixed inset-0 z-40 bg-black/40 backdrop-blur-2xs sm:hidden"
+                  onClick={() => setShowNotifications(false)}
+                />
+
+                <div
+                  className={cn(
+                    "fixed top-15 inset-x-3 sm:inset-x-auto sm:top-10 z-50 sm:w-96 p-3 bg-card rounded-2xl sm:rounded-xl shadow-2xl border border-border",
+                    isAr ? "sm:left-0" : "sm:right-0"
+                  )}
+                >
+                  <div className="flex items-center justify-between pb-2.5 border-b border-border">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-foreground">
+                        {isAr ? "مركز الإشعارات والتنبيهات" : "Notification Feed"}
                       </span>
+                      {unreadCount > 0 && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-[#1a73e8] text-white">
+                          {unreadCount} {isAr ? "جديد" : "new"}
+                        </span>
+                      )}
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={() => {
+                          markAllNotificationsAsRead();
+                          const allIds = myAssignedTasks.map((t) => t.id);
+                          const updated = Array.from(new Set([...readTaskIds, ...allIds]));
+                          setReadTaskIds(updated);
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("gdg_read_task_notifs", JSON.stringify(updated));
+                          }
+                        }}
+                        className="text-[11px] text-[#1a73e8] dark:text-[#8ab4f8] hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                      >
+                        <CheckCheck className="w-3 h-3" />
+                        <span>{isAr ? "تحديد الكل كمقروء" : "Mark all read"}</span>
+                      </button>
                     )}
                   </div>
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={() => {
-                        markAllNotificationsAsRead();
-                        const allIds = myAssignedTasks.map((t) => t.id);
-                        const updated = Array.from(new Set([...readTaskIds, ...allIds]));
-                        setReadTaskIds(updated);
-                        if (typeof window !== "undefined") {
-                          localStorage.setItem("gdg_read_task_notifs", JSON.stringify(updated));
-                        }
-                      }}
-                      className="text-[11px] text-[#1a73e8] dark:text-[#8ab4f8] hover:underline flex items-center gap-1 font-medium cursor-pointer"
-                    >
-                      <CheckCheck className="w-3 h-3" />
-                      <span>{isAr ? "تحديد الكل كمقروء" : "Mark all read"}</span>
-                    </button>
-                  )}
-                </div>
 
                 <div className="py-2 space-y-2 text-xs max-h-80 overflow-y-auto">
                   {userNotifications.length === 0 && pendingPoints.length === 0 && pendingAppeals.length === 0 ? (
@@ -426,7 +436,8 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                   )}
                 </div>
               </div>
-            )}
+            </>
+          )}
           </div>
 
           {/* User Profile Pill & Logout */}

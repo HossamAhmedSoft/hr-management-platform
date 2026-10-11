@@ -148,17 +148,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          "fixed top-0 bottom-0 z-50 flex flex-col w-68 bg-card border-r border-border transition-transform duration-200 ease-in-out lg:static lg:translate-x-0",
+          "fixed top-0 bottom-0 z-50 flex flex-col w-[280px] max-w-[85vw] bg-card border-r border-border transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 shadow-2xl lg:shadow-none",
           isAr ? "right-0 border-l border-r-0" : "left-0",
           isOpen
-            ? "translate-x-0 shadow-xl"
+            ? "translate-x-0"
             : isAr
             ? "translate-x-full"
             : "-translate-x-full"
         )}
       >
         {/* Brand Header */}
-        <div className="flex items-center justify-between h-16 px-5 border-b border-border">
+        <div className="flex items-center justify-between h-14 sm:h-16 px-4 sm:px-5 border-b border-border">
           <Link
             href={`/${locale}`}
             className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
@@ -183,15 +183,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-muted-foreground hover:bg-muted lg:hidden"
+            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted lg:hidden min-w-[36px] min-h-[36px] flex items-center justify-center"
             aria-label="Close sidebar"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Navigation Sections */}
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 space-y-4">
           {/* Main Section */}
           <div className="space-y-1">
             <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">

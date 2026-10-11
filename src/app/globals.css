@@ -174,3 +174,26 @@ body {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #5f6368;
 }
+
+/* Mobile-Specific Utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.safe-area-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0.5rem));
+}
+
+/* Enhanced Mobile Touch & Active States */
+@media (max-width: 768px) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  input, select, textarea, button {
+    font-size: 16px; /* Prevents auto-zoom on iOS inputs */
+  }
+}

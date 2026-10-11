@@ -216,7 +216,7 @@ export default function TasksPage() {
       </PageHeader>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 no-scrollbar">
         {[
           { key: "all", label: isAr ? "الكل" : "All" },
           { key: "assigned", label: isAr ? "المُعينة" : "Assigned" },
@@ -230,7 +230,7 @@ export default function TasksPage() {
             variant={filterStatus === tab.key ? "default" : "outline"}
             size="sm"
             onClick={() => setFilterStatus(tab.key)}
-            className="text-xs h-8 rounded-full"
+            className="text-xs h-8 rounded-full shrink-0"
           >
             {tab.label}
           </Button>

@@ -305,7 +305,7 @@ export default function PointsPage() {
       </Card>
 
       {/* Filters */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 no-scrollbar">
         {[
           { key: "all", label: isAr ? "جميع الحركات" : "All Entries" },
           { key: "pending", label: isAr ? "قيد المراجعة" : "Pending Review" },
@@ -317,7 +317,7 @@ export default function PointsPage() {
             variant={filterDirection === btn.key ? "default" : "outline"}
             size="sm"
             onClick={() => setFilterDirection(btn.key)}
-            className="text-xs h-8 rounded-full"
+            className="text-xs h-8 rounded-full shrink-0"
           >
             {btn.label}
           </Button>

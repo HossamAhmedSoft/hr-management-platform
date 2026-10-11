@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
+import { MobileNav } from "./mobile-nav";
 import { useApp } from "@/lib/app-context";
 import { canAccessRoute } from "@/lib/auth-service";
 
@@ -47,11 +48,14 @@ export function MainLayout({ children }: MainLayoutProps) {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Content Area */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative">
         <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
-          <div className="max-w-7xl mx-auto space-y-6">{children}</div>
+        <main className="flex-1 overflow-y-auto px-3.5 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8 pb-24 lg:pb-8">
+          <div className="max-w-7xl mx-auto space-y-5 sm:space-y-6">{children}</div>
         </main>
+
+        {/* Mobile Bottom Navigation Bar */}
+        <MobileNav onOpenSidebar={() => setSidebarOpen(true)} />
       </div>
     </div>
   );

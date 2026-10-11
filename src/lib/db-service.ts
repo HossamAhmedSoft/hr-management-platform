@@ -138,7 +138,7 @@ export const dbService = {
               if (Array.isArray(meta.assignees)) {
                 assigneesList = meta.assignees;
               }
-            } catch (_) {}
+            } catch (_) { }
           }
 
           if (assigneesList.length === 0) {
@@ -238,7 +238,7 @@ export const dbService = {
               if (Array.isArray(parsed.pointEvents)) {
                 remoteEvents.push(...parsed.pointEvents);
               }
-            } catch (_) {}
+            } catch (_) { }
           }
         });
 
@@ -281,7 +281,7 @@ export const dbService = {
 
       if (pData) {
         let notesData: any = {};
-        try { notesData = JSON.parse(pData.academic_notes || "{}"); } catch (_) {}
+        try { notesData = JSON.parse(pData.academic_notes || "{}"); } catch (_) { }
         const curEvents = Array.isArray(notesData.pointEvents) ? notesData.pointEvents : [];
         notesData.pointEvents = [newEvent, ...curEvents.filter((ce: any) => ce.id !== newEvent.id)];
         await supabase
@@ -317,13 +317,13 @@ export const dbService = {
                 parsed.pointEvents = parsed.pointEvents.map((pe: any) =>
                   pe.id === id
                     ? {
-                        ...pe,
-                        status,
-                        decision: status,
-                        decision_at: new Date().toISOString(),
-                        decision_rationale: reviewerNotes || pe.decision_rationale,
-                        updated_at: new Date().toISOString(),
-                      }
+                      ...pe,
+                      status,
+                      decision: status,
+                      decision_at: new Date().toISOString(),
+                      decision_rationale: reviewerNotes || pe.decision_rationale,
+                      updated_at: new Date().toISOString(),
+                    }
                     : pe
                 );
                 await supabase
@@ -332,7 +332,7 @@ export const dbService = {
                   .eq("id", p.id);
                 break;
               }
-            } catch (_) {}
+            } catch (_) { }
           }
         }
       }
