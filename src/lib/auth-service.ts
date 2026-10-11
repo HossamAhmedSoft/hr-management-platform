@@ -217,16 +217,18 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
   if (
     cleanPath === "/" ||
     cleanPath === "/login" ||
-    cleanPath === "/members" ||
     cleanPath === "/tasks" ||
     cleanPath === "/points" ||
     cleanPath === "/evaluations" ||
     cleanPath === "/appeals" ||
-    cleanPath === "/attendance" ||
-    cleanPath === "/education" ||
-    cleanPath === "/teams"
+    cleanPath === "/attendance"
   ) {
     return true;
+  }
+
+  // Restricted from standard member: Members Directory, Tracks & Committees, and Educational Tracks
+  if (cleanPath === "/members" || cleanPath === "/teams" || cleanPath === "/education") {
+    return role === "super_admin" || role === "hr_admin" || role === "hr_reviewer" || role === "team_lead";
   }
 
   if (cleanPath === "/policy" || cleanPath === "/audit-log") {

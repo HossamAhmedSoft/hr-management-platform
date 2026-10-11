@@ -267,22 +267,30 @@ console.log("=================================================\n");
   const memberCanSeeAudit = canAccessRoute("member", "/en/audit-log");
   const memberCanSeePolicy = canAccessRoute("member", "/en/policy");
   const memberCanSeeKpis = canAccessRoute("member", "/en/hr-kpis");
+  const memberCanSeeMembers = canAccessRoute("member", "/en/members");
+  const memberCanSeeTeams = canAccessRoute("member", "/en/teams");
+  const memberCanSeeEducation = canAccessRoute("member", "/en/education");
   const superAdminCanSeeAudit = canAccessRoute("super_admin", "/en/audit-log");
   const hrAdminCanSeePolicy = canAccessRoute("hr_admin", "/en/policy");
+  const adminCanSeeMembers = canAccessRoute("super_admin", "/en/members");
 
   const passed =
     !memberCanSeeAudit &&
     !memberCanSeePolicy &&
     !memberCanSeeKpis &&
+    !memberCanSeeMembers &&
+    !memberCanSeeTeams &&
+    !memberCanSeeEducation &&
     superAdminCanSeeAudit &&
-    hrAdminCanSeePolicy;
+    hrAdminCanSeePolicy &&
+    adminCanSeeMembers;
 
   assert(
     "TEST-9",
-    "Authorization isolation: Ordinary member blocked from /audit-log, /policy, /hr-kpis; Admin allowed",
+    "Authorization isolation: Member blocked from /audit-log, /policy, /hr-kpis, /members, /teams, /education; Admin allowed",
     passed,
     "Member blocked, Admin allowed",
-    `Member Audit: ${memberCanSeeAudit}, Member Policy: ${memberCanSeePolicy}, Admin Audit: ${superAdminCanSeeAudit}`
+    `Member Audit: ${memberCanSeeAudit}, Member Members: ${memberCanSeeMembers}, Member Teams: ${memberCanSeeTeams}, Member Education: ${memberCanSeeEducation}`
   );
 }
 
