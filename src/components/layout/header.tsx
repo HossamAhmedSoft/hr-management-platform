@@ -31,6 +31,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     toggleTheme,
     pointEvents,
     appeals,
+    tasks,
     logout,
   } = useApp();
 
