@@ -15,14 +15,6 @@ import {
   Filter,
   Plus,
   Scale,
-  Sparkles,
-  Layers,
-  Code,
-  Smartphone,
-  Palette,
-  Cpu,
-  Shield,
-  Star,
   ExternalLink,
 } from "lucide-react";
 import { StatsCard } from "@/components/common/stats-card";
@@ -114,21 +106,6 @@ export default function DashboardPage() {
   const avgEvalScore = userEvaluations.length > 0
     ? (userEvaluations.reduce((sum, e) => sum + (e.total_score || 0), 0) / userEvaluations.length).toFixed(1)
     : "—";
-
-  // Track Rubric Ratings State (for Track-Based KPIs & Rubrics Matrix)
-  const [trackScores, setTrackScores] = useState<{ [trackId: string]: number }>({});
-
-  const allTracksList = [
-    { id: "hr", name: "Human Resources", nameAr: "الموارد البشرية", type: "non_tech", icon: Users, desc: "Recruitment, member retention, welfare & performance policy." },
-    { id: "media", name: "Media & Content", nameAr: "الإعلام والمحتوى", type: "non_tech", icon: Palette, desc: "Branding, video coverage, visual production & storytelling." },
-    { id: "pr", name: "PR & Marketing", nameAr: "العلاقات العامة والتسويق", type: "non_tech", icon: Sparkles, desc: "Outreach, sponsor engagements, and campaign analytics." },
-    { id: "or", name: "Operations & Logistics (OR)", nameAr: "العمليات واللوجستيات", type: "non_tech", icon: Layers, desc: "Hall booking, stage coordination, equipment & crowd flow." },
-    { id: "web", name: "Web Development", nameAr: "تطوير الويب", type: "tech", icon: Code, desc: "Next.js, TypeScript, cloud deployment & fullstack quality." },
-    { id: "flutter", name: "Flutter / Mobile", nameAr: "تطبيقات الموبايل", type: "tech", icon: Smartphone, desc: "Cross-platform engineering, clean architecture & APIs." },
-    { id: "uiux", name: "UI/UX Design", nameAr: "تصميم الواجهات", type: "tech", icon: Palette, desc: "Figma design systems, accessibility & user usability tests." },
-    { id: "embedded", name: "Embedded Systems / IoT", nameAr: "الأنظمة المدمجة", type: "tech", icon: Cpu, desc: "Microcontrollers, C/C++, sensor telemetry & hardware." },
-    { id: "cyber", name: "Cyber Security", nameAr: "الأمن السيبراني", type: "tech", icon: Shield, desc: "Network defenses, secure auditing & vulnerability scanning." },
-  ];
 
   // Filtered Points Log
   const filteredPointEvents = userPointEvents.filter((evt) => {
@@ -269,12 +246,14 @@ export default function DashboardPage() {
                   : "Color graduation from Blue to Yellow to Orange to Red. No penalty without prior notice."}
               </p>
             </div>
-            <Link href={`/${locale}/incidents`}>
-              <Button variant="ghost" size="sm" className="text-xs text-[#1a73e8]">
-                {isAr ? "إدارة المخالفات" : "View Incidents"}
-                <ArrowRight className="w-3.5 h-3.5 ml-1" />
-              </Button>
-            </Link>
+            {!isMember && (
+              <Link href={`/${locale}/incidents`}>
+                <Button variant="ghost" size="sm" className="text-xs text-[#1a73e8]">
+                  {isAr ? "إدارة المخالفات" : "View Incidents"}
+                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </Button>
+              </Link>
+            )}
           </div>
         </CardHeader>
         <CardContent className="pt-4">
@@ -519,95 +498,6 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* 5. Track-Based KPIs & Rubrics Matrix (Responsive Grid from ui ana) */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-foreground">
-              {isAr
-                ? "مصفوفة تقييم ومعايير المسارات واللجان (Track KPIs & Rubrics Matrix)"
-                : "Track-Based KPIs & Rubrics Matrix"}
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {isAr
-                ? "تقييم اللجان التقنية وغير التقنية وفق مقياس من 1 إلى 5 معايير محددة."
-                : "Responsive grid of cards for each track with 1-to-5 point scale evaluation inputs."}
-            </p>
-          </div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] border border-[#d2e3fc] dark:border-[#1a73e8]/30">
-            9 Core Tracks
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {allTracksList.map((tr) => {
-            const Icon = tr.icon;
-            const currentScore = trackScores[tr.id] ?? null;
-            const isTech = tr.type === "tech";
-
-            return (
-              <Card
-                key={tr.id}
-                className="p-4 border border-border bg-card hover:shadow-md transition-all space-y-3"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`p-2 rounded-lg ${
-                        isTech
-                          ? "bg-[#e8f0fe] text-[#1a73e8] dark:bg-[#1a73e8]/20 dark:text-[#8ab4f8]"
-                          : "bg-[#fef7e0] text-[#b06000] dark:bg-[#fbbc04]/20 dark:text-[#fdd663]"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-xs text-foreground">
-                        {isAr ? tr.nameAr : tr.name}
-                      </h4>
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase">
-                        {isTech ? "Technical Track" : "Non-Tech Committee"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-[#f1f3f4] dark:bg-[#303134] text-foreground">
-                    {currentScore !== null ? `★ ${currentScore.toFixed(1)} / 5.0` : (isAr ? "غير مقيّم" : "Unrated")}
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-muted-foreground line-clamp-2">
-                  {tr.desc}
-                </p>
-
-                {/* 1-to-5 point scale rating slider */}
-                <div className="pt-2 border-t border-border space-y-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted-foreground">Rubric Evaluation:</span>
-                    <span className="font-bold text-primary">
-                      {currentScore !== null ? `${currentScore.toFixed(1)} / 5.0` : (isAr ? "حرّك للتقييم" : "Slide to Rate")}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="5"
-                    step="0.1"
-                    value={currentScore ?? 3.0}
-                    onChange={(e) =>
-                      setTrackScores((prev) => ({
-                        ...prev,
-                        [tr.id]: parseFloat(e.target.value),
-                      }))
-                    }
-                    className="w-full h-1.5 bg-[#dadce0] dark:bg-[#3c4043] rounded-lg appearance-none cursor-pointer accent-[#1a73e8]"
-                  />
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
 
       {/* Dispute Modal (Micro-interaction) */}
       {isDisputeModalOpen && (

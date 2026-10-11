@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import {
   ShieldAlert,
   AlertTriangle,
-  Lock,
   Plus,
   Scale,
   FileCheck,

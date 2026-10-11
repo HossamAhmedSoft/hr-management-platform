@@ -39,6 +39,8 @@ interface AttendanceEvent {
 export default function AttendancePage() {
   const { locale, availableUsers, currentUser } = useApp();
   const isAr = locale === "ar";
+  const userRole = currentUser?.role || "member";
+  const canCreateMeeting = userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
 
   const [events, setEvents] = useState<AttendanceEvent[]>(() => {
     if (typeof window === "undefined") return [];
@@ -89,14 +91,16 @@ export default function AttendancePage() {
             : "Meeting logs, check-in tracking, and documented academic/medical excuse workflows."
         }
       >
-        <Button
-          size="sm"
-          onClick={() => setIsNewMeetingOpen(true)}
-          className="gap-2 bg-primary hover:bg-primary/90"
-        >
-          <Plus className="w-4 h-4" />
-          {isAr ? "تسجيل اجتماع جديد" : "Record New Meeting"}
-        </Button>
+        {canCreateMeeting && (
+          <Button
+            size="sm"
+            onClick={() => setIsNewMeetingOpen(true)}
+            className="gap-2 bg-primary hover:bg-primary/90"
+          >
+            <Plus className="w-4 h-4" />
+            {isAr ? "تسجيل اجتماع جديد" : "Record New Meeting"}
+          </Button>
+        )}
       </PageHeader>
 
       {events.length === 0 ? (
@@ -107,8 +111,8 @@ export default function AttendancePage() {
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             {isAr
-              ? "اضغط على 'تسجيل اجتماع جديد' بالأعلى لتوثيق حضور اجتماع عام أو ورشة عمل."
-              : "Click 'Record New Meeting' above to log attendance for a session."}
+              ? (canCreateMeeting ? "اضغط على 'تسجيل اجتماع جديد' بالأعلى لتوثيق حضور اجتماع عام أو ورشة عمل." : "لا توجد اجتماعات معلنة أو مسجلة لك حالياً.")
+              : (canCreateMeeting ? "Click 'Record New Meeting' above to log attendance for a session." : "No meetings currently scheduled or logged.")}
           </p>
         </Card>
       ) : (

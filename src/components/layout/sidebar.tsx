@@ -21,7 +21,6 @@ import {
   FileText,
   X,
   ExternalLink,
-  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
@@ -133,6 +132,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     },
   ];
 
+  const userRole = currentUser?.role || "member";
+  const visibleMainNav = mainNav.filter((item) => canAccessRoute(userRole, item.href));
+  const visibleSecondaryNav = secondaryNav.filter((item) => canAccessRoute(userRole, item.href));
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -194,7 +197,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               {isAr ? "النظام الأساسي" : "Core Modules"}
             </div>
-            {mainNav.map((item) => {
+            {visibleMainNav.map((item) => {
               const Icon = item.icon;
               const isActive =
                 item.href === `/${locale}`
@@ -234,50 +237,47 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
 
           {/* Operations & Governance Section */}
-          <div className="space-y-1 pt-2 border-t border-border">
-            <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              {isAr ? "الحوكمة والعمليات" : "Governance & Operations"}
-            </div>
-            {secondaryNav.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname.startsWith(item.href);
-              const isAllowed = currentUser ? canAccessRoute(currentUser.role, item.href) : true;
+          {visibleSecondaryNav.length > 0 && (
+            <div className="space-y-1 pt-2 border-t border-border">
+              <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {isAr ? "الحوكمة والعمليات" : "Governance & Operations"}
+              </div>
+              {visibleSecondaryNav.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname.startsWith(item.href);
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all group relative",
-                    isActive
-                      ? "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] font-bold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-[#f1f3f4] dark:hover:bg-[#303134]",
-                    !isAllowed && "opacity-80"
-                  )}
-                >
-                  {isActive && (
-                    <span
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all group relative",
+                      isActive
+                        ? "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] font-bold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-[#f1f3f4] dark:hover:bg-[#303134]"
+                    )}
+                  >
+                    {isActive && (
+                      <span
+                        className={cn(
+                          "absolute top-1 bottom-1 w-1 bg-[#1a73e8] rounded-full",
+                          isAr ? "right-0" : "left-0"
+                        )}
+                      />
+                    )}
+                    <Icon
                       className={cn(
-                        "absolute top-1 bottom-1 w-1 bg-[#1a73e8] rounded-full",
-                        isAr ? "right-0" : "left-0"
+                        "w-4 h-4 transition-colors shrink-0",
+                        isActive ? "text-[#1a73e8] dark:text-[#8ab4f8]" : item.color
                       )}
                     />
-                  )}
-                  <Icon
-                    className={cn(
-                      "w-4 h-4 transition-colors shrink-0",
-                      isActive ? "text-[#1a73e8] dark:text-[#8ab4f8]" : item.color
-                    )}
-                  />
-                  <span className="truncate flex-1">{item.label}</span>
-                  {!isAllowed && (
-                    <Lock className="w-3 h-3 text-muted-foreground/60 shrink-0" />
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+                    <span className="truncate flex-1">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Footer info: Google Workspace status badge */}
