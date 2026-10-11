@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Lock,
@@ -12,12 +12,18 @@ import {
   Moon,
   Sun,
   ShieldCheck,
+  Crown,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useApp } from "@/lib/app-context";
-import { loginWithCredentials } from "@/lib/auth-service";
+import {
+  loginWithCredentials,
+  registerWithCredentials,
+  isDatabaseEmpty,
+} from "@/lib/auth-service";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,25 +32,52 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false);
+
+  useEffect(() => {
+    isDatabaseEmpty().then((empty) => {
+      setIsFirstTimeSetup(empty);
+    });
+  }, []);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage("");
 
-    const res = await loginWithCredentials(email, password);
-    if (res.success && res.user) {
-      login(res.user);
-    } else {
-      setErrorMessage(
-        res.error ||
-          (isAr
-            ? "بيانات الدخول غير صحيحة، أو الحساب غير مسجل."
-            : "Invalid login credentials or account not found.")
+    if (isFirstTimeSetup) {
+      if (!fullName.trim() || !email.trim() || !password.trim()) {
+        setErrorMessage(isAr ? "يرجى ملء جميع الحقول" : "Please fill all fields");
+        setIsLoading(false);
+        return;
+      }
+      const res = await registerWithCredentials(
+        email.trim().toLowerCase(),
+        password,
+        fullName.trim(),
+        "super_admin"
       );
+      if (res.success && res.user) {
+        login(res.user);
+      } else {
+        setErrorMessage(res.error || (isAr ? "فشل إنشاء الحساب" : "Failed to create account"));
+      }
+    } else {
+      const res = await loginWithCredentials(email, password);
+      if (res.success && res.user) {
+        login(res.user);
+      } else {
+        setErrorMessage(
+          res.error ||
+            (isAr
+              ? "بيانات الدخول غير صحيحة، أو الحساب غير مسجل."
+              : "Invalid login credentials or account not found.")
+        );
+      }
     }
 
     setIsLoading(false);
@@ -107,14 +140,34 @@ export default function LoginPage() {
             <CardContent className="p-6 sm:p-8 space-y-5">
               {/* Header Title */}
               <div className="text-center space-y-1">
-                <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-[#e8f0fe] text-[#1a73e8] mb-1">
-                  <ShieldCheck className="w-6 h-6" />
+                <div
+                  className={`inline-flex items-center justify-center w-11 h-11 rounded-2xl mb-1 ${
+                    isFirstTimeSetup
+                      ? "bg-[#fef7e0] text-[#b06000]"
+                      : "bg-[#e8f0fe] text-[#1a73e8]"
+                  }`}
+                >
+                  {isFirstTimeSetup ? (
+                    <Crown className="w-6 h-6" />
+                  ) : (
+                    <ShieldCheck className="w-6 h-6" />
+                  )}
                 </div>
                 <h2 className="text-xl font-bold tracking-tight text-foreground">
-                  {isAr ? "تسجيل الدخول إلى البوابة" : "Sign In to Portal"}
+                  {isFirstTimeSetup
+                    ? isAr
+                      ? "تهيئة حساب مدير النظام (Super Admin)"
+                      : "First-time Super Admin Setup"
+                    : isAr
+                    ? "تسجيل الدخول إلى البوابة"
+                    : "Sign In to Portal"}
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  {isAr
+                  {isFirstTimeSetup
+                    ? isAr
+                      ? "قاعدة البيانات جاهزة ونظيفة. يرجى إنشاء حساب مدير النظام للبدء."
+                      : "Database is connected and clean. Create your Super Admin account to start."
+                    : isAr
                     ? "بوابة إدارة العمليات والأداء — GDG on Campus NCTU"
                     : "HR Governance & Operations — GDG on Campus NCTU"}
                 </p>
@@ -129,9 +182,28 @@ export default function LoginPage() {
 
               {/* Form */}
               <form onSubmit={handleAuthSubmit} className="space-y-4 text-xs">
+                {isFirstTimeSetup && (
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">
+                      {isAr ? "الاسم الكامل لمدير النظام:" : "Super Admin Full Name:"}
+                    </label>
+                    <div className="relative">
+                      <User className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        required
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder={isAr ? "مثال: حسام أحمد" : "e.g. Hossam Ahmed"}
+                        className="pl-9 h-10 rounded-lg bg-background text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="font-semibold text-foreground block mb-1">
-                    {isAr ? "البريد الإلكتروني المعتمد:" : "Registered Email:"}
+                    {isAr ? "البريد الإلكتروني:" : "Email Address:"}
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
@@ -151,20 +223,22 @@ export default function LoginPage() {
                     <label className="font-semibold text-foreground">
                       {isAr ? "كلمة المرور:" : "Password:"}
                     </label>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        alert(
-                          isAr
-                            ? "يرجى مراجعة مدير النظام (Super Admin) لإعادة تعيين كلمة المرور."
-                            : "Please contact Super Admin to reset your password."
-                        );
-                      }}
-                      className="text-[11px] text-[#1a73e8] hover:underline"
-                    >
-                      {isAr ? "نسيت كلمة المرور؟" : "Forgot password?"}
-                    </a>
+                    {!isFirstTimeSetup && (
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          alert(
+                            isAr
+                              ? "يرجى مراجعة مدير النظام (Super Admin) لإعادة تعيين كلمة المرور."
+                              : "Please contact Super Admin to reset your password."
+                          );
+                        }}
+                        className="text-[11px] text-[#1a73e8] hover:underline"
+                      >
+                        {isAr ? "نسيت كلمة المرور؟" : "Forgot password?"}
+                      </a>
+                    )}
                   </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
@@ -198,8 +272,10 @@ export default function LoginPage() {
                   {isLoading ? (
                     <span className="flex items-center gap-2">
                       <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      {isAr ? "جارِ التحقق..." : "Verifying..."}
+                      {isAr ? "جارِ الحفظ والتحقق..." : "Processing..."}
                     </span>
+                  ) : isFirstTimeSetup ? (
+                    isAr ? "إنشاء حساب مدير النظام وبدء العمل" : "Initialize Super Admin & Start"
                   ) : isAr ? (
                     "دخول إلى الحساب"
                   ) : (
@@ -208,10 +284,14 @@ export default function LoginPage() {
                 </Button>
               </form>
 
-              {/* Administrative Notice */}
+              {/* Administrative Footnote */}
               <div className="pt-2 text-center">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  {isAr
+                  {isFirstTimeSetup
+                    ? isAr
+                      ? "⚡ خطوة لمرة واحدة فقط لربط الحساب القيادي الأول بقاعدة البيانات السحابية."
+                      : "⚡ One-time setup to establish the primary leadership account."
+                    : isAr
                     ? "🔒 إنشاء وتفعيل الحسابات مقتصر على مدير النظام (Super Admin) فقط."
                     : "🔒 Account provisioning is restricted to Super Admin only."}
                 </p>

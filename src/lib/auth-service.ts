@@ -1,6 +1,7 @@
 import { Profile, UserRole } from "@/types";
 import { MOCK_PROFILES } from "./mock-data";
 import { internalDB } from "./internal-db";
+import { createClient } from "./supabase/client";
 
 export interface AuthSession {
   user: Profile;
@@ -51,21 +52,38 @@ export function clearSession(): void {
   }
 }
 
-// ── Real Authentication Engine (Internal Project Database) ──
+// ── Live Supabase Authentication Engine ──
 export async function loginWithCredentials(
   email: string,
   _password?: string
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
 
-  // Check if user exists in internal database
+  // 1. Try Supabase live database
+  try {
+    const supabase = createClient();
+    const { data: dbProfile, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("email", cleanEmail)
+      .single();
+
+    if (!error && dbProfile) {
+      saveSession(dbProfile as Profile);
+      return { success: true, user: dbProfile as Profile };
+    }
+  } catch (err) {
+    console.warn("Supabase login query fallback:", err);
+  }
+
+  // 2. Try internal database
   const existing = internalDB.getProfileByEmail(cleanEmail);
   if (existing) {
     saveSession(existing);
     return { success: true, user: existing };
   }
 
-  // Fallback to official registered seed accounts
+  // 3. Fallback to official seed accounts
   const testAccounts = getAvailableTestAccounts();
   const matched = testAccounts.find(
     (a) => a.user.email.toLowerCase() === cleanEmail
@@ -78,7 +96,7 @@ export async function loginWithCredentials(
 
   return {
     success: false,
-    error: "الحساب غير مسجل في النظام. إنشاء الحسابات وتعيين الصلاحيات مقتصر فقط على مدير النظام (Super Admin).",
+    error: "الحساب غير مسجل في قاعدة البيانات. إنشاء وتفعيل الحسابات مقتصر فقط على مدير النظام (Super Admin).",
   };
 }
 
@@ -88,14 +106,11 @@ export async function registerWithCredentials(
   fullName: string,
   role: UserRole = "member"
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
-  const existing = internalDB.getProfileByEmail(email);
-  if (existing) {
-    return { success: false, error: "البريد الإلكتروني مسجل بالفعل" };
-  }
+  const cleanEmail = email.trim().toLowerCase();
 
   const newProfile: Profile = {
     id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    email,
+    email: cleanEmail,
     full_name: fullName,
     role,
     status: "active",
@@ -104,17 +119,52 @@ export async function registerWithCredentials(
     updated_at: new Date().toISOString(),
   };
 
+  // 1. Insert into Supabase live database
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert([newProfile])
+      .select()
+      .single();
+
+    if (!error && data) {
+      internalDB.createProfile(data as Profile);
+      saveSession(data as Profile);
+      return { success: true, user: data as Profile };
+    }
+  } catch (err) {
+    console.warn("Supabase register insert fallback:", err);
+  }
+
+  // 2. Save into internal cache
   internalDB.createProfile(newProfile);
   saveSession(newProfile);
   return { success: true, user: newProfile };
 }
 
+// Check if database has any accounts registered
+export async function isDatabaseEmpty(): Promise<boolean> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id")
+      .limit(1);
+
+    if (!error && data && data.length === 0) {
+      return true;
+    }
+  } catch (err) {
+    console.warn("isDatabaseEmpty error:", err);
+  }
+  return false;
+}
+
 // Role Permissions Matrix
 export function canAccessRoute(role: UserRole, pathname: string): boolean {
-  // Strip locale prefix (e.g. /en/policy -> /policy)
   const cleanPath = pathname.replace(/^\/(en|ar)/, "") || "/";
 
-  // Public/all authenticated routes
   if (
     cleanPath === "/" ||
     cleanPath === "/login" ||
@@ -130,7 +180,6 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
     return true;
   }
 
-  // Admin & HR exclusive routes
   if (cleanPath === "/policy" || cleanPath === "/audit-log") {
     return role === "super_admin" || role === "hr_admin";
   }
