@@ -56,6 +56,15 @@ interface AppContextType {
   addIncident: (incident: Omit<Incident, "id" | "created_at" | "updated_at">) => void;
   addFeedbackSession: (session: Omit<FeedbackSession, "id" | "created_at" | "updated_at">) => void;
   addAuditLog: (log: Omit<AuditLog, "id" | "created_at">) => void;
+  logUserAction: (log: {
+    action: string;
+    entity_type: string;
+    entity_id?: string;
+    reason: string;
+    details?: string;
+    before_value?: Record<string, unknown>;
+    after_value?: Record<string, unknown>;
+  }) => Promise<void>;
   unreadNotificationsCount: number;
   notifications: Notification[];
   addNotification: (notif: Omit<Notification, "id" | "created_at">) => Promise<Notification>;
@@ -207,12 +216,66 @@ export function AppProvider({
     setIsAuthenticated(true);
   };
 
+  const addAuditLog = async (log: Omit<AuditLog, "id" | "created_at">) => {
+    const fullLog: Omit<AuditLog, "id" | "created_at"> = {
+      ...log,
+      actor_name: log.actor_name || currentUser?.full_name || "System Actor",
+    };
+    const created = await dbService.createAuditLog(fullLog);
+    if (created) {
+      setAuditLogs((prev) => [created, ...prev]);
+    }
+  };
+
+  const logUserAction = async (log: {
+    action: string;
+    entity_type: string;
+    entity_id?: string;
+    reason: string;
+    details?: string;
+    before_value?: Record<string, unknown>;
+    after_value?: Record<string, unknown>;
+  }) => {
+    await addAuditLog({
+      actor_id: currentUser?.id || "system",
+      actor_name: currentUser?.full_name || "System Actor",
+      action: log.action,
+      entity_type: log.entity_type,
+      entity_id: log.entity_id || "gen_" + Date.now(),
+      reason: log.reason,
+      details: log.details,
+      before_value: log.before_value,
+      after_value: log.after_value,
+    });
+  };
+
   const login = (user: Profile) => {
     handleSetCurrentUser(user);
+    addAuditLog({
+      actor_id: user.id,
+      actor_name: user.full_name,
+      action: "AUTH_LOGIN",
+      entity_type: "auth",
+      entity_id: user.id,
+      reason: `تسجيل دخول ناجح للمستخدم (${user.full_name})`,
+      details: `User logged in with role: ${user.role}, email: ${user.email}.`,
+      after_value: { role: user.role, email: user.email },
+    });
     router.push(`/${locale}`);
   };
 
   const logout = () => {
+    if (currentUser) {
+      addAuditLog({
+        actor_id: currentUser.id,
+        actor_name: currentUser.full_name,
+        action: "AUTH_LOGOUT",
+        entity_type: "auth",
+        entity_id: currentUser.id,
+        reason: `تسجيل خروج المستخدم (${currentUser.full_name})`,
+        details: `Session ended cleanly.`,
+      });
+    }
     clearSession();
     setIsAuthenticated(false);
     setCurrentUser(null);
@@ -263,6 +326,23 @@ export function AppProvider({
     if (created) {
       setTasks((prev) => [created, ...prev]);
 
+      // Comprehensive Audit Trail
+      await addAuditLog({
+        actor_id: currentUser?.id || newTask.created_by,
+        actor_name: currentUser?.full_name,
+        action: "TASK_CREATED",
+        entity_type: "task",
+        entity_id: created.id,
+        reason: `إنشاء وتكليف مهمة عمل: "${newTask.title}"`,
+        details: `Task created with priority: ${newTask.priority}, deadline: ${newTask.deadline}.`,
+        after_value: {
+          title: newTask.title,
+          team_id: newTask.team_id,
+          priority: newTask.priority,
+          deadline: newTask.deadline,
+        },
+      });
+
       // Dispatch notifications to all assignees
       if (newTask.assignees && newTask.assignees.length > 0) {
         for (const assignee of newTask.assignees) {
@@ -297,6 +377,18 @@ export function AppProvider({
           : t
       )
     );
+
+    // Comprehensive Audit Trail
+    await addAuditLog({
+      actor_id: currentUser?.id || "member",
+      actor_name: currentUser?.full_name,
+      action: `TASK_${newStatus.toUpperCase()}`,
+      entity_type: "task",
+      entity_id: taskId,
+      reason: `تحديث حالة المهمة ("${targetTask?.title || taskId}") إلى: ${newStatus}`,
+      details: `Status changed to ${newStatus}.`,
+      after_value: { status: newStatus, title: targetTask?.title },
+    });
 
     if (targetTask) {
       if (newStatus === "completed" && targetTask.assignees) {
@@ -335,6 +427,25 @@ export function AppProvider({
     const created = await dbService.createPointEvent(newEvent);
     if (created) {
       setPointEvents((prev) => [created, ...prev]);
+
+      // Comprehensive Audit Trail
+      await addAuditLog({
+        actor_id: currentUser?.id || newEvent.recorded_by,
+        actor_name: currentUser?.full_name,
+        action: newEvent.direction === "positive" ? "POINT_RECORDED_POSITIVE" : "POINT_RECORDED_NEGATIVE",
+        entity_type: "point_event",
+        entity_id: created.id,
+        reason: `تسجيل واقعة نقاط (${newEvent.direction === "positive" ? "+" : ""}${newEvent.value}): ${newEvent.explanation}`,
+        details: `Points event recorded. Member: ${newEvent.member_id}, Category: ${newEvent.category_id}.`,
+        after_value: {
+          member_id: newEvent.member_id,
+          value: newEvent.value,
+          direction: newEvent.direction,
+          category_id: newEvent.category_id,
+          explanation: newEvent.explanation,
+          status: created.status,
+        },
+      });
 
       if (newEvent.member_id) {
         const isPos = newEvent.direction === "positive";
@@ -451,6 +562,23 @@ export function AppProvider({
     const created = await dbService.createAppeal(newAppeal);
     if (created) {
       setAppeals((prev) => [created, ...prev]);
+
+      // Comprehensive Audit Trail
+      await addAuditLog({
+        actor_id: currentUser?.id || newAppeal.member_id,
+        actor_name: currentUser?.full_name,
+        action: "APPEAL_SUBMITTED",
+        entity_type: "appeal",
+        entity_id: created.id,
+        reason: `تقديم تظلم رسمي: ${newAppeal.grounds || newAppeal.objection || "طلب طعن إداري"}`,
+        details: `Appeal filed for target ${newAppeal.entity_type || "item"} (${newAppeal.entity_id || newAppeal.related_point_event_id || newAppeal.related_evaluation_id || "general"}).`,
+        after_value: {
+          member_id: newAppeal.member_id,
+          entity_type: newAppeal.entity_type,
+          entity_id: newAppeal.entity_id,
+          status: created.status,
+        },
+      });
     }
   };
 
@@ -459,13 +587,16 @@ export function AppProvider({
     if (created) {
       setEvaluations((prev) => [created, ...prev]);
 
-      // Audit trail log
+      // Comprehensive Audit Trail
       await addAuditLog({
         actor_id: currentUser?.id || "evaluator",
-        action: "create",
+        actor_name: currentUser?.full_name,
+        action: "EVALUATION_FINALIZED",
         entity_type: "evaluation",
         entity_id: created.id,
-        after_value: { member_id: evalData.member_id, total_score: evalData.total_score },
+        reason: `اعتماد نتيجة التقييم الشهري (${evalData.total_score || 0}/100) للعضو`,
+        details: `Evaluation finalized. Band: ${evalData.performance_band || "Evaluated"}.`,
+        after_value: { member_id: evalData.member_id, total_score: evalData.total_score, band: evalData.performance_band },
       });
 
       if (evalData.member_id) {
@@ -491,14 +622,16 @@ export function AppProvider({
     if (created) {
       setIncidents((prev) => [created, ...prev]);
 
-      // Audit trail log
+      // Comprehensive Audit Trail
       await addAuditLog({
         actor_id: currentUser?.id || "admin",
-        action: "create",
+        actor_name: currentUser?.full_name,
+        action: "INCIDENT_RECORDED",
         entity_type: "incident",
         entity_id: created.id,
-        reason: incident.title,
-        after_value: { member_id: incident.member_id, level: incident.level },
+        reason: `تسجيل إخطار إداري (${incident.level}): ${incident.title}`,
+        details: `Incident level ${incident.level} recorded for member ${incident.member_id}.`,
+        after_value: { member_id: incident.member_id, level: incident.level, title: incident.title },
       });
 
       if (incident.member_id) {
@@ -523,13 +656,21 @@ export function AppProvider({
     const created = await dbService.createFeedbackSession(session);
     if (created) {
       setFeedbackSessions((prev) => [created, ...prev]);
-    }
-  };
 
-  const addAuditLog = async (log: Omit<AuditLog, "id" | "created_at">) => {
-    const created = await dbService.createAuditLog(log);
-    if (created) {
-      setAuditLogs((prev) => [created, ...prev]);
+      // Comprehensive Audit Trail
+      await addAuditLog({
+        actor_id: currentUser?.id || session.provider_id,
+        actor_name: currentUser?.full_name,
+        action: "FEEDBACK_RECORDED",
+        entity_type: "feedback_session",
+        entity_id: created.id,
+        reason: `توثيق جلسة توجيه ومتابعة 1-on-1`,
+        details: `Feedback session recorded with member ${session.member_id} on ${session.date}.`,
+        after_value: {
+          member_id: session.member_id,
+          date: session.date,
+        },
+      });
     }
   };
 
@@ -567,6 +708,7 @@ export function AppProvider({
         addIncident,
         addFeedbackSession,
         addAuditLog,
+        logUserAction,
         unreadNotificationsCount,
         notifications,
         addNotification,

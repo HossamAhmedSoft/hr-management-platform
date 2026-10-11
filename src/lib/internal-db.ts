@@ -43,6 +43,45 @@ function setTable<T>(tableName: string, data: T[]): void {
   }
 }
 
+export const INITIAL_AUDIT_LOGS: AuditLog[] = [
+  {
+    id: "audit_init_01",
+    actor_id: "hossam_super_admin",
+    actor_name: "Hossam Ahmed (Super Admin)",
+    action: "SYS_SECURITY_INIT",
+    entity_type: "system",
+    entity_id: "gdg_nctu_core",
+    reason: "تشغيل منصة الحوكمة وتفعيل سجل التدقيق الأمني غير القابل للتعديل",
+    details: "GDG on Campus NCTU Management System v2.4 initialized with immutable audit trail.",
+    after_value: { environment: "production", rbac_enforced: true },
+    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+  },
+  {
+    id: "audit_init_02",
+    actor_id: "hossam_super_admin",
+    actor_name: "Hossam Ahmed (Super Admin)",
+    action: "POLICY_RATIFIED",
+    entity_type: "policy",
+    entity_id: "policy_v2_4",
+    reason: "اعتماد لائحة الموارد البشرية 2026: فصل نقاط اللجان عن تقييم الـ 100 درجة ومهلة التظلم 7 أيام عمل",
+    details: "Policy catalog ratified with 7 positive point caps and 5-tier escalation ladder.",
+    after_value: { version: "2.4", approved: true },
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+  },
+  {
+    id: "audit_init_03",
+    actor_id: "hossam_super_admin",
+    actor_name: "Hossam Ahmed (Super Admin)",
+    action: "ACADEMY_TRACKS_SETUP",
+    entity_type: "technical_track",
+    entity_id: "track_web_2026",
+    reason: "تسجيل المسارات التقنية المتخصصة (Web, Flutter, Cybersecurity, Embedded) لموسم 2026",
+    details: "Configured attendance weight (40%), assignments (30%), interaction (20%), and certification threshold (75%).",
+    after_value: { tracks_count: 5, active_cohort: "Season 2026 - Cohort 1" },
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+];
+
 export const internalDB = {
   // ── Profiles & Users ───────────────────────────────────
   getProfiles(): Profile[] {
@@ -269,7 +308,7 @@ export const internalDB = {
 
   // ── Audit Logs ─────────────────────────────────────────
   getAuditLogs(): AuditLog[] {
-    return getTable<AuditLog>("audit_logs", []);
+    return getTable<AuditLog>("audit_logs", INITIAL_AUDIT_LOGS);
   },
 
   createAuditLog(log: AuditLog): AuditLog {

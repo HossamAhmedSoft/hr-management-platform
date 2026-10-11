@@ -498,9 +498,11 @@ export interface AuditLog {
   id: string;
   actor_id: string;
   actor?: Profile;
+  actor_name?: string;
   action: string;
   entity_type: string;
   entity_id: string;
+  details?: string;
   before_value?: Record<string, unknown>;
   after_value?: Record<string, unknown>;
   previous_state?: Record<string, unknown>;
