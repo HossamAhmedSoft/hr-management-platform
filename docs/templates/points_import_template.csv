@@ -1,0 +1,5 @@
+member_email,category_id,points,direction,status,description,evidence_url,recorded_date,historical_approval_verified
+ahmed.mostafa@gdgnctu.com,core_task,5.0,positive,approved,Delivered GitHub registration workflow ahead of schedule,https://github.com/gdg-nctu/portal/pull/42,2026-10-05T12:00:00Z,true
+salma.ibrahim@gdgnctu.com,peer_support,2.0,positive,approved,Mentored new PR recruits on sponsorship correspondence,https://drive.google.com/meeting-notes-oct-2,2026-10-08T15:30:00Z,true
+youssef.adel@gdgnctu.com,unjustified_delay,-2.0,negative,approved,Late delivery of flyer graphics by 48h without prior notice,https://slack.com/archives/media/p1698234,2026-10-10T11:00:00Z,true
+nouran.ali@gdgnctu.com,initiative_innovation,3.0,positive,approved,Proposed and created interactive design tokens library,https://figma.com/design/tokens-gdg-nctu,2026-10-11T16:00:00Z,false

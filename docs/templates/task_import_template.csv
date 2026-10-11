@@ -1,0 +1,4 @@
+title,description,committee,status,priority,deadline,acceptance_criteria,assignee_emails
+Develop Event Registration Portal,Implement responsive landing page with Next.js and Supabase,web,assigned,high,2026-10-25T18:00:00Z,All responsive breakpoints tested and PR submitted,ahmed.mostafa@gdgnctu.com
+Create Hackathon Social Media Kit,Design 5 Instagram carousel slides and banner in Figma,media,in_progress,medium,2026-10-22T20:00:00Z,Follow GDG official branding kit guidelines,youssef.adel@gdgnctu.com
+Sponsor Outreach Round 1,Contact 10 tech startups in New Cairo with sponsor proposal,pr,completed,high,2026-10-18T14:00:00Z,Spreadsheet updated with contacts and response status,salma.ibrahim@gdgnctu.com
