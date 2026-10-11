@@ -56,17 +56,19 @@ export async function loginWithCredentials(
   email: string,
   _password?: string
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+
   // Check if user exists in internal database
-  const existing = internalDB.getProfileByEmail(email);
+  const existing = internalDB.getProfileByEmail(cleanEmail);
   if (existing) {
     saveSession(existing);
     return { success: true, user: existing };
   }
 
-  // Fallback to official personas
+  // Fallback to official registered seed accounts
   const testAccounts = getAvailableTestAccounts();
   const matched = testAccounts.find(
-    (a) => a.user.email.toLowerCase() === email.toLowerCase()
+    (a) => a.user.email.toLowerCase() === cleanEmail
   );
 
   if (matched) {
@@ -74,21 +76,10 @@ export async function loginWithCredentials(
     return { success: true, user: matched.user };
   }
 
-  // Auto-create active member profile for any valid new team email
-  const newProfile: Profile = {
-    id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    email,
-    full_name: email.split("@")[0].replace(".", " ").toUpperCase(),
-    role: "member",
-    status: "active",
-    join_date: new Date().toISOString().split("T")[0],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+  return {
+    success: false,
+    error: "الحساب غير مسجل في النظام. إنشاء الحسابات وتعيين الصلاحيات مقتصر فقط على مدير النظام (Super Admin).",
   };
-
-  internalDB.createProfile(newProfile);
-  saveSession(newProfile);
-  return { success: true, user: newProfile };
 }
 
 export async function registerWithCredentials(

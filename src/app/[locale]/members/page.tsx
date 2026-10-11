@@ -15,6 +15,10 @@ import {
   Layers,
   Award,
   TrendingUp,
+  UserPlus,
+  CheckCircle,
+  AlertCircle,
+  Key,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -30,16 +34,31 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApp } from "@/lib/app-context";
-import { Profile } from "@/types";
+import { Profile, UserRole } from "@/types";
+import { registerWithCredentials } from "@/lib/auth-service";
+import { internalDB } from "@/lib/internal-db";
 
 export default function MembersPage() {
-  const { availableUsers, teams, locale, pointEvents, tasks, evaluations } = useApp();
+  const { availableUsers, teams, locale, pointEvents, tasks, evaluations, currentUser } = useApp();
   const isAr = locale === "ar";
+  const isSuperAdmin = currentUser?.role === "super_admin";
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
   const [selectedMember, setSelectedMember] = useState<Profile | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  // Super Admin Account Creation State
+  const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
+  const [newFullName, setNewFullName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("gdg2026!");
+  const [newRole, setNewRole] = useState<UserRole>("member");
+  const [newTeamId, setNewTeamId] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [addAccountSuccess, setAddAccountSuccess] = useState(false);
+  const [addAccountError, setAddAccountError] = useState("");
+  const [isSubmittingAccount, setIsSubmittingAccount] = useState(false);
 
   const filteredMembers = availableUsers.filter((m) => {
     const matchesSearch =
@@ -75,6 +94,47 @@ export default function MembersPage() {
     document.body.removeChild(link);
   };
 
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingAccount(true);
+    setAddAccountError("");
+    setAddAccountSuccess(false);
+
+    if (!newFullName.trim() || !newEmail.trim()) {
+      setAddAccountError(isAr ? "يرجى إدخال الاسم والبريد الإلكتروني" : "Please enter name and email");
+      setIsSubmittingAccount(false);
+      return;
+    }
+
+    const res = await registerWithCredentials(
+      newEmail.trim().toLowerCase(),
+      newPassword,
+      newFullName.trim(),
+      newRole
+    );
+
+    if (res.success && res.user) {
+      if (newTeamId || newPhone) {
+        internalDB.updateProfile(res.user.id, {
+          team_id: newTeamId || undefined,
+          phone: newPhone || undefined,
+        });
+      }
+      setAddAccountSuccess(true);
+      setNewFullName("");
+      setNewEmail("");
+      setNewPhone("");
+      setTimeout(() => {
+        setIsAddAccountModalOpen(false);
+        setAddAccountSuccess(false);
+        window.location.reload();
+      }, 1200);
+    } else {
+      setAddAccountError(res.error || (isAr ? "فشل إنشاء الحساب" : "Failed to create account"));
+    }
+    setIsSubmittingAccount(false);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
@@ -85,6 +145,20 @@ export default function MembersPage() {
             : "Search and manage GDG committee members, team allocations, and performance files."
         }
       >
+        {isSuperAdmin && (
+          <Button
+            size="sm"
+            onClick={() => {
+              setIsAddAccountModalOpen(true);
+              setAddAccountSuccess(false);
+              setAddAccountError("");
+            }}
+            className="gap-2 bg-[#1a73e8] hover:bg-[#1765cc] text-white shadow-xs"
+          >
+            <UserPlus className="w-4 h-4" />
+            {isAr ? "إنشاء حساب جديد (Super Admin)" : "Create Account (Super Admin)"}
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -397,6 +471,162 @@ export default function MembersPage() {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Super Admin: Create Account Modal */}
+      {isAddAccountModalOpen && (
+        <Dialog
+          open={isAddAccountModalOpen}
+          onOpenChange={(open) => !open && setIsAddAccountModalOpen(false)}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-[#1a73e8]" />
+                {isAr ? "إنشاء حساب وتعيين الصلاحيات (Super Admin)" : "Create & Provision Account (Super Admin)"}
+              </DialogTitle>
+            </DialogHeader>
+
+            {addAccountSuccess && (
+              <div className="p-3 rounded-lg bg-[#e6f4ea] text-[#137333] text-xs flex items-center gap-2 border border-[#ceead6]">
+                <CheckCircle className="w-4 h-4 shrink-0" />
+                <span>
+                  {isAr
+                    ? "تم إنشاء الحساب وتفعيله بنجاح! يمكن للمستخدم الآن الدخول إلى المنصة."
+                    : "Account provisioned successfully! User can now sign in."}
+                </span>
+              </div>
+            )}
+
+            {addAccountError && (
+              <div className="p-3 rounded-lg bg-[#fce8e6] text-[#c5221f] text-xs flex items-center gap-2 border border-[#fad2cf]">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{addAccountError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateAccount} className="space-y-3.5 text-xs py-2">
+              <div>
+                <label className="font-semibold text-foreground block mb-1">
+                  {isAr ? "الاسم الكامل:" : "Full Name:"}
+                </label>
+                <Input
+                  type="text"
+                  required
+                  value={newFullName}
+                  onChange={(e) => setNewFullName(e.target.value)}
+                  placeholder={isAr ? "مثال: مريم خالد" : "e.g. Mariam Khaled"}
+                  className="h-9 rounded-lg bg-background text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">
+                  {isAr ? "البريد الإلكتروني المعتمد:" : "Email Address:"}
+                </label>
+                <Input
+                  type="email"
+                  required
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="name@gdgnctu.com"
+                  className="h-9 rounded-lg bg-background text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">
+                  {isAr ? "كلمة المرور الأولية للمستخدم:" : "Initial Password:"}
+                </label>
+                <div className="relative">
+                  <Key className="w-3.5 h-3.5 absolute left-3 top-2.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pl-9 h-9 rounded-lg bg-background text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    {isAr ? "الدور الوظيفي والصلاحية:" : "Role & Privilege:"}
+                  </label>
+                  <select
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value as UserRole)}
+                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-medium text-foreground focus:outline-none"
+                  >
+                    <option value="member">{isAr ? "عضو (Member)" : "Member"}</option>
+                    <option value="team_lead">{isAr ? "قائد فريق (Team Lead)" : "Team Lead"}</option>
+                    <option value="hr_reviewer">{isAr ? "مراجع الموارد (HR Reviewer)" : "HR Reviewer"}</option>
+                    <option value="hr_admin">{isAr ? "مسؤول الموارد (HR Admin)" : "HR Admin"}</option>
+                    <option value="super_admin">{isAr ? "مدير النظام (Super Admin)" : "Super Admin"}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    {isAr ? "الفريق / اللجنة:" : "Team / Committee:"}
+                  </label>
+                  <select
+                    value={newTeamId}
+                    onChange={(e) => setNewTeamId(e.target.value)}
+                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-medium text-foreground focus:outline-none"
+                  >
+                    <option value="">{isAr ? "غير محدد" : "Unassigned"}</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {isAr ? t.name_ar : t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">
+                  {isAr ? "رقم الهاتف (اختياري):" : "Phone (Optional):"}
+                </label>
+                <Input
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="+20 100 000 0000"
+                  className="h-9 rounded-lg bg-background text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddAccountModalOpen(false)}
+                >
+                  {isAr ? "إلغاء" : "Cancel"}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmittingAccount}
+                  size="sm"
+                  className="bg-[#1a73e8] hover:bg-[#1765cc] text-white"
+                >
+                  {isSubmittingAccount
+                    ? isAr
+                      ? "جارِ الإنشاء..."
+                      : "Creating..."
+                    : isAr
+                    ? "تأكيد وإنشاء الحساب"
+                    : "Create & Provision"}
+                </Button>
+              </div>
+            </form>
           </DialogContent>
         </Dialog>
       )}

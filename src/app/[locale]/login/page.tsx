@@ -7,88 +7,47 @@ import {
   Mail,
   Eye,
   EyeOff,
-  ArrowRight,
-  UserCheck,
-  CheckCircle,
   AlertCircle,
   Globe,
   Moon,
   Sun,
-  UserPlus,
-  LogIn,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useApp } from "@/lib/app-context";
-import {
-  loginWithCredentials,
-  registerWithCredentials,
-  getAvailableTestAccounts,
-} from "@/lib/auth-service";
-import { UserRole } from "@/types";
+import { loginWithCredentials } from "@/lib/auth-service";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, locale, toggleLocale, theme, toggleTheme } = useApp();
   const isAr = locale === "ar";
 
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("lead@gdgnctu.com");
-  const [password, setPassword] = useState("admin123456");
-  const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<UserRole>("member");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-
-  const testAccounts = getAvailableTestAccounts();
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage("");
-    setSuccessMessage("");
 
-    if (authMode === "signin") {
-      const res = await loginWithCredentials(email, password);
-      if (res.success && res.user) {
-        login(res.user);
-      } else {
-        setErrorMessage(
-          res.error || (isAr ? "بيانات الدخول غير صحيحة" : "Invalid login credentials")
-        );
-      }
+    const res = await loginWithCredentials(email, password);
+    if (res.success && res.user) {
+      login(res.user);
     } else {
-      if (!fullName) {
-        setErrorMessage(isAr ? "يرجى إدخال الاسم الكامل" : "Please enter your full name");
-        setIsLoading(false);
-        return;
-      }
-      const res = await registerWithCredentials(email, password, fullName, role);
-      if (res.success && res.user) {
-        setSuccessMessage(
-          isAr
-            ? "تم إنشاء الحساب بنجاح! جارِ الدخول إلى البوابة..."
-            : "Account created successfully! Redirecting..."
-        );
-        setTimeout(() => {
-          login(res.user!);
-        }, 800);
-      } else {
-        setErrorMessage(
-          res.error || (isAr ? "فشل إنشاء الحساب" : "Failed to create account")
-        );
-      }
+      setErrorMessage(
+        res.error ||
+          (isAr
+            ? "بيانات الدخول غير صحيحة، أو الحساب غير مسجل."
+            : "Invalid login credentials or account not found.")
+      );
     }
 
     setIsLoading(false);
-  };
-
-  const handleQuickLogin = (account: (typeof testAccounts)[0]) => {
-    setEmail(account.user.email);
-    login(account.user);
   };
 
   return (
@@ -148,48 +107,17 @@ export default function LoginPage() {
             <CardContent className="p-6 sm:p-8 space-y-5">
               {/* Header Title */}
               <div className="text-center space-y-1">
+                <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-[#e8f0fe] text-[#1a73e8] mb-1">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
                 <h2 className="text-xl font-bold tracking-tight text-foreground">
-                  {isAr ? "بوابة إدارة العمليات والأداء" : "GDG NCTU Management Portal"}
+                  {isAr ? "تسجيل الدخول إلى البوابة" : "Sign In to Portal"}
                 </h2>
                 <p className="text-xs text-muted-foreground">
                   {isAr
-                    ? "نظام الحوكمة ولائحة النقاط والتقييمات الرسمية"
-                    : "HR Governance, Points Ledger & Performance System"}
+                    ? "بوابة إدارة العمليات والأداء — GDG on Campus NCTU"
+                    : "HR Governance & Operations — GDG on Campus NCTU"}
                 </p>
-              </div>
-
-              {/* Mode Switcher: Sign In vs Sign Up */}
-              <div className="flex rounded-lg bg-muted p-1 border border-border">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("signin");
-                    setErrorMessage("");
-                  }}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-md flex items-center justify-center gap-1.5 transition-all ${
-                    authMode === "signin"
-                      ? "bg-card text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>{isAr ? "تسجيل الدخول" : "Sign In"}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("signup");
-                    setErrorMessage("");
-                  }}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-md flex items-center justify-center gap-1.5 transition-all ${
-                    authMode === "signup"
-                      ? "bg-card text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>{isAr ? "حساب جديد" : "Create Account"}</span>
-                </button>
               </div>
 
               {errorMessage && (
@@ -199,34 +127,11 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {successMessage && (
-                <div className="p-3 rounded-lg bg-[#e6f4ea] text-[#137333] text-xs flex items-center gap-2 border border-[#ceead6]">
-                  <CheckCircle className="w-4 h-4 shrink-0" />
-                  <span>{successMessage}</span>
-                </div>
-              )}
-
               {/* Form */}
-              <form onSubmit={handleAuthSubmit} className="space-y-3.5 text-xs">
-                {authMode === "signup" && (
-                  <div>
-                    <label className="font-semibold text-foreground block mb-1">
-                      {isAr ? "الاسم الكامل:" : "Full Name:"}
-                    </label>
-                    <Input
-                      type="text"
-                      required
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder={isAr ? "مثال: حسام أحمد" : "e.g. Hossam Ahmed"}
-                      className="h-10 rounded-lg bg-background text-xs"
-                    />
-                  </div>
-                )}
-
+              <form onSubmit={handleAuthSubmit} className="space-y-4 text-xs">
                 <div>
                   <label className="font-semibold text-foreground block mb-1">
-                    {isAr ? "البريد الإلكتروني:" : "Email Address:"}
+                    {isAr ? "البريد الإلكتروني المعتمد:" : "Registered Email:"}
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
@@ -246,22 +151,20 @@ export default function LoginPage() {
                     <label className="font-semibold text-foreground">
                       {isAr ? "كلمة المرور:" : "Password:"}
                     </label>
-                    {authMode === "signin" && (
-                      <a
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          alert(
-                            isAr
-                              ? "تم إرسال رابط استعادة كلمة المرور إلى البريد المسجل."
-                              : "Password reset link sent to registered email address."
-                          );
-                        }}
-                        className="text-[11px] text-[#1a73e8] hover:underline"
-                      >
-                        {isAr ? "نسيت كلمة المرور؟" : "Forgot password?"}
-                      </a>
-                    )}
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        alert(
+                          isAr
+                            ? "يرجى مراجعة مدير النظام (Super Admin) لإعادة تعيين كلمة المرور."
+                            : "Please contact Super Admin to reset your password."
+                        );
+                      }}
+                      className="text-[11px] text-[#1a73e8] hover:underline"
+                    >
+                      {isAr ? "نسيت كلمة المرور؟" : "Forgot password?"}
+                    </a>
                   </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
@@ -270,6 +173,7 @@ export default function LoginPage() {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
                       className="pl-9 pr-9 h-10 rounded-lg bg-background text-xs"
                     />
                     <button
@@ -286,24 +190,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {authMode === "signup" && (
-                  <div>
-                    <label className="font-semibold text-foreground block mb-1">
-                      {isAr ? "الدور الوظيفي:" : "Requested Role:"}
-                    </label>
-                    <select
-                      value={role}
-                      onChange={(e) => setRole(e.target.value as UserRole)}
-                      className="w-full h-10 px-3 rounded-lg border border-border bg-background text-xs font-medium text-foreground focus:outline-hidden focus:ring-1 focus:ring-[#1a73e8]"
-                    >
-                      <option value="member">{isAr ? "عضو (Member)" : "Member"}</option>
-                      <option value="team_lead">{isAr ? "قائد فريق (Team Lead)" : "Team Lead"}</option>
-                      <option value="hr_reviewer">{isAr ? "مراجع الموارد (HR Reviewer)" : "HR Reviewer"}</option>
-                      <option value="hr_admin">{isAr ? "مسؤول الموارد (HR Admin)" : "HR Admin"}</option>
-                    </select>
-                  </div>
-                )}
-
                 <Button
                   type="submit"
                   disabled={isLoading}
@@ -312,47 +198,23 @@ export default function LoginPage() {
                   {isLoading ? (
                     <span className="flex items-center gap-2">
                       <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      {isAr ? "جارِ تسجيل الدخول..." : "Processing..."}
+                      {isAr ? "جارِ التحقق..." : "Verifying..."}
                     </span>
-                  ) : authMode === "signin" ? (
-                    isAr ? "تسجيل الدخول إلى حسابك" : "Sign In to Account"
+                  ) : isAr ? (
+                    "دخول إلى الحساب"
                   ) : (
-                    isAr ? "إنشاء حساب جديد وتفعيل الصلاحيات" : "Register New Account"
+                    "Sign In"
                   )}
                 </Button>
               </form>
 
-              {/* Quick Persona Switcher for Instant Testing */}
-              <div className="pt-3 border-t border-border space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    {isAr ? "حسابات تجريبية للأدوار الرسمية (1-Click):" : "Official Roles (1-Click Login):"}
-                  </span>
-                  <span className="text-[10px] text-emerald-600 font-bold bg-[#e6f4ea] px-1.5 py-0.5 rounded">
-                    5 Roles Ready
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 gap-1.5">
-                  {testAccounts.map((item) => (
-                    <button
-                      key={item.user.id}
-                      type="button"
-                      onClick={() => handleQuickLogin(item)}
-                      className="p-2 rounded-lg border border-border hover:border-[#1a73e8] hover:bg-[#e8f0fe]/50 dark:hover:bg-[#1a73e8]/10 text-left flex items-center justify-between transition-all group"
-                    >
-                      <div>
-                        <p className="text-xs font-bold text-foreground group-hover:text-[#1a73e8]">
-                          {item.label}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {item.user.email}
-                        </p>
-                      </div>
-                      <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-[#1a73e8] transition-transform group-hover:translate-x-0.5" />
-                    </button>
-                  ))}
-                </div>
+              {/* Administrative Notice */}
+              <div className="pt-2 text-center">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {isAr
+                    ? "🔒 إنشاء وتفعيل الحسابات مقتصر على مدير النظام (Super Admin) فقط."
+                    : "🔒 Account provisioning is restricted to Super Admin only."}
+                </p>
               </div>
             </CardContent>
           </Card>
