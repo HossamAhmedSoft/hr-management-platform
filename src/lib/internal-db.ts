@@ -11,6 +11,8 @@ import {
   Attendee,
   AuditLog,
   Notification,
+  MeetingAttendanceEvent,
+  MeetingExcuse,
 } from "@/types";
 import { generateId } from "./utils";
 
@@ -317,13 +319,41 @@ export const internalDB = {
     return log;
   },
 
-  // ── Attendance Events ──────────────────────────────────
-  getAttendanceEvents(): any[] {
-    return getTable<any>("attendance_events", []);
+  // ── Attendance Events & Excuses ─────────────────────────
+  getAttendanceEvents(): MeetingAttendanceEvent[] {
+    return getTable<MeetingAttendanceEvent>("attendance_events", []);
   },
 
-  setAttendanceEvents(events: any[]): void {
+  setAttendanceEvents(events: MeetingAttendanceEvent[]): void {
     setTable("attendance_events", events);
+  },
+
+  getMeetingExcuses(): MeetingExcuse[] {
+    return getTable<MeetingExcuse>("meeting_excuses", []);
+  },
+
+  setMeetingExcuses(excuses: MeetingExcuse[]): void {
+    setTable("meeting_excuses", excuses);
+  },
+
+  createMeetingExcuse(excuse: MeetingExcuse): MeetingExcuse {
+    const list = this.getMeetingExcuses();
+    setTable("meeting_excuses", [excuse, ...list]);
+    return excuse;
+  },
+
+  updateMeetingExcuse(id: string, updates: Partial<MeetingExcuse>): MeetingExcuse | null {
+    const list = this.getMeetingExcuses();
+    let updated: MeetingExcuse | null = null;
+    const newList = list.map((e) => {
+      if (e.id === id) {
+        updated = { ...e, ...updates };
+        return updated;
+      }
+      return e;
+    });
+    setTable("meeting_excuses", newList);
+    return updated;
   },
 
   // ── Notifications ──────────────────────────────────────
@@ -374,6 +404,7 @@ export const internalDB = {
       "attendees",
       "audit_logs",
       "attendance_events",
+      "meeting_excuses",
       "notifications",
       "passwords",
     ];

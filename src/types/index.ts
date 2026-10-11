@@ -373,6 +373,63 @@ export interface Appeal {
   updated_at: string;
 }
 
+// ── Meeting Attendance & Excuses ─────────────────────────────
+
+export type MeetingExcuseReasonType =
+  | "academic_exam"
+  | "medical_emergency"
+  | "family_emergency"
+  | "travel_work"
+  | "other";
+
+export type MeetingExcuseStatus = "pending" | "approved" | "rejected";
+
+export interface MeetingExcuse {
+  id: string;
+  meeting_id: string;
+  meeting_title: string;
+  member_id: string;
+  member_name: string;
+  member_email: string;
+  reason_type: MeetingExcuseReasonType;
+  description: string;
+  evidence_url?: string;
+  status: MeetingExcuseStatus;
+  reviewer_id?: string;
+  reviewer_name?: string;
+  review_notes?: string;
+  submitted_at: string;
+  reviewed_at?: string;
+}
+
+export type MemberAttendanceStatus = "present" | "excused" | "absent" | "pending";
+
+export interface MemberAttendanceRecord {
+  member_id: string;
+  member_name: string;
+  member_email?: string;
+  team_name?: string;
+  status: MemberAttendanceStatus;
+  notes?: string;
+  excuse_id?: string;
+  penalty_applied?: boolean;
+}
+
+export interface MeetingAttendanceEvent {
+  id: string;
+  title: string;
+  date: string;
+  location: string;
+  type: string;
+  status: "scheduled" | "in_progress" | "completed";
+  created_by?: string;
+  attendance_taken?: boolean;
+  presentCount: number;
+  absentCount: number;
+  excusedCount: number;
+  records?: MemberAttendanceRecord[];
+}
+
 // ── Educational Tracks & Attendees ───────────────────────────
 
 export interface Attendee {

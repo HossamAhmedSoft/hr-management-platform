@@ -14,6 +14,8 @@ import {
   Attendee,
   AuditLog,
   Notification,
+  MeetingAttendanceEvent,
+  MeetingExcuse,
 } from "@/types";
 import { generateId } from "./utils";
 
@@ -677,6 +679,27 @@ export const dbService = {
       console.warn("Supabase markAllNotificationsAsRead error:", e);
     }
     return internalDB.markAllNotificationsAsRead(userId);
+  },
+
+  // ── Meeting Attendance & Excuses ──────────────────────────
+  async getAttendanceEvents(): Promise<MeetingAttendanceEvent[]> {
+    return internalDB.getAttendanceEvents();
+  },
+
+  async setAttendanceEvents(events: MeetingAttendanceEvent[]): Promise<void> {
+    internalDB.setAttendanceEvents(events);
+  },
+
+  async getMeetingExcuses(): Promise<MeetingExcuse[]> {
+    return internalDB.getMeetingExcuses();
+  },
+
+  async createMeetingExcuse(excuse: MeetingExcuse): Promise<MeetingExcuse> {
+    return internalDB.createMeetingExcuse(excuse);
+  },
+
+  async updateMeetingExcuse(id: string, updates: Partial<MeetingExcuse>): Promise<MeetingExcuse | null> {
+    return internalDB.updateMeetingExcuse(id, updates);
   },
 };
 
