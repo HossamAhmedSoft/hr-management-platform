@@ -33,15 +33,24 @@ export default function EvaluationsPage() {
   const { evaluations, addEvaluation, availableUsers, currentUser, locale } = useApp();
   const isAr = locale === "ar";
 
+  const userRole = currentUser?.role || "member";
+  const isMember = userRole === "member";
+  const canConductEvaluation = userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
+
+  // Target users for evaluation: Team Lead can only evaluate members of their own team
+  const evalTargetUsers = userRole === "team_lead" && currentUser?.team_id
+    ? availableUsers.filter((u) => u.team_id === currentUser.team_id && u.id !== currentUser.id)
+    : availableUsers.filter((u) => u.id !== currentUser?.id);
+
   const [isNewEvalOpen, setIsNewEvalOpen] = useState(false);
-  const [selectedMemberId, setSelectedMemberId] = useState(availableUsers[0]?.id || "");
+  const [selectedMemberId, setSelectedMemberId] = useState(evalTargetUsers[0]?.id || availableUsers[0]?.id || "");
   const [evalCycle, setEvalCycle] = useState(POLICY_EVALUATION_PERIODS[0]?.id || "");
 
   React.useEffect(() => {
-    if (!selectedMemberId && availableUsers.length > 0) {
-      setSelectedMemberId(availableUsers[0].id);
+    if (!selectedMemberId && evalTargetUsers.length > 0) {
+      setSelectedMemberId(evalTargetUsers[0].id);
     }
-  }, [availableUsers, selectedMemberId]);
+  }, [evalTargetUsers, selectedMemberId]);
 
   // Rating state for the 6 categories (rating: number | null for N/A)
   const [ratings, setRatings] = useState<{ [catId: string]: { rating: number; isNA: boolean } }>({
@@ -79,24 +88,44 @@ export default function EvaluationsPage() {
     }));
   };
 
+  // Scoped evaluations based on role
+  const visibleEvaluations = evaluations.filter((e) => {
+    if (isMember) {
+      // Ordinary member ONLY sees their own evaluations!
+      return e.member_id === currentUser?.id;
+    }
+    if (userRole === "team_lead" && currentUser?.team_id) {
+      // Team lead sees evaluations of their team members
+      const evalMember = availableUsers.find((u) => u.id === e.member_id);
+      return evalMember?.team_id === currentUser.team_id || e.member_id === currentUser.id;
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
-        title={isAr ? "التقييم الشهري الرسمي (من 100)" : "Monthly Performance Evaluations (100 pts)"}
+        title={isAr ? (isMember ? "تقييمي الشهري الرسمي" : "التقييم الشهري الرسمي (من 100)") : (isMember ? "My Monthly Evaluation" : "Monthly Performance Evaluations (100 pts)")}
         description={
           isAr
-            ? "نظام التقييم الدوري وفق 6 معايير معتمدة بأوزان دقيقة (30/25/15/10/10/10) مع معالجة حالات عدم الانطباق (N/A) وتصنيف مستويات الأداء."
-            : "Official 6-category weighted evaluation (100 pts) with mathematical N/A proportional adjustments."
+            ? isMember
+              ? "استعراض تقييمك الشهري المعتمد، والأوزان النسبية لكل معيار، ومستوى الأداء المحقق وفق اللائحة."
+              : "نظام التقييم الدوري وفق 6 معايير معتمدة بأوزان دقيقة (30/25/15/10/10/10) مع معالجة حالات عدم الانطباق (N/A) وتصنيف مستويات الأداء."
+            : isMember
+              ? "Review your official monthly score, category weighted breakdown, and accredited performance band."
+              : "Official 6-category weighted evaluation (100 pts) with mathematical N/A proportional adjustments."
         }
       >
-        <Button
-          size="sm"
-          onClick={() => setIsNewEvalOpen(true)}
-          className="gap-2 bg-primary hover:bg-primary/90"
-        >
-          <Plus className="w-4 h-4" />
-          {isAr ? "إجراء تقييم جديد" : "Conduct Evaluation"}
-        </Button>
+        {canConductEvaluation && (
+          <Button
+            size="sm"
+            onClick={() => setIsNewEvalOpen(true)}
+            className="gap-2 bg-primary hover:bg-primary/90"
+          >
+            <Plus className="w-4 h-4" />
+            {isAr ? "إجراء تقييم جديد" : "Conduct Evaluation"}
+          </Button>
+        )}
       </PageHeader>
 
       {/* 6 Official Categories Breakdown Cards */}
@@ -142,14 +171,30 @@ export default function EvaluationsPage() {
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {evaluations.length === 0 ? (
+          {visibleEvaluations.length === 0 ? (
             <Card className="col-span-full p-12 text-center text-muted-foreground border-dashed">
               <Award className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
-              <p className="text-sm font-semibold">{isAr ? "لا توجد تقييمات معتمدة مسجلة حالياً" : "No evaluations recorded yet"}</p>
-              <p className="text-xs text-muted-foreground mt-1">{isAr ? "اضغط على 'إجراء تقييم جديد' بالأعلى لبدء تقييم أحد الأعضاء." : "Click 'Conduct Evaluation' above to evaluate a team member."}</p>
+              <p className="text-sm font-semibold">
+                {isAr
+                  ? isMember
+                    ? "لم يتم تسجيل تقييم شهري معتمد لك حتى الآن"
+                    : "لا توجد تقييمات معتمدة مسجلة حالياً"
+                  : isMember
+                    ? "No official monthly evaluation finalized for you yet"
+                    : "No evaluations recorded yet"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isAr
+                  ? isMember
+                    ? "سيظهر تقييمك هنا فور اعتماده من قائد الفريق وإدارة الموارد البشرية."
+                    : "اضغط على 'إجراء تقييم جديد' بالأعلى لبدء تقييم أحد الأعضاء."
+                  : isMember
+                    ? "Your score will appear here once approved by your Team Lead and HR."
+                    : "Click 'Conduct Evaluation' above to evaluate a team member."}
+              </p>
             </Card>
           ) : (
-            evaluations.map((ev) => (
+            visibleEvaluations.map((ev) => (
             <Card
               key={ev.id}
               className="p-5 border-border/70 hover:shadow-lg transition-all space-y-4"
@@ -197,7 +242,7 @@ export default function EvaluationsPage() {
       </div>
 
       {/* New Evaluation Dialog with Real-Time Calculator */}
-      {isNewEvalOpen && (
+      {isNewEvalOpen && canConductEvaluation && (
         <Dialog open={isNewEvalOpen} onOpenChange={setIsNewEvalOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -223,10 +268,10 @@ export default function EvaluationsPage() {
                     onChange={(e) => setSelectedMemberId(e.target.value)}
                     className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                   >
-                    {availableUsers.length === 0 ? (
-                      <option value="">{isAr ? "لا يوجد أعضاء مسجلين" : "No members registered"}</option>
+                    {evalTargetUsers.length === 0 ? (
+                      <option value="">{isAr ? "لا يوجد أعضاء متاحين للتقييم" : "No members available"}</option>
                     ) : (
-                      availableUsers.map((u) => (
+                      evalTargetUsers.map((u) => (
                         <option key={u.id} value={u.id}>
                           {u.full_name} ({u.role.replace("_", " ")})
                         </option>

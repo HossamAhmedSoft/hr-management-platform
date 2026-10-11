@@ -30,6 +30,10 @@ export default function AppealsPage() {
   const { appeals, submitAppeal, availableUsers, currentUser, locale } = useApp();
   const isAr = locale === "ar";
 
+  const userRole = currentUser?.role || "member";
+  const isMember = userRole === "member";
+  const canReviewAppeals = userRole === "super_admin" || userRole === "hr_admin" || userRole === "hr_reviewer";
+
   const [isNewAppealOpen, setIsNewAppealOpen] = useState(false);
   const [grounds, setGrounds] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
@@ -41,6 +45,15 @@ export default function AppealsPage() {
   const getMemberName = (id: string) => {
     return availableUsers.find((u) => u.id === id)?.full_name || id;
   };
+
+  // Scoped appeals based on role
+  const visibleAppeals = appeals.filter((a) => {
+    if (isMember) {
+      // Ordinary member ONLY sees appeals lodged by themselves!
+      return a.member_id === currentUser?.id;
+    }
+    return true;
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,11 +77,15 @@ export default function AppealsPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
-        title={isAr ? "التظلمات والطعون الرسمية" : "Official Appeals & Grievances"}
+        title={isAr ? (isMember ? "تظلماتي وطعوني الرسمية" : "التظلمات والطعون الرسمية") : (isMember ? "My Appeals & Grievances" : "Official Appeals & Grievances")}
         description={
           isAr
-            ? "حق مكفول لكل عضو للطعن في أي قرار خلال مهلة 7 أيام عمل رسمية، مع تعيين مراجع محايد مستقل."
-            : "Protected right for every member to appeal any penalty or evaluation within 7 Egyptian working days."
+            ? isMember
+              ? "استعراض التظلمات المقدمة منك ومتابعة حالة المراجعة المحايدة ومهلة الـ 7 أيام عمل."
+              : "حق مكفول لكل عضو للطعن في أي قرار خلال مهلة 7 أيام عمل رسمية، مع تعيين مراجع محايد مستقل."
+            : isMember
+              ? "Track your submitted appeals, status determinations, and 7-working-day rights."
+              : "Protected right for every member to appeal any penalty or evaluation within 7 Egyptian working days."
         }
       >
         <Button
@@ -103,11 +120,11 @@ export default function AppealsPage() {
 
       {/* Appeals List */}
       <div className="space-y-4">
-        {appeals.length === 0 ? (
+        {visibleAppeals.length === 0 ? (
           <Card className="p-12 text-center text-muted-foreground border-dashed">
             <Scale className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
             <p className="text-sm font-semibold">
-              {isAr ? "لا توجد تظلمات مسجلة حالياً" : "No appeals or disputes currently submitted"}
+              {isAr ? (isMember ? "لا توجد تظلمات مسجلة باسمك حالياً" : "لا توجد تظلمات مسجلة حالياً") : (isMember ? "You have no active appeals on record" : "No appeals or disputes currently submitted")}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               {isAr
@@ -116,7 +133,7 @@ export default function AppealsPage() {
             </p>
           </Card>
         ) : (
-          appeals.map((app) => (
+          visibleAppeals.map((app) => (
             <Card
               key={app.id}
               className="p-5 border-border/80 hover:shadow-md transition-all space-y-4"

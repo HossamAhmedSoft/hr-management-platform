@@ -28,8 +28,13 @@ import { useApp } from "@/lib/app-context";
 import { Task, TaskPriority, TaskStatus } from "@/types";
 
 export default function TasksPage() {
-  const { tasks, teams, addTask, updateTaskStatus, locale, currentUser } = useApp();
+  const { tasks, teams, addTask, updateTaskStatus, availableUsers, locale, currentUser } = useApp();
   const isAr = locale === "ar";
+
+  const userRole = currentUser?.role || "member";
+  const isMember = userRole === "member";
+  const canCreateTask = userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
+  const canApproveTask = userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
 
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -41,6 +46,7 @@ export default function TasksPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newTeam, setNewTeam] = useState(teams[0]?.id || "");
+  const [newAssignee, setNewAssignee] = useState(availableUsers[0]?.id || "");
   const [newPriority, setNewPriority] = useState<TaskPriority>("medium");
   const [newDeadline, setNewDeadline] = useState(() => new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16));
   const [deliverableLink, setDeliverableLink] = useState("");
@@ -51,15 +57,43 @@ export default function TasksPage() {
     if (!newTeam && teams.length > 0) {
       setNewTeam(teams[0].id);
     }
-  }, [teams, newTeam]);
+    if (!newAssignee && availableUsers.length > 0) {
+      setNewAssignee(availableUsers[0].id);
+    }
+  }, [teams, newTeam, availableUsers, newAssignee]);
 
-  const filteredTasks = tasks.filter((t) => {
+  // Scoped tasks based on user role
+  const visibleTasks = tasks.filter((t) => {
+    if (isMember) {
+      // Ordinary member only sees tasks assigned directly to them, created by them, or in their team
+      const isAssigned =
+        t.created_by === currentUser?.id ||
+        t.assignees?.some((a) => a.profile_id === currentUser?.id) ||
+        (currentUser?.team_id && t.team_id === currentUser?.team_id);
+      return Boolean(isAssigned);
+    }
+    if (userRole === "team_lead" && currentUser?.team_id) {
+      // Team lead sees tasks in their team or created by them
+      return t.team_id === currentUser.team_id || t.created_by === currentUser.id;
+    }
+    return true;
+  });
+
+  const filteredTasks = visibleTasks.filter((t) => {
     if (filterStatus === "all") return true;
     return t.status === filterStatus;
   });
 
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateTask) {
+      alert(
+        isAr
+          ? "عذراً، صلاحية إنشاء وتكليف المهام مقتصرة على قادة الفرق ومسؤولي الإدارة."
+          : "Permission denied: Only team leads and administrators can create tasks."
+      );
+      return;
+    }
     if (!newTitle.trim()) return;
 
     addTask({
@@ -70,6 +104,17 @@ export default function TasksPage() {
       status: "assigned",
       priority: newPriority,
       deadline: new Date(newDeadline).toISOString(),
+      assignees: newAssignee
+        ? [
+            {
+              id: `assignee_${Date.now()}`,
+              task_id: "",
+              profile_id: newAssignee,
+              assigned_at: new Date().toISOString(),
+              assigned_by: currentUser?.id || "admin",
+            },
+          ]
+        : undefined,
     });
 
     setNewTitle("");
@@ -100,21 +145,27 @@ export default function TasksPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
-        title={isAr ? "إدارة المهام والتسليمات" : "Tasks & Milestone Delivery"}
+        title={isAr ? (isMember ? "مهامي وتكليفاتي" : "إدارة المهام والتسليمات") : (isMember ? "My Assigned Tasks" : "Tasks & Milestone Delivery")}
         description={
           isAr
-            ? "متابعة دورة حياة المهام (تكليف → تنفيذ → تسليم → مراجعة واعتماد) وطلبات التأجيل المسبقة."
-            : "Complete task lifecycle governance: assignment, evidence submission, delay requests, and reviews."
+            ? isMember
+              ? "استعراض المهام المسندة إليك، وتقديم روابط المخرجات وإرسال طلبات تمديد الموعد لقائد الفريق."
+              : "متابعة دورة حياة المهام (تكليف → تنفيذ → تسليم → مراجعة واعتماد) وطلبات التأجيل المسبقة."
+            : isMember
+              ? "View deliverables assigned to you, submit your work, and request deadline adjustments."
+              : "Complete task lifecycle governance: assignment, evidence submission, delay requests, and reviews."
         }
       >
-        <Button
-          size="sm"
-          onClick={() => setIsNewTaskOpen(true)}
-          className="gap-2 bg-primary hover:bg-primary/90"
-        >
-          <Plus className="w-4 h-4" />
-          {isAr ? "مهمة جديدة" : "New Task"}
-        </Button>
+        {canCreateTask && (
+          <Button
+            size="sm"
+            onClick={() => setIsNewTaskOpen(true)}
+            className="gap-2 bg-primary hover:bg-primary/90"
+          >
+            <Plus className="w-4 h-4" />
+            {isAr ? "مهمة جديدة" : "New Task"}
+          </Button>
+        )}
       </PageHeader>
 
       {/* Filter Tabs */}
@@ -214,7 +265,7 @@ export default function TasksPage() {
                     </Button>
                   </>
                 )}
-                {task.status === "submitted" && (
+                {task.status === "submitted" && canApproveTask && (
                   <Button
                     size="sm"
                     onClick={() => updateTaskStatus(task.id, "completed")}
@@ -231,12 +282,12 @@ export default function TasksPage() {
       </div>
 
       {/* New Task Modal */}
-      {isNewTaskOpen && (
+      {isNewTaskOpen && canCreateTask && (
         <Dialog open={isNewTaskOpen} onOpenChange={setIsNewTaskOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="text-base font-bold">
-                {isAr ? "إنشاء مهمة عمل جديدة" : "Create New Task"}
+                {isAr ? "إنشاء مهمة عمل وتكليف عضو" : "Create New Task & Assign"}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleCreateTask} className="space-y-4 pt-2 text-xs">
@@ -290,6 +341,25 @@ export default function TasksPage() {
 
                 <div>
                   <label className="font-semibold text-foreground">
+                    {isAr ? "العضو المكلف بالمهمة:" : "Assignee Member:"}
+                  </label>
+                  <select
+                    value={newAssignee}
+                    onChange={(e) => setNewAssignee(e.target.value)}
+                    className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
+                  >
+                    {availableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} ({u.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-semibold text-foreground">
                     {isAr ? "الأولوية:" : "Priority:"}
                   </label>
                   <select
@@ -303,18 +373,18 @@ export default function TasksPage() {
                     <option value="urgent">Urgent</option>
                   </select>
                 </div>
-              </div>
 
-              <div>
-                <label className="font-semibold text-foreground">
-                  {isAr ? "الموعد النهائي للتسليم:" : "Deadline:"}
-                </label>
-                <Input
-                  type="datetime-local"
-                  value={newDeadline}
-                  onChange={(e) => setNewDeadline(e.target.value)}
-                  className="mt-1"
-                />
+                <div>
+                  <label className="font-semibold text-foreground">
+                    {isAr ? "الموعد النهائي للتسليم:" : "Deadline:"}
+                  </label>
+                  <Input
+                    type="datetime-local"
+                    value={newDeadline}
+                    onChange={(e) => setNewDeadline(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

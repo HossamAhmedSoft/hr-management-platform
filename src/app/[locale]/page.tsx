@@ -60,6 +60,11 @@ export default function DashboardPage() {
 
   const isAr = locale === "ar";
 
+  const userRole = currentUser?.role || "member";
+  const isMember = userRole === "member";
+  const canRecordPoints = userRole === "super_admin" || userRole === "hr_admin" || userRole === "hr_reviewer" || userRole === "team_lead";
+  const canExport = userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
+
   // Filter states for Points Log & Rules Table
   const [pointTrackFilter, setPointTrackFilter] = useState<"all" | "tech" | "non_tech">("all");
   const [pointStatusFilter, setPointStatusFilter] = useState<"all" | "approved" | "pending_review">("all");
@@ -71,25 +76,43 @@ export default function DashboardPage() {
   const [newExplanation, setNewExplanation] = useState("");
   const [newSelectedCategory, setNewSelectedCategory] = useState(POLICY_POINT_CATEGORIES[0]?.id || "");
 
+  // Role-scoped records for current dashboard view
+  const userPointEvents = isMember
+    ? pointEvents.filter((p) => p.member_id === currentUser?.id)
+    : userRole === "team_lead" && currentUser?.team_id
+    ? pointEvents.filter((p) => p.team_id === currentUser.team_id || p.member_id === currentUser.id)
+    : pointEvents;
+
+  const userEvaluations = isMember
+    ? evaluations.filter((e) => e.member_id === currentUser?.id)
+    : userRole === "team_lead" && currentUser?.team_id
+    ? evaluations.filter((e) => {
+        const m = teams.find((t) => t.id === currentUser.team_id);
+        return e.member_id === currentUser.id;
+      })
+    : evaluations;
+
   // Metrics
-  const approvedPositive = pointEvents
+  const approvedPositive = userPointEvents
     .filter((p) => p.status === "approved" && p.direction === "positive")
     .reduce((sum, p) => sum + p.value, 0);
 
-  const approvedNegative = pointEvents
+  const approvedNegative = userPointEvents
     .filter((p) => p.status === "approved" && p.direction === "negative")
     .reduce((sum, p) => sum + p.value, 0);
 
   const totalPointsNet = approvedPositive + approvedNegative;
-  const attendanceRate = evaluations.length > 0
-    ? Math.round((evaluations.reduce((sum, e) => {
+  const attendanceRate = userEvaluations.length > 0
+    ? Math.round((userEvaluations.reduce((sum, e) => {
         const attRating = e.ratings?.find((r) => r.category_id === "eval-cat-3")?.rating;
         return sum + (attRating ? (attRating / 5) * 100 : 100);
-      }, 0) / evaluations.length))
+      }, 0) / userEvaluations.length))
     : 100;
-  const activeWarningsCount = incidents.filter((i) => i.status === "open").length;
-  const avgEvalScore = evaluations.length > 0
-    ? (evaluations.reduce((sum, e) => sum + (e.total_score || 0), 0) / evaluations.length).toFixed(1)
+  const activeWarningsCount = isMember
+    ? incidents.filter((i) => i.member_id === currentUser?.id && i.status === "open").length
+    : incidents.filter((i) => i.status === "open").length;
+  const avgEvalScore = userEvaluations.length > 0
+    ? (userEvaluations.reduce((sum, e) => sum + (e.total_score || 0), 0) / userEvaluations.length).toFixed(1)
     : "—";
 
   // Track Rubric Ratings State (for Track-Based KPIs & Rubrics Matrix)
@@ -108,7 +131,7 @@ export default function DashboardPage() {
   ];
 
   // Filtered Points Log
-  const filteredPointEvents = pointEvents.filter((evt) => {
+  const filteredPointEvents = userPointEvents.filter((evt) => {
     if (pointStatusFilter !== "all" && evt.status !== pointStatusFilter) return false;
     if (pointTrackFilter === "tech") {
       return evt.team_id?.includes("web") || evt.team_id?.includes("ai") || evt.team_id?.includes("tech");
@@ -121,7 +144,7 @@ export default function DashboardPage() {
 
   const handleExportCSV = () => {
     const headers = "ID,Member,Category,Direction,Points,Date,Status,Explanation\n";
-    const rows = pointEvents
+    const rows = userPointEvents
       .map(
         (p) =>
           `"${p.id}","${p.member_id}","${p.category_id}","${p.direction}",${p.value},"${p.event_date}","${p.status}","${p.explanation}"`
@@ -144,61 +167,73 @@ export default function DashboardPage() {
       <PageHeader
         title={
           isAr
-            ? "بوابة إدارة الأداء وقواعد النقاط — GDG NCTU"
-            : "GDG NCTU Performance & Points Management Portal"
+            ? isMember
+              ? `مرحباً بك، ${currentUser?.full_name || "العضو"} — لوحة أدائك الشخصية`
+              : "بوابة إدارة الأداء وقواعد النقاط — GDG NCTU"
+            : isMember
+              ? `Welcome, ${currentUser?.full_name || "Member"} — Personal Performance`
+              : "GDG NCTU Performance & Points Management Portal"
         }
         description={
           isAr
-            ? "نظام الحوكمة الرقمية للفرق واللجان: فصل تام بين سجل النقاط والتقييم الشهري، وإشعار مسبق قبل أي خصم."
-            : "Google Workspace Admin Console aesthetic for member governance, verified points ledger, and progressive escalation."
+            ? isMember
+              ? "متابعة رصيدك الصافي من النقاط، وحضورك بالورش، وتقييمك الشهري، والمهام المسندة إليك."
+              : "نظام الحوكمة الرقمية للفرق واللجان: فصل تام بين سجل النقاط والتقييم الشهري، وإشعار مسبق قبل أي خصم."
+            : isMember
+              ? "Track your net point balance, attendance rate, official evaluation score, and active tasks."
+              : "Google Workspace Admin Console aesthetic for member governance, verified points ledger, and progressive escalation."
         }
       >
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExportCSV}
-          className="gap-2 text-xs border-border"
-        >
-          <Download className="w-3.5 h-3.5 text-[#137333]" />
-          {isAr ? "تصدير السجل (CSV)" : "Export CSV"}
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => setIsAddPointModalOpen(true)}
-          className="gap-2 text-xs bg-[#1a73e8] hover:bg-[#1765cc] text-white"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          {isAr ? "تسجيل حركة نقاط" : "Record Point Event"}
-        </Button>
+        {canExport && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            className="gap-2 text-xs border-border"
+          >
+            <Download className="w-3.5 h-3.5 text-[#137333]" />
+            {isAr ? "تصدير السجل (CSV)" : "Export CSV"}
+          </Button>
+        )}
+        {canRecordPoints && (
+          <Button
+            size="sm"
+            onClick={() => setIsAddPointModalOpen(true)}
+            className="gap-2 text-xs bg-[#1a73e8] hover:bg-[#1765cc] text-white"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {isAr ? "تسجيل حركة نقاط" : "Record Point Event"}
+          </Button>
+        )}
       </PageHeader>
 
       {/* 2. Metric Overview Cards (Google Workspace Style) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric 1: Total Points */}
         <StatsCard
-          title={isAr ? "صافي رصيد النقاط المعتمد" : "Total Net Points"}
+          title={isAr ? (isMember ? "رصيدي الصافي من النقاط" : "صافي رصيد النقاط المعتمد") : (isMember ? "My Net Points" : "Total Net Points")}
           value={`${totalPointsNet > 0 ? "+" : ""}${totalPointsNet} pts`}
           subtitle={isAr ? `+${approvedPositive} إيجابية | ${approvedNegative} سلبية` : `+${approvedPositive} positive | ${approvedNegative} negative`}
           icon={<Award className="w-5 h-5" />}
-          delta={{ value: "Green Tier Active", isPositive: true }}
+          delta={{ value: totalPointsNet >= 10 ? "Green Tier (Outstanding)" : totalPointsNet >= 0 ? "Normal Tier" : "Support Tier", isPositive: totalPointsNet >= 0 }}
           accentColor="blue"
         />
 
         {/* Metric 2: Attendance Rate */}
         <StatsCard
-          title={isAr ? "معدل الحضور والالتزام" : "Attendance Rate"}
+          title={isAr ? (isMember ? "معدل التزامي وحضوري" : "معدل الحضور والالتزام") : (isMember ? "My Attendance Rate" : "Attendance Rate")}
           value={`${attendanceRate}%`}
-          subtitle={isAr ? "متوسط حضور الجلسات والورش" : "Average across all 8 committees"}
+          subtitle={isAr ? (isMember ? "نسبة التزامك بالاجتماعات والورش" : "متوسط حضور الجلسات والورش") : (isMember ? "Your verified attendance" : "Average across committees")}
           icon={<CheckCircle className="w-5 h-5" />}
-          delta={{ value: "Target: ≥85%", isPositive: true }}
+          delta={{ value: "Target: ≥85%", isPositive: attendanceRate >= 85 }}
           accentColor="green"
         />
 
         {/* Metric 3: Active Warnings */}
         <StatsCard
-          title={isAr ? "الإنذارات والحالات النشطة" : "Active Warnings & PIPs"}
+          title={isAr ? (isMember ? "متابعاتي وإنذاراتي" : "الإنذارات والحالات النشطة") : (isMember ? "My Active Warnings" : "Active Warnings & PIPs")}
           value={activeWarningsCount}
-          subtitle={isAr ? "حالات تحت المتابعة والتوجيه" : "Under progressive review ladder"}
+          subtitle={isAr ? (isMember ? "حالات متابعة نشطة مسجلة لك" : "حالات تحت المتابعة والتوجيه") : (isMember ? "Active notices for you" : "Under progressive review ladder")}
           icon={<AlertTriangle className="w-5 h-5" />}
           delta={{ value: activeWarningsCount === 0 ? "0 Violations" : `${activeWarningsCount} Active`, isPositive: activeWarningsCount === 0 }}
           accentColor="yellow"
@@ -206,11 +241,11 @@ export default function DashboardPage() {
 
         {/* Metric 4: Performance Distribution */}
         <StatsCard
-          title={isAr ? "متوسط التقييم الشهري" : "Monthly Performance Average"}
+          title={isAr ? (isMember ? "درجة تقييمي الشهري" : "متوسط التقييم الشهري") : (isMember ? "My Monthly Evaluation" : "Monthly Performance Average")}
           value={avgEvalScore !== "—" ? `${avgEvalScore} / 100` : "—"}
-          subtitle={evaluations.length > 0 ? (isAr ? `${evaluations.length} تقييمات معتمدة` : `${evaluations.length} Finalized Evaluations`) : (isAr ? "في انتظار بدء دورة التقييم" : "Awaiting Evaluation Cycle")}
+          subtitle={userEvaluations.length > 0 ? (isAr ? `${userEvaluations.length} تقييمات معتمدة` : `${userEvaluations.length} Finalized`) : (isAr ? "في انتظار بدء دورة التقييم" : "Awaiting Evaluation Cycle")}
           icon={<TrendingUp className="w-5 h-5" />}
-          delta={{ value: evaluations.length > 0 ? "Active Cycle" : "Clean Slate", isPositive: true }}
+          delta={{ value: userEvaluations.length > 0 ? "Active Evaluation" : "Clean Slate", isPositive: true }}
           accentColor="red"
         />
       </div>

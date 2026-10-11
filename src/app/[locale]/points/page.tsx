@@ -47,25 +47,49 @@ export default function PointsPage() {
   } = useApp();
 
   const isAr = locale === "ar";
+  const userRole = currentUser?.role || "member";
+  const isMember = userRole === "member";
+  const canRecordPoints = userRole === "super_admin" || userRole === "hr_admin" || userRole === "hr_reviewer" || userRole === "team_lead";
+  const canReviewPoints = userRole === "super_admin" || userRole === "hr_admin" || userRole === "hr_reviewer";
+
   const [filterDirection, setFilterDirection] = useState<string>("all");
   const [isRecommendOpen, setIsRecommendOpen] = useState(false);
   const [selectedEventForReview, setSelectedEventForReview] = useState<PointEvent | null>(null);
   const [reviewRationale, setReviewRationale] = useState("");
 
+  // Selectable users for team lead vs admins
+  const selectableUsers = userRole === "team_lead" && currentUser?.team_id
+    ? availableUsers.filter((u) => u.team_id === currentUser.team_id)
+    : availableUsers;
+
   // Form states
-  const [targetMember, setTargetMember] = useState(availableUsers[0]?.id || "");
+  const [targetMember, setTargetMember] = useState(selectableUsers[0]?.id || "");
   const [selectedCategory, setSelectedCategory] = useState(POLICY_POINT_CATEGORIES[0]?.id || "");
   const [eventDate, setEventDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [explanation, setExplanation] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
 
   React.useEffect(() => {
-    if (!targetMember && availableUsers.length > 0) {
-      setTargetMember(availableUsers[0].id);
+    if (!targetMember && selectableUsers.length > 0) {
+      setTargetMember(selectableUsers[0].id);
     }
-  }, [availableUsers, targetMember]);
+  }, [selectableUsers, targetMember]);
 
-  const filteredEvents = pointEvents.filter((p) => {
+  // Scoped point events based on role
+  const visibleEvents = pointEvents.filter((p) => {
+    if (isMember) {
+      // Ordinary member ONLY sees their own point events!
+      return p.member_id === currentUser?.id;
+    }
+    if (userRole === "team_lead" && currentUser?.team_id) {
+      // Team lead sees point events of their team members or themselves
+      const targetUser = availableUsers.find((u) => u.id === p.member_id);
+      return targetUser?.team_id === currentUser.team_id || p.member_id === currentUser.id;
+    }
+    return true;
+  });
+
+  const filteredEvents = visibleEvents.filter((p) => {
     if (filterDirection === "positive") return p.direction === "positive";
     if (filterDirection === "negative") return p.direction === "negative";
     if (filterDirection === "pending") return p.status === "pending_review";
@@ -80,6 +104,14 @@ export default function PointsPage() {
 
   const handleRecommend = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canRecordPoints) {
+      alert(
+        isAr
+          ? "عذراً، صلاحية تسجيل أو اقتراح النقاط مقتصرة على قادة الفرق ومسؤولي الإدارة."
+          : "Permission denied: Only team leads and administrators can record points."
+      );
+      return;
+    }
     if (!selectedCatObj || !explanation.trim() || !currentUser) return;
 
     // Check duplicate deduction prevention
@@ -123,11 +155,11 @@ export default function PointsPage() {
   };
 
   // Calculate total approved balance for current view
-  const approvedPositive = pointEvents
+  const approvedPositive = visibleEvents
     .filter((p) => p.status === "approved" && p.direction === "positive")
     .reduce((sum, p) => sum + p.value, 0);
 
-  const approvedNegative = pointEvents
+  const approvedNegative = visibleEvents
     .filter((p) => p.status === "approved" && p.direction === "negative")
     .reduce((sum, p) => sum + p.value, 0);
 
@@ -137,21 +169,27 @@ export default function PointsPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
-        title={isAr ? "سجل النقاط الإيجابية والسلبية" : "Points Ledger Governance"}
+        title={isAr ? (isMember ? "سجل نقاطي ومستوى الأداء" : "سجل النقاط الإيجابية والسلبية") : (isMember ? "My Points & Governance" : "Points Ledger Governance")}
         description={
           isAr
-            ? "نظام النقاط المنفصل تماماً عن التقييم الشهري. يُحسب الرصيد تلقائياً من العمليات المعتمدة فقط مع تطبيق الحدود الشهرية (Caps)."
-            : "Policy ledger strictly separate from monthly evaluation scores. Balances are calculated dynamically with monthly caps."
+            ? isMember
+              ? "متابعة رصيد نقاطك المعتمدة، والسقف الشهري لفئات النقاط الإيجابية، وسجل الإجراءات الخاص بك."
+              : "نظام النقاط المنفصل تماماً عن التقييم الشهري. يُحسب الرصيد تلقائياً من العمليات المعتمدة فقط مع تطبيق الحدود الشهرية (Caps)."
+            : isMember
+              ? "Track your approved personal point balance, monthly positive caps, and individual event history."
+              : "Policy ledger strictly separate from monthly evaluation scores. Balances are calculated dynamically with monthly caps."
         }
       >
-        <Button
-          size="sm"
-          onClick={() => setIsRecommendOpen(true)}
-          className="gap-2 bg-primary hover:bg-primary/90"
-        >
-          <Plus className="w-4 h-4" />
-          {isAr ? "تسجيل واقعة نقاط" : "Record Point Event"}
-        </Button>
+        {canRecordPoints && (
+          <Button
+            size="sm"
+            onClick={() => setIsRecommendOpen(true)}
+            className="gap-2 bg-primary hover:bg-primary/90"
+          >
+            <Plus className="w-4 h-4" />
+            {isAr ? "تسجيل واقعة نقاط" : "Record Point Event"}
+          </Button>
+        )}
       </PageHeader>
 
       {/* Policy Guardrails Box */}
@@ -328,7 +366,7 @@ export default function PointsPage() {
             </div>
 
             {/* Review Controls (for HR Reviewer or Admin) */}
-            {evt.status === "pending_review" && (
+            {evt.status === "pending_review" && canReviewPoints && (
               <div className="flex items-center gap-2 shrink-0">
                 <Button
                   size="sm"
@@ -356,7 +394,7 @@ export default function PointsPage() {
       </div>
 
       {/* Record Point Event Dialog */}
-      {isRecommendOpen && (
+      {isRecommendOpen && canRecordPoints && (
         <Dialog open={isRecommendOpen} onOpenChange={setIsRecommendOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -374,10 +412,10 @@ export default function PointsPage() {
                   onChange={(e) => setTargetMember(e.target.value)}
                   className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                 >
-                  {availableUsers.length === 0 ? (
+                  {selectableUsers.length === 0 ? (
                     <option value="">{isAr ? "لا يوجد أعضاء مسجلين" : "No members registered"}</option>
                   ) : (
-                    availableUsers.map((u) => (
+                    selectableUsers.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.full_name} ({u.role.replace("_", " ")})
                       </option>

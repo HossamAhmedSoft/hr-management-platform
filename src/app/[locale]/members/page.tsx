@@ -42,7 +42,10 @@ import { dbService } from "@/lib/db-service";
 export default function MembersPage() {
   const { availableUsers, teams, locale, pointEvents, tasks, evaluations, currentUser } = useApp();
   const isAr = locale === "ar";
-  const isSuperAdmin = currentUser?.role === "super_admin";
+  const userRole = currentUser?.role || "member";
+  const isSuperAdmin = userRole === "super_admin";
+  const canManageMembers = userRole === "super_admin" || userRole === "hr_admin";
+  const canExport = userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
@@ -146,7 +149,7 @@ export default function MembersPage() {
             : "Search and manage GDG committee members, team allocations, and performance files."
         }
       >
-        {isSuperAdmin && (
+        {canManageMembers && (
           <Button
             size="sm"
             onClick={() => {
@@ -157,27 +160,31 @@ export default function MembersPage() {
             className="gap-2 bg-[#1a73e8] hover:bg-[#1765cc] text-white shadow-xs"
           >
             <UserPlus className="w-4 h-4" />
-            {isAr ? "إنشاء حساب جديد (Super Admin)" : "Create Account (Super Admin)"}
+            {isAr ? "إنشاء حساب جديد (Admin)" : "Create Account (Admin)"}
           </Button>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsImportModalOpen(true)}
-          className="gap-2"
-        >
-          <Upload className="w-4 h-4 text-primary" />
-          {isAr ? "استيراد CSV" : "Import CSV"}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExportCSV}
-          className="gap-2"
-        >
-          <Download className="w-4 h-4 text-emerald-600" />
-          {isAr ? "تصدير البيانات" : "Export CSV"}
-        </Button>
+        {canManageMembers && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsImportModalOpen(true)}
+            className="gap-2"
+          >
+            <Upload className="w-4 h-4 text-primary" />
+            {isAr ? "استيراد CSV" : "Import CSV"}
+          </Button>
+        )}
+        {canExport && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            className="gap-2"
+          >
+            <Download className="w-4 h-4 text-emerald-600" />
+            {isAr ? "تصدير البيانات" : "Export CSV"}
+          </Button>
+        )}
       </PageHeader>
 
       {/* Filter and Search Bar */}
@@ -306,73 +313,91 @@ export default function MembersPage() {
               </div>
             </DialogHeader>
 
-            <Tabs defaultValue="info" className="mt-4">
-              <TabsList className="grid grid-cols-4 w-full">
-                <TabsTrigger value="info" className="text-xs">
-                  {isAr ? "البيانات" : "Info"}
-                </TabsTrigger>
-                <TabsTrigger value="tasks" className="text-xs">
-                  {isAr ? "المهام" : "Tasks"}
-                </TabsTrigger>
-                <TabsTrigger value="points" className="text-xs">
-                  {isAr ? "النقاط" : "Points"}
-                </TabsTrigger>
-                <TabsTrigger value="evals" className="text-xs">
-                  {isAr ? "التقييمات" : "Evals"}
-                </TabsTrigger>
-              </TabsList>
+            {(() => {
+              const canViewPrivate =
+                isSuperAdmin ||
+                userRole === "hr_admin" ||
+                userRole === "team_lead" ||
+                selectedMember.id === currentUser?.id;
 
-              <TabsContent value="info" className="space-y-4 pt-4 text-xs">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 rounded-xl bg-muted/40">
-                    <span className="text-muted-foreground">Role / الصلاحية:</span>
-                    <p className="font-bold text-foreground mt-0.5 capitalize">
-                      {selectedMember.role.replace("_", " ")}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-muted/40">
-                    <span className="text-muted-foreground">Status / الحالة:</span>
-                    <p className="font-bold text-foreground mt-0.5 capitalize">
-                      {selectedMember.status}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-muted/40">
-                    <span className="text-muted-foreground">Phone / الهاتف:</span>
-                    <p className="font-bold text-foreground mt-0.5">
-                      {selectedMember.phone || "—"}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-muted/40">
-                    <span className="text-muted-foreground">Join Date / تاريخ الانضمام:</span>
-                    <p className="font-bold text-foreground mt-0.5">
-                      {selectedMember.join_date}
-                    </p>
-                  </div>
-                </div>
-              </TabsContent>
+              const memberTasks = tasks.filter(
+                (t) =>
+                  t.created_by === selectedMember.id ||
+                  t.assignees?.some((a) => a.profile_id === selectedMember.id)
+              );
 
-              <TabsContent value="tasks" className="space-y-2 pt-4">
-                {tasks.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">
-                    No assigned tasks.
-                  </p>
-                ) : (
-                  tasks.map((t) => (
-                    <div
-                      key={t.id}
-                      className="p-3 rounded-xl border border-border/80 flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <p className="font-bold text-foreground">{t.title}</p>
-                        <p className="text-muted-foreground">
-                          Deadline: {new Date(t.deadline).toLocaleDateString()}
+              return (
+                <Tabs defaultValue="info" className="mt-4">
+                  <TabsList className={`grid ${canViewPrivate ? "grid-cols-4" : "grid-cols-2"} w-full`}>
+                    <TabsTrigger value="info" className="text-xs">
+                      {isAr ? "البيانات" : "Info"}
+                    </TabsTrigger>
+                    <TabsTrigger value="tasks" className="text-xs">
+                      {isAr ? "المهام" : "Tasks"}
+                    </TabsTrigger>
+                    {canViewPrivate && (
+                      <TabsTrigger value="points" className="text-xs">
+                        {isAr ? "النقاط" : "Points"}
+                      </TabsTrigger>
+                    )}
+                    {canViewPrivate && (
+                      <TabsTrigger value="evals" className="text-xs">
+                        {isAr ? "التقييمات" : "Evals"}
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
+
+                  <TabsContent value="info" className="space-y-4 pt-4 text-xs">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 rounded-xl bg-muted/40">
+                        <span className="text-muted-foreground">Role / الصلاحية:</span>
+                        <p className="font-bold text-foreground mt-0.5 capitalize">
+                          {selectedMember.role.replace("_", " ")}
                         </p>
                       </div>
-                      <StatusBadge status={t.status} />
+                      <div className="p-3 rounded-xl bg-muted/40">
+                        <span className="text-muted-foreground">Status / الحالة:</span>
+                        <p className="font-bold text-foreground mt-0.5 capitalize">
+                          {selectedMember.status}
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-muted/40">
+                        <span className="text-muted-foreground">Phone / الهاتف:</span>
+                        <p className="font-bold text-foreground mt-0.5">
+                          {selectedMember.phone || "—"}
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-muted/40">
+                        <span className="text-muted-foreground">Join Date / تاريخ الانضمام:</span>
+                        <p className="font-bold text-foreground mt-0.5">
+                          {selectedMember.join_date}
+                        </p>
+                      </div>
                     </div>
-                  ))
-                )}
-              </TabsContent>
+                  </TabsContent>
+
+                  <TabsContent value="tasks" className="space-y-2 pt-4">
+                    {memberTasks.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        {isAr ? "لا توجد مهام مسندة لهذا العضو." : "No assigned tasks."}
+                      </p>
+                    ) : (
+                      memberTasks.map((t) => (
+                        <div
+                          key={t.id}
+                          className="p-3 rounded-xl border border-border/80 flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <p className="font-bold text-foreground">{t.title}</p>
+                            <p className="text-muted-foreground">
+                              Deadline: {new Date(t.deadline).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <StatusBadge status={t.status} />
+                        </div>
+                      ))
+                    )}
+                  </TabsContent>
 
               <TabsContent value="points" className="space-y-2 pt-4">
                 {pointEvents.filter((p) => p.member_id === selectedMember.id)
@@ -439,6 +464,8 @@ export default function MembersPage() {
                 )}
               </TabsContent>
             </Tabs>
+              );
+            })()}
           </DialogContent>
         </Dialog>
       )}
