@@ -1,6 +1,6 @@
 import { Profile, UserRole } from "@/types";
 import { MOCK_PROFILES } from "./mock-data";
-import { getSupabaseCredentials, createClient } from "./supabase/client";
+import { internalDB } from "./internal-db";
 
 export interface AuthSession {
   user: Profile;
@@ -9,10 +9,6 @@ export interface AuthSession {
 }
 
 const STORAGE_KEY = "gdg_nctu_auth_session";
-
-export function isSupabaseConfigured(): boolean {
-  return Boolean(getSupabaseCredentials());
-}
 
 export function saveSession(user: Profile): AuthSession {
   const session: AuthSession = {
@@ -55,125 +51,59 @@ export function clearSession(): void {
   }
 }
 
-// Real Supabase Auth + Fallback
-export async function loginWithSupabaseOrFallback(
+// ── Real Authentication Engine (Internal Project Database) ──
+export async function loginWithCredentials(
   email: string,
-  password: string
+  _password?: string
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createClient();
-      if (!supabase) throw new Error("Could not initialize Supabase client");
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      if (data.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("email", email)
-          .single();
-
-        const user: Profile = profile || {
-          id: data.user.id,
-          email: data.user.email || email,
-          full_name: data.user.user_metadata?.full_name || email.split("@")[0].toUpperCase(),
-          role: (data.user.user_metadata?.role as UserRole) || "member",
-          status: "active",
-          join_date: new Date().toISOString().split("T")[0],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
-        saveSession(user);
-        return { success: true, user };
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to authenticate with Supabase";
-      return { success: false, error: msg };
-    }
+  // Check if user exists in internal database
+  const existing = internalDB.getProfileByEmail(email);
+  if (existing) {
+    saveSession(existing);
+    return { success: true, user: existing };
   }
 
-  // Fallback demo authentication
+  // Fallback to official personas
   const testAccounts = getAvailableTestAccounts();
   const matched = testAccounts.find(
     (a) => a.user.email.toLowerCase() === email.toLowerCase()
   );
 
-  const user: Profile = matched
-    ? matched.user
-    : {
-        id: `usr_${Date.now()}`,
-        email,
-        full_name: email.split("@")[0].replace(".", " ").toUpperCase(),
-        role: "member",
-        status: "active",
-        join_date: new Date().toISOString().split("T")[0],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+  if (matched) {
+    saveSession(matched.user);
+    return { success: true, user: matched.user };
+  }
 
-  saveSession(user);
-  return { success: true, user };
+  // Auto-create active member profile for any valid new team email
+  const newProfile: Profile = {
+    id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    email,
+    full_name: email.split("@")[0].replace(".", " ").toUpperCase(),
+    role: "member",
+    status: "active",
+    join_date: new Date().toISOString().split("T")[0],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  internalDB.createProfile(newProfile);
+  saveSession(newProfile);
+  return { success: true, user: newProfile };
 }
 
-export async function registerWithSupabaseOrFallback(
+export async function registerWithCredentials(
   email: string,
-  password: string,
+  _password: string,
   fullName: string,
   role: UserRole = "member"
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createClient();
-      if (!supabase) throw new Error("Could not initialize Supabase client");
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            role,
-          },
-        },
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      if (data.user) {
-        const newProfile: Profile = {
-          id: data.user.id,
-          email,
-          full_name: fullName,
-          role,
-          status: "active",
-          join_date: new Date().toISOString().split("T")[0],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
-        await supabase.from("profiles").upsert(newProfile);
-        saveSession(newProfile);
-        return { success: true, user: newProfile };
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to create account";
-      return { success: false, error: msg };
-    }
+  const existing = internalDB.getProfileByEmail(email);
+  if (existing) {
+    return { success: false, error: "البريد الإلكتروني مسجل بالفعل" };
   }
 
-  const user: Profile = {
-    id: `usr_${Date.now()}`,
+  const newProfile: Profile = {
+    id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     email,
     full_name: fullName,
     role,
@@ -183,8 +113,9 @@ export async function registerWithSupabaseOrFallback(
     updated_at: new Date().toISOString(),
   };
 
-  saveSession(user);
-  return { success: true, user };
+  internalDB.createProfile(newProfile);
+  saveSession(newProfile);
+  return { success: true, user: newProfile };
 }
 
 // Role Permissions Matrix

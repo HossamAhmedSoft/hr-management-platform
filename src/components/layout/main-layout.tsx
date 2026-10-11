@@ -15,25 +15,29 @@ export function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser, locale } = useApp();
+  const { currentUser, locale, isAuthenticated } = useApp();
 
   const isAuthOrErrorPage = Boolean(
     pathname && (pathname.includes("/login") || pathname.includes("/forbidden"))
   );
-  const isAllowed = isAuthOrErrorPage || canAccessRoute(currentUser.role, pathname || "/");
+  const isAllowed = isAuthOrErrorPage || (isAuthenticated && canAccessRoute(currentUser.role, pathname || "/"));
 
   useEffect(() => {
-    if (!isAuthOrErrorPage && !isAllowed) {
-      router.push(`/${locale}/forbidden`);
+    if (!isAuthOrErrorPage) {
+      if (!isAuthenticated) {
+        router.push(`/${locale}/login`);
+      } else if (!isAllowed) {
+        router.push(`/${locale}/forbidden`);
+      }
     }
-  }, [isAuthOrErrorPage, isAllowed, locale, router]);
+  }, [isAuthOrErrorPage, isAuthenticated, isAllowed, locale, router]);
 
   // If on login or forbidden page, render clean full screen without sidebar
   if (isAuthOrErrorPage) {
     return <main className="min-h-screen bg-background">{children}</main>;
   }
 
-  if (!isAllowed) {
+  if (!isAuthenticated || !isAllowed) {
     return null;
   }
 

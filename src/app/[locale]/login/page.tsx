@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ShieldCheck,
   Lock,
   Mail,
   Eye,
@@ -15,21 +14,16 @@ import {
   Globe,
   Moon,
   Sun,
-  Database,
-  Key,
-  Server,
   UserPlus,
   LogIn,
-  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useApp } from "@/lib/app-context";
 import {
-  loginWithSupabaseOrFallback,
-  registerWithSupabaseOrFallback,
-  isSupabaseConfigured,
+  loginWithCredentials,
+  registerWithCredentials,
   getAvailableTestAccounts,
 } from "@/lib/auth-service";
 import { UserRole } from "@/types";
@@ -49,46 +43,6 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Supabase Configuration State
-  const [showCloudSettings, setShowCloudSettings] = useState(false);
-  const [supabaseUrl, setSupabaseUrl] = useState("");
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
-  const [isCloudActive, setIsCloudActive] = useState(false);
-
-  useEffect(() => {
-    setIsCloudActive(isSupabaseConfigured());
-    if (typeof window !== "undefined") {
-      setSupabaseUrl(localStorage.getItem("gdg_supabase_url") || "");
-      setSupabaseAnonKey(localStorage.getItem("gdg_supabase_anon_key") || "");
-    }
-  }, []);
-
-  const handleSaveCloudConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (typeof window !== "undefined") {
-      if (supabaseUrl && supabaseAnonKey) {
-        localStorage.setItem("gdg_supabase_url", supabaseUrl.trim());
-        localStorage.setItem("gdg_supabase_anon_key", supabaseAnonKey.trim());
-        setIsCloudActive(true);
-        setSuccessMessage(
-          isAr
-            ? "تم حفظ إعدادات Supabase بنجاح! النظام متصل بقاعدة البيانات السحابية."
-            : "Supabase credentials saved! Connected to cloud database."
-        );
-      } else {
-        localStorage.removeItem("gdg_supabase_url");
-        localStorage.removeItem("gdg_supabase_anon_key");
-        setIsCloudActive(false);
-        setSuccessMessage(
-          isAr
-            ? "تم الرجوع إلى الوضع المحلي المستقل."
-            : "Reverted to standalone offline mode."
-        );
-      }
-      setShowCloudSettings(false);
-    }
-  };
-
   const testAccounts = getAvailableTestAccounts();
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -98,7 +52,7 @@ export default function LoginPage() {
     setSuccessMessage("");
 
     if (authMode === "signin") {
-      const res = await loginWithSupabaseOrFallback(email, password);
+      const res = await loginWithCredentials(email, password);
       if (res.success && res.user) {
         login(res.user);
       } else {
@@ -108,11 +62,11 @@ export default function LoginPage() {
       }
     } else {
       if (!fullName) {
-        setErrorMessage(isAr ? "يرجى كتابة الاسم الكامل" : "Please enter your full name");
+        setErrorMessage(isAr ? "يرجى إدخال الاسم الكامل" : "Please enter your full name");
         setIsLoading(false);
         return;
       }
-      const res = await registerWithSupabaseOrFallback(email, password, fullName, role);
+      const res = await registerWithCredentials(email, password, fullName, role);
       if (res.success && res.user) {
         setSuccessMessage(
           isAr
@@ -155,30 +109,6 @@ export default function LoginPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Cloud Database Status Pill */}
-          <button
-            type="button"
-            onClick={() => setShowCloudSettings(!showCloudSettings)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-border bg-muted/50 hover:bg-muted transition-colors"
-            title={isAr ? "إعدادات الربط السحابي" : "Cloud DB Settings"}
-          >
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isCloudActive ? "bg-[#34a853] animate-pulse" : "bg-[#fbbc04]"
-              }`}
-            />
-            <span className="text-foreground">
-              {isCloudActive
-                ? isAr
-                  ? "Supabase متصل"
-                  : "Cloud Active"
-                : isAr
-                ? "وضع مستقل"
-                : "Standalone"}
-            </span>
-            <Settings2 className="w-3 h-3 text-muted-foreground ml-0.5" />
-          </button>
-
           <Button
             variant="ghost"
             size="sm"
@@ -206,70 +136,6 @@ export default function LoginPage() {
       {/* Main Login Card Container */}
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md space-y-4">
-          {/* Optional Cloud DB Settings Box */}
-          {showCloudSettings && (
-            <Card className="border border-[#1a73e8] bg-card p-4 rounded-xl shadow-md text-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-foreground flex items-center gap-1.5">
-                  <Database className="w-4 h-4 text-[#1a73e8]" />
-                  {isAr ? "إعدادات الربط بقاعدة بيانات Supabase" : "Supabase Cloud Database Config"}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {isAr ? "مجاني وسحابي" : "Free Cloud DB"}
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                {isAr
-                  ? "يمكنك لصق رابط مشروع Supabase والمفتاح العام للربط المباشر، أو تركهما فارغين للاستمرار في الوضع المحلي."
-                  : "Paste your Supabase Project URL & Anon Key for live cloud syncing, or leave empty for offline demo mode."}
-              </p>
-              <form onSubmit={handleSaveCloudConfig} className="space-y-2">
-                <div>
-                  <label className="text-[10px] font-semibold text-foreground block mb-0.5">
-                    Project URL:
-                  </label>
-                  <Input
-                    type="url"
-                    value={supabaseUrl}
-                    onChange={(e) => setSupabaseUrl(e.target.value)}
-                    placeholder="https://xyzcompany.supabase.co"
-                    className="h-8 text-xs bg-background"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-foreground block mb-0.5">
-                    Anon Public Key:
-                  </label>
-                  <Input
-                    type="text"
-                    value={supabaseAnonKey}
-                    onChange={(e) => setSupabaseAnonKey(e.target.value)}
-                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-                    className="h-8 text-xs bg-background"
-                  />
-                </div>
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowCloudSettings(false)}
-                    className="h-7 text-xs"
-                  >
-                    {isAr ? "إلغاء" : "Cancel"}
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    className="h-7 text-xs bg-[#1a73e8] hover:bg-[#1765cc] text-white"
-                  >
-                    {isAr ? "حفظ وتفعيل" : "Save & Connect"}
-                  </Button>
-                </div>
-              </form>
-            </Card>
-          )}
-
           <Card className="overflow-hidden border border-border shadow-md bg-card rounded-xl">
             {/* Google 4-Color Signature Accent Bar */}
             <div className="google-accent-strip">
@@ -387,7 +253,7 @@ export default function LoginPage() {
                           e.preventDefault();
                           alert(
                             isAr
-                              ? "رابط استعادة كلمة المرور: تم إرسال تعليمات إعادة التعيين للبريد الإلكتروني."
+                              ? "تم إرسال رابط استعادة كلمة المرور إلى البريد المسجل."
                               : "Password reset link sent to registered email address."
                           );
                         }}
@@ -423,7 +289,7 @@ export default function LoginPage() {
                 {authMode === "signup" && (
                   <div>
                     <label className="font-semibold text-foreground block mb-1">
-                      {isAr ? "الدور المطلوب:" : "Requested Role:"}
+                      {isAr ? "الدور الوظيفي:" : "Requested Role:"}
                     </label>
                     <select
                       value={role}
@@ -446,7 +312,7 @@ export default function LoginPage() {
                   {isLoading ? (
                     <span className="flex items-center gap-2">
                       <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      {isAr ? "جارِ المعالجة..." : "Processing..."}
+                      {isAr ? "جارِ تسجيل الدخول..." : "Processing..."}
                     </span>
                   ) : authMode === "signin" ? (
                     isAr ? "تسجيل الدخول إلى حسابك" : "Sign In to Account"
@@ -460,7 +326,7 @@ export default function LoginPage() {
               <div className="pt-3 border-t border-border space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    {isAr ? "دخول سريع بحسابات معتمدة (1-Click Login):" : "Official Roles (1-Click Login):"}
+                    {isAr ? "حسابات تجريبية للأدوار الرسمية (1-Click):" : "Official Roles (1-Click Login):"}
                   </span>
                   <span className="text-[10px] text-emerald-600 font-bold bg-[#e6f4ea] px-1.5 py-0.5 rounded">
                     5 Roles Ready
