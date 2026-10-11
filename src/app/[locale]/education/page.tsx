@@ -70,7 +70,7 @@ import {
 } from "@/types";
 
 export default function EducationPage() {
-  const { locale, currentUser } = useApp();
+  const { locale, currentUser, logUserAction } = useApp();
   const isAr = locale === "ar";
   const userRole = currentUser?.role || "member";
 
@@ -333,6 +333,18 @@ export default function EducationPage() {
       status: "active",
       syllabus: ["Core fundamentals", "Intermediate frameworks", "Production capstone"],
     });
+
+    if (logUserAction) {
+      logUserAction({
+        action: "TRACK_CREATED",
+        entity_type: "technical_track",
+        entity_id: `track_${Date.now()}`,
+        reason: `إنشاء مسار تقني جديد: "${trackFormData.name_ar} (${trackFormData.name})"`,
+        details: `Category: ${trackFormData.category}, Cohort: ${trackFormData.cohort}, Lead: ${trackFormData.lead_name}.`,
+        after_value: { name: trackFormData.name, cohort: trackFormData.cohort },
+      });
+    }
+
     setIsNewTrackModalOpen(false);
     reloadData();
   };
@@ -350,6 +362,18 @@ export default function EducationPage() {
       status: "active",
       notes: participantFormData.notes,
     });
+
+    if (logUserAction) {
+      logUserAction({
+        action: "PARTICIPANT_REGISTERED",
+        entity_type: "participant",
+        entity_id: `p_${Date.now()}`,
+        reason: `تسجيل متدرب جديد: "${participantFormData.full_name}"`,
+        details: `Email: ${participantFormData.email}, University: ${participantFormData.university}.`,
+        after_value: { full_name: participantFormData.full_name, email: participantFormData.email },
+      });
+    }
+
     setIsNewParticipantModalOpen(false);
     reloadData();
   };
@@ -365,6 +389,18 @@ export default function EducationPage() {
       alert(res.error || "Failed to enroll participant.");
       return;
     }
+
+    if (logUserAction) {
+      logUserAction({
+        action: "PARTICIPANT_ENROLLED",
+        entity_type: "track_enrollment",
+        entity_id: res.enrollment?.id || `enr_${Date.now()}`,
+        reason: `تسجيل المتدرب في المسار التقني (${enrollFormData.track_id})`,
+        details: `Cohort: ${enrollFormData.cohort}.`,
+        after_value: { participant_id: enrollFormData.participant_id, track_id: enrollFormData.track_id },
+      });
+    }
+
     setIsEnrollModalOpen(false);
     reloadData();
   };
@@ -428,6 +464,18 @@ export default function EducationPage() {
 
     // Update session status to completed
     tracksService.updateSession(activeSessionForAttendance.id, { status: "completed" });
+
+    if (logUserAction) {
+      logUserAction({
+        action: "SESSION_ATTENDANCE_LOGGED",
+        entity_type: "track_session",
+        entity_id: activeSessionForAttendance.id,
+        reason: `توثيق ورصد حضور الجلسة التقنية: "${activeSessionForAttendance.title}"`,
+        details: `Track: ${activeSessionForAttendance.track_id}, Records logged: ${records.length}.`,
+        after_value: { session_id: activeSessionForAttendance.id, count: records.length },
+      });
+    }
+
     setIsAttendanceModalOpen(false);
     reloadData();
   };
@@ -461,6 +509,18 @@ export default function EducationPage() {
       gradingFormData.feedback,
       currentUser?.full_name || "Lead Instructor"
     );
+
+    if (logUserAction) {
+      logUserAction({
+        action: "SUBMISSION_GRADED",
+        entity_type: "track_submission",
+        entity_id: activeSubmissionForGrading.id,
+        reason: `رصد وتوثيق درجة التكليف (${gradingFormData.score}/100) للمتدرب`,
+        details: `Graded by ${currentUser?.full_name || "Lead Instructor"}. Feedback: ${gradingFormData.feedback || "Evaluated."}`,
+        after_value: { score: gradingFormData.score, feedback: gradingFormData.feedback },
+      });
+    }
+
     setIsGradeModalOpen(false);
     reloadData();
   };
@@ -549,6 +609,18 @@ export default function EducationPage() {
       metrics.finalOfficialScore,
       "GDG on Campus NCTU Academic Board"
     );
+
+    if (logUserAction) {
+      logUserAction({
+        action: "CERTIFICATE_ISSUED",
+        entity_type: "track_certificate",
+        entity_id: cert.id,
+        reason: `إصدار وتوثيق شهادة إتمام المسار التقني (${cert.certificate_code}) بنتيجة ${metrics.finalOfficialScore}%`,
+        details: `Participant: ${e.participant?.full_name || e.participant_id}, Track: ${e.track?.name_ar || e.track_id}.`,
+        after_value: { code: cert.certificate_code, score: metrics.finalOfficialScore },
+      });
+    }
+
     reloadData();
     setActiveCertificateToView(cert);
     setIsCertificatePreviewOpen(true);

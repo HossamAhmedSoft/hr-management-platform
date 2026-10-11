@@ -36,19 +36,56 @@ interface AttendanceEvent {
   excusedCount: number;
 }
 
+const INITIAL_ATTENDANCE_EVENTS: AttendanceEvent[] = [
+  {
+    id: "evt_init_01",
+    title: "اجتماع الجمعية العمومية الافتتاحي - الموسم 2026 (General Assembly Kick-off)",
+    date: new Date(Date.now() - 86400000 * 4).toISOString(),
+    location: "Main Campus Auditorium / Google Meet",
+    type: "General Assembly",
+    presentCount: 14,
+    absentCount: 1,
+    excusedCount: 2,
+  },
+  {
+    id: "evt_init_02",
+    title: "ورشة العمل التقنية الموحدة (Tech Tracks Joint Orientation)",
+    date: new Date(Date.now() - 86400000 * 2).toISOString(),
+    location: "Hall 3B - Engineering Labs",
+    type: "Workshop",
+    presentCount: 16,
+    absentCount: 0,
+    excusedCount: 1,
+  },
+  {
+    id: "evt_init_03",
+    title: "الاجتماع التنسيقي لقادة اللجان والمشرفين (Leads & Mentors Sync)",
+    date: new Date(Date.now() - 86400000).toISOString(),
+    location: "Google Meet Virtual Room",
+    type: "Sync Meeting",
+    presentCount: 6,
+    absentCount: 0,
+    excusedCount: 0,
+  },
+];
+
 export default function AttendancePage() {
-  const { locale, availableUsers, currentUser } = useApp();
+  const { locale, availableUsers, currentUser, logUserAction } = useApp();
   const isAr = locale === "ar";
   const userRole = currentUser?.role || "member";
   const canCreateMeeting = userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
 
   const [events, setEvents] = useState<AttendanceEvent[]>(() => {
-    if (typeof window === "undefined") return [];
+    if (typeof window === "undefined") return INITIAL_ATTENDANCE_EVENTS;
     try {
       const stored = localStorage.getItem("gdg_nctu_attendance_events");
-      return stored ? JSON.parse(stored) : [];
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_ATTENDANCE_EVENTS;
+      }
+      return INITIAL_ATTENDANCE_EVENTS;
     } catch {
-      return [];
+      return INITIAL_ATTENDANCE_EVENTS;
     }
   });
 
@@ -77,6 +114,18 @@ export default function AttendancePage() {
     if (typeof window !== "undefined") {
       localStorage.setItem("gdg_nctu_attendance_events", JSON.stringify(updated));
     }
+
+    if (logUserAction) {
+      logUserAction({
+        action: "ATTENDANCE_MEETING_CREATED",
+        entity_type: "attendance_event",
+        entity_id: newEvt.id,
+        reason: `تسجيل وتوثيق اجتماع رسمي: "${newTitle}"`,
+        details: `Location: ${newLocation}, Type: ${newType}, Initial attendees: ${availableUsers.length}.`,
+        after_value: { title: newTitle, location: newLocation, type: newType },
+      });
+    }
+
     setNewTitle("");
     setIsNewMeetingOpen(false);
   };

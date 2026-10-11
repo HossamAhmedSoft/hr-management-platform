@@ -20,6 +20,7 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  GraduationCap,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +54,7 @@ export default function AuditLogPage() {
     { key: "all", label: isAr ? "جميع السجلات" : "All Records", icon: Database },
     { key: "task", label: isAr ? "المهام والتسليمات" : "Tasks & Milestones", icon: CheckCircle },
     { key: "point_event", label: isAr ? "النقاط واللوائح" : "Points Ledger", icon: Award },
+    { key: "education", label: isAr ? "المسارات والتدريب" : "Technical Tracks", icon: GraduationCap },
     { key: "evaluation", label: isAr ? "التقييمات الشهرية" : "Evaluations", icon: TrendingUp },
     { key: "appeal", label: isAr ? "التظلمات" : "Appeals", icon: Scale },
     { key: "incident", label: isAr ? "المخالفات والمتابعة" : "Incidents & PIP", icon: AlertTriangle },
@@ -67,6 +69,18 @@ export default function AuditLogPage() {
           if (l.entity_type !== "incident" && l.entity_type !== "feedback_session") return false;
         } else if (selectedCategory === "auth") {
           if (l.entity_type !== "auth" && l.entity_type !== "system" && l.entity_type !== "policy") return false;
+        } else if (selectedCategory === "education") {
+          const eduEntities = [
+            "technical_track",
+            "participant",
+            "track_enrollment",
+            "track_session",
+            "track_assignment",
+            "track_submission",
+            "track_certificate",
+            "attendance_event",
+          ];
+          if (!eduEntities.includes(l.entity_type)) return false;
         } else if (l.entity_type !== selectedCategory) {
           return false;
         }

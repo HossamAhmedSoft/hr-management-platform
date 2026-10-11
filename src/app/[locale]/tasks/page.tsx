@@ -28,7 +28,17 @@ import { useApp } from "@/lib/app-context";
 import { Task, TaskPriority, TaskStatus } from "@/types";
 
 export default function TasksPage() {
-  const { tasks, teams, addTask, updateTaskStatus, availableUsers, locale, currentUser } = useApp();
+  const {
+    tasks,
+    teams,
+    addTask,
+    updateTaskStatus,
+    availableUsers,
+    locale,
+    currentUser,
+    logUserAction,
+    addNotification,
+  } = useApp();
   const isAr = locale === "ar";
 
   const userRole = currentUser?.role || "member";
@@ -179,10 +189,40 @@ export default function TasksPage() {
 
   const handleRequestDelay = () => {
     if (!selectedTask || !delayReason.trim()) return;
+
+    if (logUserAction) {
+      logUserAction({
+        action: "TASK_DELAY_REQUESTED",
+        entity_type: "task",
+        entity_id: selectedTask.id,
+        reason: `طلب تمديد موعد المهمة ("${selectedTask.title}"): ${delayReason.trim()}`,
+        details: `Proposed new deadline: ${delayDate}. Submitted by: ${currentUser?.full_name || "member"}.`,
+        after_value: {
+          task_id: selectedTask.id,
+          task_title: selectedTask.title,
+          delay_reason: delayReason.trim(),
+          proposed_deadline: delayDate,
+        },
+      });
+    }
+
+    if (addNotification && selectedTask.created_by) {
+      addNotification({
+        user_id: selectedTask.created_by,
+        title: isAr ? "طلب تمديد موعد مهمة" : "Task Delay Request",
+        message: isAr
+          ? `قدم العضو (${currentUser?.full_name || "عضو"}) طلب تمديد للمهمة "${selectedTask.title}": ${delayReason}`
+          : `Member (${currentUser?.full_name || "Member"}) requested deadline extension for "${selectedTask.title}".`,
+        type: "general",
+        link: `/${locale}/tasks`,
+        is_read: false,
+      });
+    }
+
     alert(
       isAr
-        ? "تم إرسال طلب تمديد الموعد إلى قائد الفريق للمراجعة والاعتماد."
-        : "Delay request submitted to Team Lead for review."
+        ? "تم إرسال وتوثيق طلب تمديد الموعد إلى قائد الفريق للمراجعة والاعتماد."
+        : "Delay request logged and submitted to Team Lead for review."
     );
     setIsDelayModalOpen(false);
     setSelectedTask(null);
