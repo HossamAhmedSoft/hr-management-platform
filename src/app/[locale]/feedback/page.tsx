@@ -25,8 +25,34 @@ import {
 import { useApp } from "@/lib/app-context";
 
 export default function FeedbackPage() {
-  const { feedbackSessions, addFeedbackSession, availableUsers, currentUser, locale } = useApp();
+  const { feedbackSessions, addFeedbackSession, availableUsers, teams, currentUser, locale } = useApp();
   const isAr = locale === "ar";
+
+  const [feedbackTeamFilter, setFeedbackTeamFilter] = useState("all");
+
+  // Helper to match user to committee
+  const isUserInTeam = (u: any, teamId?: string) => {
+    if (!teamId || teamId === "all") return true;
+    const target = teamId.toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userTeam = (u.team_id || u.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userCommittee = (u.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userTeamName = (u.team?.name || "").toLowerCase().trim();
+
+    if (userTeam === target) return true;
+    if (userCommittee === target) return true;
+    if (userTeam && target && (userTeam.includes(target) || target.includes(userTeam))) return true;
+    if (userCommittee && target && (userCommittee.includes(target) || target.includes(userCommittee))) return true;
+    if (userTeamName && target && (userTeamName.includes(target) || target.includes(userTeamName))) return true;
+    return false;
+  };
+
+  const selectableUsersForFeedback = React.useMemo(() => {
+    let pool = availableUsers;
+    if (feedbackTeamFilter !== "all") {
+      pool = pool.filter((u) => isUserInTeam(u, feedbackTeamFilter));
+    }
+    return pool;
+  }, [availableUsers, feedbackTeamFilter]);
 
   const [isNewSessionOpen, setIsNewSessionOpen] = useState(false);
   const [targetMemberId, setTargetMemberId] = useState(availableUsers[0]?.id || "");
@@ -42,10 +68,10 @@ export default function FeedbackPage() {
   const [hrPrivateNotes, setHrPrivateNotes] = useState("");
 
   React.useEffect(() => {
-    if (!targetMemberId && availableUsers.length > 0) {
-      setTargetMemberId(availableUsers[0].id);
+    if (!targetMemberId && selectableUsersForFeedback.length > 0) {
+      setTargetMemberId(selectableUsersForFeedback[0].id);
     }
-  }, [availableUsers, targetMemberId]);
+  }, [selectableUsersForFeedback, targetMemberId]);
 
   const getMemberName = (id: string) => {
     return availableUsers.find((u) => u.id === id)?.full_name || id;
@@ -187,7 +213,32 @@ export default function FeedbackPage() {
             <form onSubmit={handleCreateSession} className="space-y-4 pt-2 text-xs">
               <div>
                 <label className="font-semibold text-foreground">
-                  {isAr ? "العضو المعني بالجلسة:" : "Target Member:"}
+                  {isAr ? "اللجنة / المسار (تصفية الأعضاء):" : "Committee / Track (Filter):"}
+                </label>
+                <select
+                  value={feedbackTeamFilter}
+                  onChange={(e) => {
+                    const tId = e.target.value;
+                    setFeedbackTeamFilter(tId);
+                    const filtered = availableUsers.filter((u) => isUserInTeam(u, tId));
+                    if (filtered.length > 0 && !filtered.some((u) => u.id === targetMemberId)) {
+                      setTargetMemberId(filtered[0].id);
+                    }
+                  }}
+                  className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
+                >
+                  <option value="all">{isAr ? "جميع اللجان والمسارات" : "All Committees"}</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {isAr ? t.name_ar : t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "العضو المعني بالجلسة (ضمن اللجنة):" : "Target Member (Within Committee):"}
                 </label>
                 <select
                   value={targetMemberId}
@@ -195,10 +246,10 @@ export default function FeedbackPage() {
                   className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                   required
                 >
-                  {availableUsers.length === 0 ? (
-                    <option value="">{isAr ? "لا يوجد أعضاء مسجلين" : "No members registered"}</option>
+                  {selectableUsersForFeedback.length === 0 ? (
+                    <option value="">{isAr ? "لا يوجد أعضاء في هذه اللجنة" : "No members in this committee"}</option>
                   ) : (
-                    availableUsers.map((u) => (
+                    selectableUsersForFeedback.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.full_name} ({u.role.replace("_", " ")})
                       </option>

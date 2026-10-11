@@ -16,6 +16,8 @@ export const INITIAL_MEETINGS: MeetingAttendanceEvent[] = [
     date: new Date(Date.now() - 86400000 * 5).toISOString(),
     location: "Main Auditorium - NCTU Campus & Google Meet",
     type: "General Assembly",
+    target_team_id: "all",
+    target_team_name: "اجتماع عام - جميع اللجان والأعضاء",
     status: "completed",
     created_by: "hossam_super_admin",
     attendance_taken: true,
@@ -65,6 +67,8 @@ export const INITIAL_MEETINGS: MeetingAttendanceEvent[] = [
     date: new Date(Date.now() - 86400000 * 2).toISOString(),
     location: "Hall 3B - Engineering Labs",
     type: "Workshop",
+    target_team_id: "team_web",
+    target_team_name: "مسار تطوير الويب (Web Track)",
     status: "completed",
     created_by: "hossam_super_admin",
     attendance_taken: true,
@@ -96,12 +100,30 @@ export const INITIAL_MEETINGS: MeetingAttendanceEvent[] = [
     date: new Date(Date.now() + 86400000 * 3).toISOString(),
     location: "Google Meet Room / Hall 1A",
     type: "General Assembly",
+    target_team_id: "all",
+    target_team_name: "اجتماع عام - جميع اللجان والأعضاء",
     status: "scheduled",
     created_by: "hossam_super_admin",
     attendance_taken: false,
     presentCount: 0,
     absentCount: 0,
     excusedCount: 1,
+    records: [],
+  },
+  {
+    id: "mtg_04_hr_internal_sync",
+    title: "الاجتماع الأسبوعي لفريق الموارد البشرية ومراجعة الأداء (HR Internal Sync)",
+    date: new Date(Date.now() + 86400000 * 4).toISOString(),
+    location: "HR Meeting Room & Google Meet",
+    type: "Team Meeting",
+    target_team_id: "team_hr",
+    target_team_name: "الموارد البشرية (Human Resources)",
+    status: "scheduled",
+    created_by: "hossam_super_admin",
+    attendance_taken: false,
+    presentCount: 0,
+    absentCount: 0,
+    excusedCount: 0,
     records: [],
   },
 ];
@@ -195,7 +217,17 @@ export const attendanceService = {
   },
 
   createMeeting(
-    meeting: Omit<MeetingAttendanceEvent, "id"> & { id?: string }
+    meeting: Omit<
+      MeetingAttendanceEvent,
+      "id" | "records" | "presentCount" | "absentCount" | "excusedCount" | "attendance_taken"
+    > & {
+      id?: string;
+      records?: MemberAttendanceRecord[];
+      presentCount?: number;
+      absentCount?: number;
+      excusedCount?: number;
+      attendance_taken?: boolean;
+    }
   ): MeetingAttendanceEvent {
     const meetings = this.getMeetings();
     const newMeeting: MeetingAttendanceEvent = {
@@ -379,5 +411,29 @@ export const attendanceService = {
       meeting: updatedMeeting,
       penalizedMembers,
     };
+  },
+
+  // ── Meeting Audience Scope Validator ───────────────────────
+  isMemberInMeetingScope(
+    member: { team_id?: string; committee?: string; team?: { id?: string; name?: string } },
+    meeting: MeetingAttendanceEvent
+  ): boolean {
+    if (!meeting.target_team_id || meeting.target_team_id === "all" || meeting.target_team_id === "public") {
+      return true;
+    }
+    const target = meeting.target_team_id.toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userTeamId = (member.team_id || member.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userCommittee = (member.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userTeamName = (member.team?.name || "").toLowerCase().trim();
+
+    if (userTeamId === target) return true;
+    if (userCommittee === target) return true;
+    if (userTeamId && target && (userTeamId.includes(target) || target.includes(userTeamId))) return true;
+    if (userCommittee && target && (userCommittee.includes(target) || target.includes(userCommittee))) return true;
+    if (userTeamName && target && (userTeamName.includes(target) || target.includes(userTeamName))) return true;
+    if (meeting.target_team_name && userTeamId && meeting.target_team_name.toLowerCase().includes(userTeamId)) return true;
+    if (meeting.target_team_name && userCommittee && meeting.target_team_name.toLowerCase().includes(userCommittee)) return true;
+
+    return false;
   },
 };

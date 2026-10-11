@@ -48,12 +48,23 @@ interface AppContextType {
   auditLogs: AuditLog[];
   addTask: (task: Omit<Task, "id" | "created_at" | "updated_at">) => void;
   updateTaskStatus: (taskId: string, newStatus: Task["status"]) => void;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<boolean>;
+  deleteTask: (id: string) => Promise<boolean>;
   addPointEvent: (event: Omit<PointEvent, "id" | "created_at" | "updated_at">) => void;
+  updatePointEvent: (id: string, updates: Partial<PointEvent>) => Promise<boolean>;
+  deletePointEvent: (id: string) => Promise<boolean>;
   approvePointEvent: (id: string, rationale?: string) => void;
   rejectPointEvent: (id: string, rationale?: string) => void;
   submitAppeal: (appeal: Omit<Appeal, "id" | "created_at" | "updated_at">) => void;
   addEvaluation: (evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">) => void;
+  updateEvaluation: (id: string, updates: Partial<Evaluation>) => Promise<boolean>;
+  deleteEvaluation: (id: string) => Promise<boolean>;
+  updateProfile: (id: string, updates: Partial<Profile>) => Promise<boolean>;
+  deleteProfile: (id: string) => Promise<boolean>;
+  resetMemberPassword: (email: string, newPassword: string) => Promise<boolean>;
   addIncident: (incident: Omit<Incident, "id" | "created_at" | "updated_at">) => void;
+  updateIncident: (id: string, updates: Partial<Incident>) => Promise<boolean>;
+  deleteIncident: (id: string) => Promise<boolean>;
   addFeedbackSession: (session: Omit<FeedbackSession, "id" | "created_at" | "updated_at">) => void;
   addAuditLog: (log: Omit<AuditLog, "id" | "created_at">) => void;
   logUserAction: (log: {
@@ -652,6 +663,215 @@ export function AppProvider({
     }
   };
 
+  const updateTask = async (id: string, updates: Partial<Task>): Promise<boolean> => {
+    const res = await dbService.updateTask(id, updates);
+    if (res) {
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        actor_name: currentUser?.full_name,
+        action: "TASK_UPDATED",
+        entity_type: "task",
+        entity_id: id,
+        reason: `تعديل بيانات المهمة: ${res.title}`,
+        details: `Task updated with fields: ${Object.keys(updates).join(", ")}.`,
+        after_value: updates as Record<string, unknown>,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const deleteTask = async (id: string): Promise<boolean> => {
+    const target = tasks.find((t) => t.id === id);
+    const success = await dbService.deleteTask(id);
+    if (success) {
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        actor_name: currentUser?.full_name,
+        action: "TASK_DELETED",
+        entity_type: "task",
+        entity_id: id,
+        reason: `حذف المهمة نهائياً: ${target?.title || id}`,
+        details: `Task removed from system.`,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const updatePointEvent = async (id: string, updates: Partial<PointEvent>): Promise<boolean> => {
+    const res = await dbService.updatePointEvent(id, updates);
+    if (res) {
+      setPointEvents((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        actor_name: currentUser?.full_name,
+        action: "POINT_EVENT_UPDATED",
+        entity_type: "point_event",
+        entity_id: id,
+        reason: `تعديل واقعة نقاط: ${res.explanation}`,
+        details: `Updated fields: ${Object.keys(updates).join(", ")}. Value: ${res.value}.`,
+        after_value: updates as Record<string, unknown>,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const deletePointEvent = async (id: string): Promise<boolean> => {
+    const target = pointEvents.find((p) => p.id === id);
+    const success = await dbService.deletePointEvent(id);
+    if (success) {
+      setPointEvents((prev) => prev.filter((p) => p.id !== id));
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        actor_name: currentUser?.full_name,
+        action: "POINT_EVENT_DELETED",
+        entity_type: "point_event",
+        entity_id: id,
+        reason: `حذف واقعة نقاط: ${target?.explanation || id}`,
+        details: `Point event removed from ledger.`,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const updateEvaluation = async (id: string, updates: Partial<Evaluation>): Promise<boolean> => {
+    const res = await dbService.updateEvaluation(id, updates);
+    if (res) {
+      setEvaluations((prev) => prev.map((e) => (e.id === id ? { ...e, ...updates } : e)));
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        actor_name: currentUser?.full_name,
+        action: "EVALUATION_UPDATED",
+        entity_type: "evaluation",
+        entity_id: id,
+        reason: `تعديل نتيجة التقييم الشهري: ${res.total_score}/100`,
+        details: `Evaluation score updated to ${res.total_score}. Band: ${res.performance_band}.`,
+        after_value: updates as Record<string, unknown>,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const deleteEvaluation = async (id: string): Promise<boolean> => {
+    const target = evaluations.find((e) => e.id === id);
+    const success = await dbService.deleteEvaluation(id);
+    if (success) {
+      setEvaluations((prev) => prev.filter((e) => e.id !== id));
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        actor_name: currentUser?.full_name,
+        action: "EVALUATION_DELETED",
+        entity_type: "evaluation",
+        entity_id: id,
+        reason: `حذف تقييم شهري للعضو: ${target?.member_id}`,
+        details: `Evaluation record removed.`,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const updateProfile = async (id: string, updates: Partial<Profile>): Promise<boolean> => {
+    const success = await dbService.updateProfile(id, updates);
+    if (success) {
+      setAvailableUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...updates } : u)));
+      if (currentUser?.id === id) {
+        const updatedMe = { ...currentUser, ...updates };
+        setCurrentUser(updatedMe);
+        saveSession(updatedMe);
+      }
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        actor_name: currentUser?.full_name,
+        action: "MEMBER_PROFILE_UPDATED",
+        entity_type: "profile",
+        entity_id: id,
+        reason: `تعديل بيانات العضو في النظام`,
+        details: `Profile updated: ${Object.keys(updates).join(", ")}.`,
+        after_value: updates as Record<string, unknown>,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const deleteProfile = async (id: string): Promise<boolean> => {
+    const target = availableUsers.find((u) => u.id === id);
+    const success = await dbService.deleteProfile(id);
+    if (success) {
+      setAvailableUsers((prev) => prev.filter((u) => u.id !== id));
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        actor_name: currentUser?.full_name,
+        action: "MEMBER_PROFILE_DELETED",
+        entity_type: "profile",
+        entity_id: id,
+        reason: `حذف حساب العضو نهائياً من النظام: ${target?.full_name} (${target?.email})`,
+        details: `Member profile deleted by administrator.`,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const resetMemberPassword = async (email: string, newPassword: string): Promise<boolean> => {
+    await dbService.setPassword(email, newPassword);
+    await addAuditLog({
+      actor_id: currentUser?.id || "super_admin",
+      actor_name: currentUser?.full_name,
+      action: "MEMBER_PASSWORD_RESET",
+      entity_type: "security",
+      entity_id: email,
+      reason: `إعادة تعيين كلمة السر للعضو (${email}) بواسطة السوبر أدمن`,
+      details: `Password reset successfully enforced.`,
+    });
+    return true;
+  };
+
+  const updateIncident = async (id: string, updates: Partial<Incident>): Promise<boolean> => {
+    const res = await dbService.updateIncident(id, updates);
+    if (res) {
+      setIncidents((prev) => prev.map((inc) => (inc.id === id ? { ...inc, ...updates } : inc)));
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        actor_name: currentUser?.full_name,
+        action: "INCIDENT_UPDATED",
+        entity_type: "incident",
+        entity_id: id,
+        reason: `تعديل الإشعار الإداري: ${res.title}`,
+        details: `Incident updated. Level: ${res.level}.`,
+        after_value: updates as Record<string, unknown>,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const deleteIncident = async (id: string): Promise<boolean> => {
+    const target = incidents.find((i) => i.id === id);
+    const success = await dbService.deleteIncident(id);
+    if (success) {
+      setIncidents((prev) => prev.filter((i) => i.id !== id));
+      await addAuditLog({
+        actor_id: currentUser?.id || "admin",
+        actor_name: currentUser?.full_name,
+        action: "INCIDENT_DELETED",
+        entity_type: "incident",
+        entity_id: id,
+        reason: `حذف الإشعار الإداري: ${target?.title || id}`,
+        details: `Incident removed.`,
+      });
+      return true;
+    }
+    return false;
+  };
+
   const addFeedbackSession = async (session: Omit<FeedbackSession, "id" | "created_at" | "updated_at">) => {
     const created = await dbService.createFeedbackSession(session);
     if (created) {
@@ -700,12 +920,23 @@ export function AppProvider({
         auditLogs,
         addTask,
         updateTaskStatus,
+        updateTask,
+        deleteTask,
         addPointEvent,
+        updatePointEvent,
+        deletePointEvent,
         approvePointEvent,
         rejectPointEvent,
         submitAppeal,
         addEvaluation,
+        updateEvaluation,
+        deleteEvaluation,
+        updateProfile,
+        deleteProfile,
+        resetMemberPassword,
         addIncident,
+        updateIncident,
+        deleteIncident,
         addFeedbackSession,
         addAuditLog,
         logUserAction,

@@ -25,12 +25,13 @@ export interface Profile {
   status: MemberStatus;
   join_date: string;
   phone?: string;
+  bio?: string;
   academic_notes?: string;
   created_at: string;
   updated_at: string;
 }
 
-export type MemberStatus = "active" | "inactive" | "suspended" | "archived";
+export type MemberStatus = "active" | "inactive" | "suspended" | "archived" | "on_leave";
 
 // ── Organization ─────────────────────────────────────────────
 
@@ -421,6 +422,8 @@ export interface MeetingAttendanceEvent {
   date: string;
   location: string;
   type: string;
+  target_team_id?: string; // "all" for Public/All Members, or specific team_id (e.g. "team_hr", "team_web")
+  target_team_name?: string;
   status: "scheduled" | "in_progress" | "completed";
   created_by?: string;
   attendance_taken?: boolean;

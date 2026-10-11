@@ -21,9 +21,18 @@ import { generateId } from "./utils";
 // ============================================================
 
 const STORAGE_PREFIX = "gdg_nctu_db_";
+const memoryStore: Record<string, string> = {};
 
 function getTable<T>(tableName: string, defaultData: T[] = []): T[] {
-  if (typeof window === "undefined") return defaultData;
+  if (typeof window === "undefined") {
+    const raw = memoryStore[`${STORAGE_PREFIX}${tableName}`];
+    if (!raw) return defaultData;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return defaultData;
+    }
+  }
   try {
     const raw = localStorage.getItem(`${STORAGE_PREFIX}${tableName}`);
     if (!raw) {
@@ -37,7 +46,10 @@ function getTable<T>(tableName: string, defaultData: T[] = []): T[] {
 }
 
 function setTable<T>(tableName: string, data: T[]): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    memoryStore[`${STORAGE_PREFIX}${tableName}`] = JSON.stringify(data);
+    return;
+  }
   try {
     localStorage.setItem(`${STORAGE_PREFIX}${tableName}`, JSON.stringify(data));
   } catch (e) {
@@ -82,6 +94,19 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
     after_value: { tracks_count: 5, active_cohort: "Season 2026 - Cohort 1" },
     created_at: new Date(Date.now() - 86400000).toISOString(),
   },
+];
+
+export const DEFAULT_TEAMS: Team[] = [
+  { id: "team_hr", name: "Human Resources", name_ar: "الموارد البشرية", type: "non_technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
+  { id: "team_media", name: "Media & Branding", name_ar: "الإعلام والمحتوى", type: "non_technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
+  { id: "team_pr", name: "Public Relations", name_ar: "العلاقات العامة والتسويق", type: "non_technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
+  { id: "team_ops", name: "Operations & Logistics", name_ar: "العمليات واللوجستيات", type: "non_technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
+  { id: "team_web", name: "Web Development", name_ar: "مسار تطوير الويب", type: "technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
+  { id: "team_mobile", name: "Mobile App Development", name_ar: "مسار تطبيقات الموبايل", type: "technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
+  { id: "team_uiux", name: "UI/UX Design", name_ar: "مسار تصميم واجهات المستخدم", type: "technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
+  { id: "team_embedded", name: "Embedded Systems & IoT", name_ar: "الأنظمة المدمجة وإنترنت الأشياء", type: "technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
+  { id: "team_cyber", name: "Cybersecurity", name_ar: "مسار الأمن السيبراني", type: "technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
+  { id: "team_ai", name: "AI & Data Science", name_ar: "مسار الذكاء الاصطناعي", type: "technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
 ];
 
 export const internalDB = {
@@ -134,13 +159,48 @@ export const internalDB = {
     return updatedProfile;
   },
 
+  deleteProfile(id: string): boolean {
+    const profiles = this.getProfiles();
+    const updated = profiles.filter((p) => p.id !== id);
+    setTable("profiles", updated);
+    return true;
+  },
+
   // ── Teams ──────────────────────────────────────────────
   getTeams(): Team[] {
-    return getTable<Team>("teams", []);
+    const stored = getTable<Team>("teams", DEFAULT_TEAMS);
+    return stored.length > 0 ? stored : DEFAULT_TEAMS;
   },
 
   setTeams(teams: Team[]): void {
     setTable("teams", teams);
+  },
+
+  createTeam(team: Team): Team {
+    const teams = this.getTeams();
+    const updated = [team, ...teams.filter((t) => t.id !== team.id)];
+    setTable("teams", updated);
+    return team;
+  },
+
+  updateTeam(id: string, updates: Partial<Team>): Team | null {
+    const teams = this.getTeams();
+    let updated: Team | null = null;
+    const newTeams = teams.map((t) => {
+      if (t.id === id) {
+        updated = { ...t, ...updates, updated_at: new Date().toISOString() };
+        return updated;
+      }
+      return t;
+    });
+    setTable("teams", newTeams);
+    return updated;
+  },
+
+  deleteTeam(id: string): boolean {
+    const teams = this.getTeams();
+    setTable("teams", teams.filter((t) => t.id !== id));
+    return true;
   },
 
   // ── Tasks & Deliverables ───────────────────────────────
@@ -177,6 +237,26 @@ export const internalDB = {
     return true;
   },
 
+  updateTask(id: string, updates: Partial<Task>): Task | null {
+    const tasks = this.getTasks();
+    let updated: Task | null = null;
+    const newTasks = tasks.map((t) => {
+      if (t.id === id) {
+        updated = { ...t, ...updates, updated_at: new Date().toISOString() };
+        return updated;
+      }
+      return t;
+    });
+    setTable("tasks", newTasks);
+    return updated;
+  },
+
+  deleteTask(id: string): boolean {
+    const tasks = this.getTasks();
+    setTable("tasks", tasks.filter((t) => t.id !== id));
+    return true;
+  },
+
   // ── Points Ledger ──────────────────────────────────────
   getPointEvents(): PointEvent[] {
     return getTable<PointEvent>("point_events", []);
@@ -186,15 +266,15 @@ export const internalDB = {
     setTable("point_events", events);
   },
 
-  createPointEvent(eventData: Omit<PointEvent, "id" | "created_at" | "updated_at">): PointEvent {
+  createPointEvent(eventData: Omit<PointEvent, "id" | "created_at" | "updated_at"> & { id?: string; created_at?: string }): PointEvent {
     const events = this.getPointEvents();
     const newEvent: PointEvent = {
       ...eventData,
-      id: `pe_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      created_at: new Date().toISOString(),
+      id: eventData.id || `pe_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      created_at: eventData.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    setTable("point_events", [newEvent, ...events]);
+    setTable("point_events", [newEvent, ...events.filter((p) => p.id !== newEvent.id)]);
     return newEvent;
   },
 
@@ -221,6 +301,26 @@ export const internalDB = {
     return true;
   },
 
+  updatePointEvent(id: string, updates: Partial<PointEvent>): PointEvent | null {
+    const events = this.getPointEvents();
+    let updated: PointEvent | null = null;
+    const newEvents = events.map((pe) => {
+      if (pe.id === id) {
+        updated = { ...pe, ...updates, updated_at: new Date().toISOString() };
+        return updated;
+      }
+      return pe;
+    });
+    setTable("point_events", newEvents);
+    return updated;
+  },
+
+  deletePointEvent(id: string): boolean {
+    const events = this.getPointEvents();
+    setTable("point_events", events.filter((pe) => pe.id !== id));
+    return true;
+  },
+
   // ── Monthly Evaluations ────────────────────────────────
   getEvaluations(): Evaluation[] {
     return getTable<Evaluation>("evaluations", []);
@@ -230,16 +330,36 @@ export const internalDB = {
     setTable("evaluations", evals);
   },
 
-  createEvaluation(evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">): Evaluation {
+  createEvaluation(evalData: Omit<Evaluation, "id" | "created_at" | "updated_at"> & { id?: string; created_at?: string }): Evaluation {
     const evals = this.getEvaluations();
     const newEval: Evaluation = {
       ...evalData,
-      id: generateId(),
-      created_at: new Date().toISOString(),
+      id: evalData.id || generateId(),
+      created_at: evalData.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    setTable("evaluations", [newEval, ...evals]);
+    setTable("evaluations", [newEval, ...evals.filter((e) => e.id !== newEval.id)]);
     return newEval;
+  },
+
+  updateEvaluation(id: string, updates: Partial<Evaluation>): Evaluation | null {
+    const evals = this.getEvaluations();
+    let updated: Evaluation | null = null;
+    const newEvals = evals.map((e) => {
+      if (e.id === id) {
+        updated = { ...e, ...updates, updated_at: new Date().toISOString() };
+        return updated;
+      }
+      return e;
+    });
+    setTable("evaluations", newEvals);
+    return updated;
+  },
+
+  deleteEvaluation(id: string): boolean {
+    const evals = this.getEvaluations();
+    setTable("evaluations", evals.filter((e) => e.id !== id));
+    return true;
   },
 
   // ── Appeals (Disputes) ─────────────────────────────────
@@ -247,16 +367,36 @@ export const internalDB = {
     return getTable<Appeal>("appeals", []);
   },
 
-  createAppeal(appealData: Omit<Appeal, "id" | "created_at" | "updated_at">): Appeal {
+  createAppeal(appealData: Omit<Appeal, "id" | "created_at" | "updated_at"> & { id?: string; created_at?: string }): Appeal {
     const appeals = this.getAppeals();
     const newAppeal: Appeal = {
       ...appealData,
-      id: generateId(),
-      created_at: new Date().toISOString(),
+      id: appealData.id || generateId(),
+      created_at: appealData.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    setTable("appeals", [newAppeal, ...appeals]);
+    setTable("appeals", [newAppeal, ...appeals.filter((a) => a.id !== newAppeal.id)]);
     return newAppeal;
+  },
+
+  updateAppeal(id: string, updates: Partial<Appeal>): Appeal | null {
+    const appeals = this.getAppeals();
+    let updated: Appeal | null = null;
+    const newAppeals = appeals.map((a) => {
+      if (a.id === id) {
+        updated = { ...a, ...updates, updated_at: new Date().toISOString() };
+        return updated;
+      }
+      return a;
+    });
+    setTable("appeals", newAppeals);
+    return updated;
+  },
+
+  deleteAppeal(id: string): boolean {
+    const appeals = this.getAppeals();
+    setTable("appeals", appeals.filter((a) => a.id !== id));
+    return true;
   },
 
   // ── Escalation Incidents ───────────────────────────────
@@ -268,16 +408,36 @@ export const internalDB = {
     setTable("incidents", incidents);
   },
 
-  createIncident(incident: Omit<Incident, "id" | "created_at" | "updated_at">): Incident {
+  createIncident(incident: Omit<Incident, "id" | "created_at" | "updated_at"> & { id?: string; created_at?: string }): Incident {
     const incidents = this.getIncidents();
     const newIncident: Incident = {
       ...incident,
-      id: generateId(),
-      created_at: new Date().toISOString(),
+      id: incident.id || generateId(),
+      created_at: incident.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    setTable("incidents", [newIncident, ...incidents]);
+    setTable("incidents", [newIncident, ...incidents.filter((i) => i.id !== newIncident.id)]);
     return newIncident;
+  },
+
+  updateIncident(id: string, updates: Partial<Incident>): Incident | null {
+    const incidents = this.getIncidents();
+    let updated: Incident | null = null;
+    const newIncidents = incidents.map((inc) => {
+      if (inc.id === id) {
+        updated = { ...inc, ...updates, updated_at: new Date().toISOString() };
+        return updated;
+      }
+      return inc;
+    });
+    setTable("incidents", newIncidents);
+    return updated;
+  },
+
+  deleteIncident(id: string): boolean {
+    const incidents = this.getIncidents();
+    setTable("incidents", incidents.filter((inc) => inc.id !== id));
+    return true;
   },
 
   // ── Feedback & PIP ─────────────────────────────────────
@@ -297,6 +457,26 @@ export const internalDB = {
     };
     setTable("feedback_sessions", [newSession, ...sessions]);
     return newSession;
+  },
+
+  updateFeedbackSession(id: string, updates: Partial<FeedbackSession>): FeedbackSession | null {
+    const sessions = this.getFeedbackSessions();
+    let updated: FeedbackSession | null = null;
+    const newSessions = sessions.map((s) => {
+      if (s.id === id) {
+        updated = { ...s, ...updates, updated_at: new Date().toISOString() };
+        return updated;
+      }
+      return s;
+    });
+    setTable("feedback_sessions", newSessions);
+    return updated;
+  },
+
+  deleteFeedbackSession(id: string): boolean {
+    const sessions = this.getFeedbackSessions();
+    setTable("feedback_sessions", sessions.filter((s) => s.id !== id));
+    return true;
   },
 
   // ── Educational Tracks & Attendees ─────────────────────

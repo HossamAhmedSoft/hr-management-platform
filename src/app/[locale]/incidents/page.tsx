@@ -11,6 +11,8 @@ import {
   Clock,
   ArrowDown,
   Info,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -25,13 +27,27 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useApp } from "@/lib/app-context";
+import { Incident } from "@/types";
 
 export default function IncidentsPage() {
-  const { incidents, addIncident, availableUsers, currentUser, locale } = useApp();
+  const {
+    incidents,
+    addIncident,
+    updateIncident,
+    deleteIncident,
+    availableUsers,
+    teams,
+    currentUser,
+    locale,
+  } = useApp();
   const isAr = locale === "ar";
   const userRole = currentUser?.role || "member";
   const isMember = userRole === "member";
-  const canLogIncident = userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
+  const canLogIncident =
+    userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
+
+  const [filterTeam, setFilterTeam] = useState<string>("all");
+  const [incidentTeamFilter, setIncidentTeamFilter] = useState<string>("all");
 
   const [isNewIncidentOpen, setIsNewIncidentOpen] = useState(false);
   const [targetMemberId, setTargetMemberId] = useState(availableUsers[0]?.id || "");
@@ -40,11 +56,53 @@ export default function IncidentsPage() {
   const [level, setLevel] = useState<number>(1);
   const [resolutionNotes, setResolutionNotes] = useState("");
 
-  React.useEffect(() => {
-    if (!targetMemberId && availableUsers.length > 0) {
-      setTargetMemberId(availableUsers[0].id);
+  // Edit Incident State
+  const [isEditIncidentOpen, setIsEditIncidentOpen] = useState(false);
+  const [editingIncident, setEditingIncident] = useState<Incident | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editLevel, setEditLevel] = useState<number>(1);
+  const [editResolutionNotes, setEditResolutionNotes] = useState("");
+  const [editStatus, setEditStatus] = useState<Incident["status"]>("open");
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+
+  // Delete Incident State
+  const [isDeleteIncidentOpen, setIsDeleteIncidentOpen] = useState(false);
+  const [deletingIncident, setDeletingIncident] = useState<Incident | null>(null);
+  const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
+
+  // Helper to match user to committee
+  const isUserInTeam = (u: any, teamId?: string) => {
+    if (!teamId || teamId === "all") return true;
+    const target = teamId.toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userTeam = (u.team_id || u.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userCommittee = (u.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userTeamName = (u.team?.name || "").toLowerCase().trim();
+
+    if (userTeam === target) return true;
+    if (userCommittee === target) return true;
+    if (userTeam && target && (userTeam.includes(target) || target.includes(userTeam))) return true;
+    if (userCommittee && target && (userCommittee.includes(target) || target.includes(userCommittee))) return true;
+    if (userTeamName && target && (userTeamName.includes(target) || target.includes(userTeamName))) return true;
+    return false;
+  };
+
+  const selectableUsersForIncident = React.useMemo(() => {
+    let pool = availableUsers;
+    if (userRole === "team_lead" && currentUser?.team_id) {
+      pool = pool.filter((u) => isUserInTeam(u, currentUser.team_id));
     }
-  }, [availableUsers, targetMemberId]);
+    if (incidentTeamFilter !== "all") {
+      pool = pool.filter((u) => isUserInTeam(u, incidentTeamFilter));
+    }
+    return pool;
+  }, [availableUsers, currentUser, userRole, incidentTeamFilter]);
+
+  React.useEffect(() => {
+    if (!targetMemberId && selectableUsersForIncident.length > 0) {
+      setTargetMemberId(selectableUsersForIncident[0].id);
+    }
+  }, [selectableUsersForIncident, targetMemberId]);
 
   // Robust matching helper
   const isMatchUser = (targetId?: string) => {
@@ -62,9 +120,24 @@ export default function IncidentsPage() {
     return false;
   };
 
-  const visibleIncidents = isMember
-    ? incidents.filter((inc) => isMatchUser(inc.target_member_id || inc.member_id))
-    : incidents;
+  const visibleIncidents = incidents.filter((inc) => {
+    if (isMember) {
+      return isMatchUser(inc.target_member_id || inc.member_id);
+    }
+    if (userRole === "team_lead" && currentUser?.team_id) {
+      const targetUser = availableUsers.find((u) => u.id === (inc.target_member_id || inc.member_id));
+      if (targetUser && !isUserInTeam(targetUser, currentUser.team_id) && !isMatchUser(inc.target_member_id || inc.member_id)) {
+        return false;
+      }
+    }
+    if (filterTeam !== "all") {
+      const targetUser = availableUsers.find((u) => u.id === (inc.target_member_id || inc.member_id));
+      if (!targetUser || !isUserInTeam(targetUser, filterTeam)) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const handleCreateIncident = (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,6 +163,63 @@ export default function IncidentsPage() {
     setIsNewIncidentOpen(false);
   };
 
+  // Open Edit Modal
+  const openEditModal = (inc: Incident, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingIncident(inc);
+    setEditTitle(inc.title);
+    setEditDescription(inc.description);
+    setEditLevel(inc.level || inc.escalation_level || 1);
+    setEditResolutionNotes(inc.decision_notes || "");
+    setEditStatus(inc.status || "open");
+    setIsEditIncidentOpen(true);
+  };
+
+  // Save Edit Incident
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingIncident || !editTitle.trim()) return;
+    setIsSubmittingEdit(true);
+
+    const success = await updateIncident(editingIncident.id, {
+      title: editTitle.trim(),
+      description: editDescription.trim(),
+      level: editLevel as any,
+      escalation_level: editLevel,
+      decision_notes: editResolutionNotes.trim() || undefined,
+      status: editStatus,
+    });
+
+    if (success) {
+      setIsEditIncidentOpen(false);
+      setEditingIncident(null);
+    } else {
+      alert(isAr ? "فشل تعديل الإشعار" : "Failed to update incident");
+    }
+    setIsSubmittingEdit(false);
+  };
+
+  // Open Delete Modal
+  const openDeleteModal = (inc: Incident, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDeletingIncident(inc);
+    setIsDeleteIncidentOpen(true);
+  };
+
+  // Confirm Delete Incident
+  const handleConfirmDelete = async () => {
+    if (!deletingIncident) return;
+    setIsSubmittingDelete(true);
+    const success = await deleteIncident(deletingIncident.id);
+    if (success) {
+      setIsDeleteIncidentOpen(false);
+      setDeletingIncident(null);
+    } else {
+      alert(isAr ? "فشل حذف الإشعار" : "Failed to delete incident");
+    }
+    setIsSubmittingDelete(false);
+  };
+
   const getMemberName = (id: string) => {
     return availableUsers.find((u) => u.id === id)?.full_name || id;
   };
@@ -98,57 +228,49 @@ export default function IncidentsPage() {
     {
       level: 1,
       title: isAr ? "المستوى 1: تنبيه ودي مباشر" : "Level 1: Friendly Notice",
-      tagColor: "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] border-[#d2e3fc] dark:border-[#1a73e8]/30",
-      dotColor: "bg-[#1a73e8]",
+      color: "border-[#1a73e8] bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8]",
       desc: isAr
-        ? "محادثة توجيهية هادئة ومباشرة بين العضو وقائد الفريق لمعالجة أي قصور أولي فور حدوثه."
-        : "Informal, constructive 1-on-1 alignment meeting to address minor issues and align expectations early.",
-      action: isAr ? "إجراء غير عقابي" : "Non-Punitive Advisory",
+        ? "جلسة توجيه غير رسمية 1-on-1 مع قائد الفريق للتنبيه الودي وتحديد أوجه الدعم والمساندة."
+        : "Informal 1-on-1 dialogue with Team Lead focusing on friendly alignment and support.",
     },
     {
       level: 2,
-      title: isAr ? "المستوى 2: خطة تحسين الأداء (PIP)" : "Level 2: Performance Improvement Plan (PIP)",
-      tagColor: "bg-[#fef7e0] dark:bg-[#fbbc04]/20 text-[#b06000] dark:text-[#fdd663] border-[#feefc3] dark:border-[#fbbc04]/30",
-      dotColor: "bg-[#fbbc04]",
+      title: isAr ? "المستوى 2: خطة تحسين الأداء (PIP)" : "Level 2: PIP Plan",
+      color: "border-[#fbbc04] bg-[#fef7e0] dark:bg-[#fbbc04]/20 text-[#b06000] dark:text-[#fdd663]",
       desc: isAr
-        ? "خطة أهداف محددة ومكتوبة بمهلة زمنية (عادة أسبوعين إلى 30 يوماً) مع تحديد أوجه الدعم والتدريب اللازمة."
-        : "Written, time-bound objectives agreement with designated team support and weekly progress checkpoints.",
-      action: isAr ? "خطة داعمة موثقة" : "Formal Developmental Support",
+        ? "خطة تطوير واضحة ومحددة زمنياً (1-2 أسبوع) بالتعاون بين قائد الفريق وإدارة الموارد البشرية."
+        : "Structured Performance Improvement Plan (1-2 weeks) overseen by HR and Lead.",
     },
     {
       level: 3,
-      title: isAr ? "المستوى 3: مراجعة قائد ونائب الفريق" : "Level 3: Head / Vice Head Review",
-      tagColor: "bg-[#feefe3] dark:bg-[#e37400]/20 text-[#e37400] dark:text-[#ff9800] border-[#fed7b2] dark:border-[#e37400]/30",
-      dotColor: "bg-[#e37400]",
+      title: isAr ? "المستوى 3: مراجعة قائد ونائب الفريق" : "Level 3: Head/Vice Head Review",
+      color: "border-[#e37400] bg-[#feefe3] dark:bg-[#e37400]/20 text-[#b06000] dark:text-[#fcad70]",
       desc: isAr
-        ? "جلسة استماع رسمية على مستوى قيادة اللجنة ومسؤول الموارد البشرية لتقييم أسباب عدم تحقق أهداف الـ PIP."
-        : "Formal committee review hearing with Track Lead and HR Admin evaluating unaddressed milestones.",
-      action: isAr ? "جلسة استماع رسمية" : "Formal Committee Hearing",
+        ? "اجتماع رسمي ثلاثي مشترك لمناقشة التحديات والوصول لحلول جذرية أو تعديل نطاق المهام."
+        : "Joint formal session with Team Head & Vice Head to resolve operational roadblocks.",
     },
     {
       level: 4,
-      title: isAr ? "المستوى 4: تصعيد لقيادة مجتمع GDG" : "Level 4: Community Leadership Escalation",
-      tagColor: "bg-[#fce8e6] dark:bg-[#ea4335]/20 text-[#c5221f] dark:text-[#f28b82] border-[#fad2cf] dark:border-[#ea4335]/30",
-      dotColor: "bg-[#ea4335]",
+      title: isAr ? "المستوى 4: تصعيد لقيادة مجتمع GDG" : "Level 4: Chapter Leadership",
+      color: "border-[#ea4335] bg-[#fce8e6] dark:bg-[#ea4335]/20 text-[#c5221f] dark:text-[#f28b82]",
       desc: isAr
-        ? "إحالة الملف إلى قائد GDG NCTU ومجلس الإدارة لاتخاذ القرار المؤسسي النهائي بعد استيفاء حق الدفاع والتحقيق."
-        : "Final executive hearing with Chapter Lead and Executive Board for binding status determinations.",
-      action: isAr ? "قرار مجلس القيادة" : "Executive Board Determination",
+        ? "جلسة استماع نهائية بحضور قيادة الفرع والـ HR لتحديد القرارات الإدارية المناسبة."
+        : "Final administrative hearing with Chapter Leadership & HR for conclusive resolutions.",
     },
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
-        title={
-          isAr
-            ? "سلم التصعيد الإداري المتدرج ومتابعة الحالات"
-            : "Progressive Escalation Ladder & Incident Governance"
-        }
+        title={isAr ? (isMember ? "سجل إشعاراتي وحالات المتابعة" : "إدارة حالات التصعيد المتدرج") : (isMember ? "My Escalation Records" : "Escalation Ladder Governance")}
         description={
           isAr
-            ? "نظام التدرج الإداري من 4 مستويات متدرجة الألوان (أزرق → أصفر → برتقالي → أحمر) لضمان الشفافية والعدالة."
-            : "4-level progressive vertical stepper ladder with color graduation from Blue to Yellow to Orange to Red."
+            ? isMember
+              ? "متابعة الإشعارات الإدارية الخاصة بك، وحالة كل إجراء مع حق تقديم تظلم رسمي خلال 7 أيام عمل."
+              : "نظام حل النزاعات وتدرج المعالجة المكون من 4 مستويات لضمان العدالة والشفافية وتجنب القرارات المفاجئة."
+            : isMember
+              ? "Review administrative notices addressed to you with immediate appeal rights within 7 working days."
+              : "Structured 4-tier conflict escalation ladder ensuring fair warnings, mediation, and transparent hearings."
         }
       >
         {canLogIncident && (
@@ -158,120 +280,283 @@ export default function IncidentsPage() {
             className="gap-2 bg-[#ea4335] hover:bg-[#d93025] text-white"
           >
             <Plus className="w-4 h-4" />
-            {isAr ? "تسجيل واقعة تصعيد" : "Log Escalation Incident"}
+            {isAr ? "تسجيل واقعة تصعيد" : "Log Escalation Case"}
           </Button>
         )}
       </PageHeader>
 
-      {/* Vertical Stepper Escalation Ladder (from ui ana item 4) */}
-      <Card className="border border-border bg-card shadow-2xs">
-        <CardHeader className="pb-3 border-b border-border">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-[#ea4335]" />
-            <span>
-              {isAr
-                ? "مخطط سلم التصعيد التدريجي (Vertical Stepper Ladder)"
-                : "Vertical Stepper: 4-Level Progressive Escalation Protocol"}
+      {/* Escalation Ladder Visualization */}
+      <Card className="border-border/80">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-bold flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Scale className="w-4 h-4 text-primary" />
+              {isAr ? "سلّم التصعيد التدريجي المعتمد باللائحة" : "Official 4-Level Progressive Ladder"}
+            </span>
+            <span className="text-xs text-muted-foreground font-normal">
+              {isAr ? "معالجة تدريجية تبدأ بالتوجيه" : "Constructive Resolution Path"}
             </span>
           </CardTitle>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {isAr
-              ? "لا يجوز الانتقال لمستوى أعلى إلا بعد استيفاء خطوات المستوى السابق وإتاحة فرصة كاملة للعضو للتحسين والتوضيح."
-              : "Strict procedural fairness: Higher levels cannot be invoked without documented exhaustion of prior steps."}
-          </p>
         </CardHeader>
-        <CardContent className="pt-6">
-          <div className="relative pl-6 sm:pl-8 space-y-6 before:absolute before:top-3 before:bottom-3 before:left-2.5 sm:before:left-3.5 before:w-0.5 before:bg-[#dadce0] dark:before:bg-[#3c4043]">
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             {ladderSteps.map((step) => (
-              <div key={step.level} className="relative group">
-                {/* Stepper Dot */}
-                <span
-                  className={`absolute -left-6 sm:-left-8 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-background ring-4 ring-card ${step.dotColor}`}
-                />
-
-                <div className="p-4 rounded-lg bg-[#f8f9fa] dark:bg-[#202124] border border-border hover:border-primary/40 transition-all space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${step.tagColor}`}
-                      >
-                        Level {step.level}
-                      </span>
-                      <h4 className="font-bold text-xs text-foreground">
-                        {step.title}
-                      </h4>
-                    </div>
-                    <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                      {step.action}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    {step.desc}
-                  </p>
+              <div
+                key={step.level}
+                className={`p-3.5 rounded-xl border-l-4 rtl:border-l-0 rtl:border-r-4 ${step.color} space-y-1.5`}
+              >
+                <div className="flex items-center justify-between font-bold text-xs">
+                  <span>{step.title}</span>
+                  <span className="opacity-70 font-mono">L{step.level}</span>
                 </div>
+                <p className="text-[11px] opacity-90 leading-relaxed">
+                  {step.desc}
+                </p>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Active Incidents Records */}
+      {/* Incidents Table / List */}
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-foreground px-1">
-          {isAr ? "الحالات والوقائع المسجلة رسمياً" : "Official Incident Records"}
-        </h3>
+        <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+            {isAr ? "سجل الحالات المفتوحة والإجراءات الإدارية" : "Active Escalation Incidents"} ({visibleIncidents.length})
+          </h3>
+          {!isMember && (
+            <div className="flex items-center gap-1.5 bg-background border border-border rounded-xl px-2.5 h-8">
+              <span className="text-xs text-muted-foreground font-semibold">
+                {isAr ? "تصفية حسب اللجنة:" : "Filter Committee:"}
+              </span>
+              <select
+                value={filterTeam}
+                onChange={(e) => setFilterTeam(e.target.value)}
+                className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer"
+              >
+                <option value="all">{isAr ? "جميع الفرق واللجان" : "All Committees"}</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {isAr ? t.name_ar : t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
 
         <div className="space-y-3">
           {visibleIncidents.length === 0 ? (
             <Card className="p-12 text-center text-muted-foreground border-dashed">
-              <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-40 text-emerald-500" />
-              <p className="text-sm font-semibold">
-                {isAr ? "لا توجد مخالفات أو وقائع مسجلة حالياً" : "No active incidents recorded"}
-              </p>
+              <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-40 text-emerald-600" />
+              <p className="text-sm font-semibold">{isAr ? "لا توجد حالات تصعيد مسجلة حالياً" : "No escalation cases recorded"}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {isAr
-                  ? "السجل الإداري منضبط تماماً وخالٍ من أي بلاغات أو مخالفات مفتوحة."
-                  : "All teams are in good standing with zero open disciplinary reports."}
+                {isAr ? "بيئة العمل تسير بانسجام وفق أعلى معايير الحوكمة والتعاون." : "All committees are operating smoothly under fair governance principles."}
               </p>
             </Card>
           ) : (
             visibleIncidents.map((inc) => (
-            <Card
-              key={inc.id}
-              className="p-4 border border-border bg-card hover:shadow-xs transition-all space-y-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] border border-[#d2e3fc] dark:border-[#1a73e8]/30">
-                      Level {inc.escalation_level ?? 1}
-                    </span>
-                    <h4 className="font-bold text-xs text-foreground">
-                      {inc.title}
-                    </h4>
+              <Card
+                key={inc.id}
+                className="p-4 border-border/70 hover:shadow-md transition-all space-y-3"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#fce8e6] dark:bg-[#ea4335]/20 text-[#ea4335] dark:text-[#f28b82]">
+                        Level {inc.level || inc.escalation_level || 1}
+                      </span>
+                      <h4 className="font-bold text-xs text-foreground">
+                        {inc.title}
+                      </h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Target Member: <strong>{getMemberName(inc.target_member_id || inc.member_id || "")}</strong> • Reported by: {getMemberName(inc.reported_by)}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Target Member: <strong>{getMemberName(inc.target_member_id || inc.member_id || "")}</strong> • Reported by: {getMemberName(inc.reported_by)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={inc.status} size="sm" />
+                    {canLogIncident && (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => openEditModal(inc, e)}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          title={isAr ? "تعديل الإشعار" : "Edit Incident"}
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => openDeleteModal(inc, e)}
+                          className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-500/10"
+                          title={isAr ? "حذف الإشعار" : "Delete Incident"}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <StatusBadge status={inc.status} size="sm" />
-              </div>
 
-              <p className="text-xs text-foreground bg-[#f8f9fa] dark:bg-[#202124] p-3 rounded-md border border-border">
-                {inc.description}
-              </p>
+                <p className="text-xs text-foreground bg-[#f8f9fa] dark:bg-[#202124] p-3 rounded-md border border-border">
+                  {inc.description}
+                </p>
 
-              {inc.decision_notes && (
-                <div className="text-xs text-[#137333] dark:text-[#81c995] bg-[#e6f4ea] dark:bg-[#34a853]/20 p-2.5 rounded-md border border-[#ceead6] dark:border-[#34a853]/30">
-                  <strong>{isAr ? "القرار الرسمي والتسوية:" : "Formal Resolution Note:"}</strong>{" "}
-                  {inc.decision_notes}
-                </div>
-              )}
-            </Card>
-          )))}
+                {inc.decision_notes && (
+                  <div className="text-xs text-[#137333] dark:text-[#81c995] bg-[#e6f4ea] dark:bg-[#34a853]/20 p-2.5 rounded-md border border-[#ceead6] dark:border-[#34a853]/30">
+                    <strong>{isAr ? "القرار الرسمي والتسوية:" : "Formal Resolution Note:"}</strong>{" "}
+                    {inc.decision_notes}
+                  </div>
+                )}
+              </Card>
+            ))
+          )}
         </div>
       </div>
+
+      {/* Edit Incident Dialog */}
+      {isEditIncidentOpen && editingIncident && (
+        <Dialog open={isEditIncidentOpen} onOpenChange={setIsEditIncidentOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <Edit className="w-5 h-5 text-primary" />
+                <span>{isAr ? "تعديل الإشعار الإداري" : "Edit Incident"}</span>
+              </DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4 pt-2 text-xs">
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "مستوى التصعيد:" : "Level:"}
+                </label>
+                <select
+                  value={editLevel}
+                  onChange={(e) => setEditLevel(parseInt(e.target.value))}
+                  className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
+                >
+                  <option value={1}>{isAr ? "المستوى 1: تنبيه وتوجيه ودي مباشر" : "Level 1: Friendly Notice"}</option>
+                  <option value={2}>{isAr ? "المستوى 2: خطة تحسين الأداء PIP" : "Level 2: PIP Plan"}</option>
+                  <option value={3}>{isAr ? "المستوى 3: مراجعة قائد ونائب الفريق" : "Level 3: Head/Vice Head Review"}</option>
+                  <option value={4}>{isAr ? "المستوى 4: تصعيد لقيادة مجتمع GDG" : "Level 4: Chapter Leadership Hearing"}</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "عنوان الواقعة:" : "Incident Title:"}
+                </label>
+                <Input
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "تفاصيل وسياق الواقعة:" : "Documented Statement:"}
+                </label>
+                <Textarea
+                  rows={3}
+                  required
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "ملاحظات التسوية / الإجراء التصحيحي:" : "Resolution Notes:"}
+                </label>
+                <Input
+                  value={editResolutionNotes}
+                  onChange={(e) => setEditResolutionNotes(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditIncidentOpen(false)}
+                >
+                  {isAr ? "إلغاء" : "Cancel"}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmittingEdit}
+                  size="sm"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  {isSubmittingEdit
+                    ? isAr
+                      ? "جارِ الحفظ..."
+                      : "Saving..."
+                    : isAr
+                    ? "حفظ التعديلات"
+                    : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Incident Dialog */}
+      {isDeleteIncidentOpen && deletingIncident && (
+        <Dialog open={isDeleteIncidentOpen} onOpenChange={setIsDeleteIncidentOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2 text-rose-600">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+                {isAr ? "تأكيد حذف الإشعار الإداري" : "Confirm Incident Deletion"}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-xs">
+              <p className="text-foreground">
+                {isAr
+                  ? `هل أنت متأكد من رغبتك في حذف الإشعار "${deletingIncident.title}"؟`
+                  : `Are you sure you want to delete incident "${deletingIncident.title}"?`}
+              </p>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDeleteIncidentOpen(false)}
+                >
+                  {isAr ? "إلغاء" : "Cancel"}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={isSubmittingDelete}
+                  size="sm"
+                  onClick={handleConfirmDelete}
+                  className="bg-rose-600 hover:bg-rose-700 text-white"
+                >
+                  {isSubmittingDelete
+                    ? isAr
+                      ? "جارِ الحذف..."
+                      : "Deleting..."
+                    : isAr
+                    ? "نعم، حذف نهائياً"
+                    : "Delete Permanently"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Log Escalation Incident Dialog */}
       {isNewIncidentOpen && (
@@ -289,7 +574,32 @@ export default function IncidentsPage() {
             <form onSubmit={handleCreateIncident} className="space-y-4 pt-2 text-xs">
               <div>
                 <label className="font-semibold text-foreground">
-                  {isAr ? "العضو المعني بالواقعة:" : "Target Member:"}
+                  {isAr ? "اللجنة / المسار (تصفية الأعضاء):" : "Committee / Track (Filter):"}
+                </label>
+                <select
+                  value={incidentTeamFilter}
+                  onChange={(e) => {
+                    const tId = e.target.value;
+                    setIncidentTeamFilter(tId);
+                    const filtered = availableUsers.filter((u) => isUserInTeam(u, tId));
+                    if (filtered.length > 0 && !filtered.some((u) => u.id === targetMemberId)) {
+                      setTargetMemberId(filtered[0].id);
+                    }
+                  }}
+                  className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
+                >
+                  <option value="all">{isAr ? "جميع اللجان والمسارات" : "All Committees"}</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {isAr ? t.name_ar : t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "العضو المعني بالواقعة (ضمن اللجنة):" : "Target Member (Within Committee):"}
                 </label>
                 <select
                   value={targetMemberId}
@@ -297,10 +607,10 @@ export default function IncidentsPage() {
                   className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                   required
                 >
-                  {availableUsers.length === 0 ? (
-                    <option value="">{isAr ? "لا يوجد أعضاء مسجلين" : "No members registered"}</option>
+                  {selectableUsersForIncident.length === 0 ? (
+                    <option value="">{isAr ? "لا يوجد أعضاء في هذه اللجنة" : "No members in this committee"}</option>
                   ) : (
-                    availableUsers.map((u) => (
+                    selectableUsersForIncident.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.full_name} ({u.role.replace("_", " ")})
                       </option>

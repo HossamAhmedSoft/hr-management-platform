@@ -24,6 +24,10 @@ import {
   UserCheck,
   UserX,
   ChevronDown,
+  Edit,
+  Trash2,
+  Target,
+  Globe,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -50,13 +54,29 @@ import {
   MemberAttendanceRecord,
   MemberAttendanceStatus,
   MeetingExcuseReasonType,
+  Profile,
 } from "@/types";
+
+const TARGET_SCOPE_OPTIONS = [
+  { id: "all", name: "Public (All Members)", nameAr: "عام - لجميع الأعضاء واللجان (Public)" },
+  { id: "team_hr", name: "Human Resources", nameAr: "الموارد البشرية (HR)" },
+  { id: "team_web", name: "Web Development", nameAr: "مسار تطوير الويب (Web)" },
+  { id: "team_mobile", name: "Mobile App Development", nameAr: "مسار تطبيقات الموبايل (Mobile)" },
+  { id: "team_uiux", name: "UI/UX Design", nameAr: "مسار تصميم واجهات المستخدم (UI/UX)" },
+  { id: "team_ai", name: "AI & Data Science", nameAr: "مسار الذكاء الاصطناعي (AI)" },
+  { id: "team_cyber", name: "Cybersecurity", nameAr: "مسار الأمن السيبراني (Cyber)" },
+  { id: "team_embedded", name: "Embedded Systems & IoT", nameAr: "الأنظمة المدمجة (Embedded)" },
+  { id: "team_pr", name: "PR & Marketing", nameAr: "العلاقات العامة والتسويق (PR)" },
+  { id: "team_media", name: "Media & Branding", nameAr: "الإعلام والمحتوى (Media)" },
+  { id: "team_ops", name: "Operations & Logistics", nameAr: "العمليات واللوجستيات (Ops)" },
+];
 
 export default function AttendancePage() {
   const {
     locale,
     availableUsers,
     currentUser,
+    teams,
     addPointEvent,
     addIncident,
     addNotification,
@@ -75,6 +95,7 @@ export default function AttendancePage() {
   const [excuses, setExcuses] = useState<MeetingExcuse[]>([]);
   const [activeTab, setActiveTab] = useState<"meetings" | "excuses" | "my_record">("meetings");
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterTargetTeam, setFilterTargetTeam] = useState<string>("all");
 
   // ── Modals ───────────────────────────────────────────────
   const [isNewMeetingOpen, setIsNewMeetingOpen] = useState(false);
@@ -82,9 +103,30 @@ export default function AttendancePage() {
   const [isTakeAttendanceOpen, setIsTakeAttendanceOpen] = useState(false);
   const [isReviewExcuseOpen, setIsReviewExcuseOpen] = useState(false);
 
+  // Edit Meeting Modal State
+  const [isEditMeetingOpen, setIsEditMeetingOpen] = useState(false);
+  const [editingMeeting, setEditingMeeting] = useState<MeetingAttendanceEvent | null>(null);
+  const [editMeetingData, setEditMeetingData] = useState({
+    title: "",
+    date: "",
+    location: "",
+    type: "General Assembly",
+    target_team_id: "all",
+    target_team_name: "",
+  });
+  const [isSubmittingEditMeeting, setIsSubmittingEditMeeting] = useState(false);
+
+  // Delete Meeting Modal State
+  const [isDeleteMeetingOpen, setIsDeleteMeetingOpen] = useState(false);
+  const [deletingMeeting, setDeletingMeeting] = useState<MeetingAttendanceEvent | null>(null);
+  const [isSubmittingDeleteMeeting, setIsSubmittingDeleteMeeting] = useState(false);
+
   // ── Selected Entities ────────────────────────────────────
   const [activeMeetingForAttendance, setActiveMeetingForAttendance] = useState<MeetingAttendanceEvent | null>(null);
   const [activeExcuseForReview, setActiveExcuseForReview] = useState<MeetingExcuse | null>(null);
+
+  // Active targeted roster for the current meeting being taken
+  const [activeRosterUsers, setActiveRosterUsers] = useState<Profile[]>([]);
 
   // ── Form Buffers ─────────────────────────────────────────
   const [newMeetingData, setNewMeetingData] = useState({
@@ -92,6 +134,8 @@ export default function AttendancePage() {
     date: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 16),
     location: "Main Campus Auditorium / Google Meet",
     type: "General Assembly",
+    target_team_id: "all",
+    target_team_name: "اجتماع عام - لجميع اللجان والأعضاء",
   });
 
   const [excuseFormData, setExcuseFormData] = useState({
@@ -139,17 +183,48 @@ export default function AttendancePage() {
   // ── Filtered Collections ─────────────────────────────────
   const filteredMeetings = useMemo(() => {
     return meetings.filter((m) => {
+      // 1. Role-based isolation: ordinary members only see meetings in their scope
+      if (isMember && currentUser) {
+        if (!attendanceService.isMemberInMeetingScope(currentUser, m)) {
+          return false;
+        }
+      }
+
+      // 2. Target team filter (for admins/leads)
+      if (filterTargetTeam !== "all") {
+        if (filterTargetTeam === "public_only") {
+          if (m.target_team_id && m.target_team_id !== "all" && m.target_team_id !== "public") return false;
+        } else {
+          const matchTarget = (m.target_team_id || "").toLowerCase().replace("team_", "").replace("team-", "");
+          const cleanFilter = filterTargetTeam.toLowerCase().replace("team_", "").replace("team-", "");
+          if (matchTarget !== cleanFilter) return false;
+        }
+      }
+
+      // 3. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
           m.title.toLowerCase().includes(q) ||
           m.location.toLowerCase().includes(q) ||
-          m.type.toLowerCase().includes(q)
+          m.type.toLowerCase().includes(q) ||
+          (m.target_team_name && m.target_team_name.toLowerCase().includes(q))
         );
       }
       return true;
     });
-  }, [meetings, searchQuery]);
+  }, [meetings, searchQuery, isMember, currentUser, filterTargetTeam]);
+
+  // Meetings eligible for excuse submission
+  const eligibleMeetingsForExcuse = useMemo(() => {
+    return meetings.filter((m) => {
+      if (m.attendance_taken || m.status === "completed") return false;
+      if (isMember && currentUser) {
+        return attendanceService.isMemberInMeetingScope(currentUser, m);
+      }
+      return true;
+    });
+  }, [meetings, isMember, currentUser]);
 
   const visibleExcuses = useMemo(() => {
     if (isMember && currentUser) {
@@ -217,11 +292,16 @@ export default function AttendancePage() {
     e.preventDefault();
     if (!newMeetingData.title.trim()) return;
 
+    const targetOpt = TARGET_SCOPE_OPTIONS.find((t) => t.id === newMeetingData.target_team_id);
+    const targetTeamName = targetOpt ? (isAr ? targetOpt.nameAr : targetOpt.name) : "اجتماع عام";
+
     const created = attendanceService.createMeeting({
       title: newMeetingData.title.trim(),
       date: new Date(newMeetingData.date).toISOString(),
       location: newMeetingData.location.trim(),
       type: newMeetingData.type,
+      target_team_id: newMeetingData.target_team_id,
+      target_team_name: targetTeamName,
       status: "scheduled",
       created_by: currentUser?.id || "admin",
       presentCount: 0,
@@ -237,21 +317,22 @@ export default function AttendancePage() {
         entity_type: "attendance_event",
         entity_id: created.id,
         reason: `إنشاء موعد اجتماع رسمي جديد: "${created.title}"`,
-        details: `Type: ${created.type}, Location: ${created.location}, Date: ${created.date}.`,
-        after_value: { title: created.title, type: created.type, location: created.location },
+        details: `Scope: ${targetTeamName}, Type: ${created.type}, Location: ${created.location}, Date: ${created.date}.`,
+        after_value: { title: created.title, type: created.type, location: created.location, target_team_id: created.target_team_id },
       });
     }
 
-    // Notify all active members about the new meeting
+    // Notify only members in the meeting scope!
     if (availableUsers && availableUsers.length > 0) {
-      for (const u of availableUsers) {
+      const targetedMembers = availableUsers.filter((u) => attendanceService.isMemberInMeetingScope(u, created));
+      for (const u of targetedMembers) {
         addNotification({
           user_id: u.id,
           recipient_email: u.email,
-          title: isAr ? "دعوة لاجتماع رسمي جديد" : "Official Meeting Invitation",
+          title: isAr ? `دعوة لاجتماع: ${created.title}` : `Meeting Invitation: ${created.title}`,
           message: isAr
-            ? `تم الإعلان عن "${created.title}" في موعد ${new Date(created.date).toLocaleString("ar-EG")}. يمكنك تقديم عذر مسبق عبر المنصة في حال التعذر.`
-            : `New meeting scheduled: "${created.title}" on ${new Date(created.date).toLocaleDateString()}. Prior excuses can be lodged via portal.`,
+            ? `تم الإعلان عن "${created.title}" (${targetTeamName}) في موعد ${new Date(created.date).toLocaleString("ar-EG")}. يمكنك تقديم عذر مسبق عبر المنصة في حال التعذر.`
+            : `New meeting scheduled: "${created.title}" (${targetTeamName}) on ${new Date(created.date).toLocaleDateString()}. Prior excuses can be lodged via portal.`,
           type: "general",
           link: `/${locale}/attendance`,
           is_read: false,
@@ -265,8 +346,86 @@ export default function AttendancePage() {
       date: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 16),
       location: "Main Campus Auditorium / Google Meet",
       type: "General Assembly",
+      target_team_id: "all",
+      target_team_name: "اجتماع عام - لجميع اللجان والأعضاء",
     });
     setIsNewMeetingOpen(false);
+  };
+
+  // ── Handlers: Edit & Delete Meeting ──────────────────────
+  const openEditMeetingModal = (meeting: MeetingAttendanceEvent, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingMeeting(meeting);
+    setEditMeetingData({
+      title: meeting.title,
+      date: new Date(meeting.date).toISOString().slice(0, 16),
+      location: meeting.location,
+      type: meeting.type,
+      target_team_id: meeting.target_team_id || "all",
+      target_team_name: meeting.target_team_name || "",
+    });
+    setIsEditMeetingOpen(true);
+  };
+
+  const handleSaveEditMeeting = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMeeting || !editMeetingData.title.trim()) return;
+    setIsSubmittingEditMeeting(true);
+
+    const targetOpt = TARGET_SCOPE_OPTIONS.find((t) => t.id === editMeetingData.target_team_id);
+    const targetTeamName = targetOpt ? (isAr ? targetOpt.nameAr : targetOpt.name) : "اجتماع عام";
+
+    attendanceService.updateMeeting(editingMeeting.id, {
+      title: editMeetingData.title.trim(),
+      date: new Date(editMeetingData.date).toISOString(),
+      location: editMeetingData.location.trim(),
+      type: editMeetingData.type,
+      target_team_id: editMeetingData.target_team_id,
+      target_team_name: targetTeamName,
+    });
+
+    if (logUserAction) {
+      logUserAction({
+        action: "MEETING_UPDATED",
+        entity_type: "attendance_event",
+        entity_id: editingMeeting.id,
+        reason: `تعديل بيانات الاجتماع ("${editMeetingData.title}")`,
+        details: `Target Audience: ${targetTeamName}`,
+        before_value: { title: editingMeeting.title, target_team_id: editingMeeting.target_team_id },
+        after_value: { title: editMeetingData.title, target_team_id: editMeetingData.target_team_id },
+      });
+    }
+
+    reloadData();
+    setIsEditMeetingOpen(false);
+    setIsSubmittingEditMeeting(false);
+  };
+
+  const openDeleteMeetingModal = (meeting: MeetingAttendanceEvent, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDeletingMeeting(meeting);
+    setIsDeleteMeetingOpen(true);
+  };
+
+  const handleConfirmDeleteMeeting = () => {
+    if (!deletingMeeting) return;
+    setIsSubmittingDeleteMeeting(true);
+
+    attendanceService.deleteMeeting(deletingMeeting.id);
+
+    if (logUserAction) {
+      logUserAction({
+        action: "MEETING_DELETED",
+        entity_type: "attendance_event",
+        entity_id: deletingMeeting.id,
+        reason: `حذف الاجتماع ("${deletingMeeting.title}")`,
+        before_value: { title: deletingMeeting.title, id: deletingMeeting.id },
+      });
+    }
+
+    reloadData();
+    setIsDeleteMeetingOpen(false);
+    setIsSubmittingDeleteMeeting(false);
   };
 
   // ── Handler: Submit Excuse (Member) ──────────────────────
@@ -341,10 +500,17 @@ export default function AttendancePage() {
   const handleOpenTakeAttendance = (meeting: MeetingAttendanceEvent) => {
     setActiveMeetingForAttendance(meeting);
 
-    // Build roster sheet pre-populated with existing records or approved excuses
+    // Build targeted roster sheet: ONLY members belonging to this meeting's scope!
+    const isTargeted = meeting.target_team_id && meeting.target_team_id !== "all" && meeting.target_team_id !== "public";
+    const targetUsers = isTargeted
+      ? availableUsers.filter((u) => attendanceService.isMemberInMeetingScope(u, meeting))
+      : availableUsers;
+    const roster = targetUsers;
+    setActiveRosterUsers(roster);
+
     const sheet: Record<string, { status: MemberAttendanceStatus; notes: string }> = {};
 
-    availableUsers.forEach((u) => {
+    roster.forEach((u) => {
       // Check if user already has an existing record for this meeting
       const existing = meeting.records?.find((r) => r.member_id === u.id);
       if (existing) {
@@ -375,7 +541,18 @@ export default function AttendancePage() {
   const handleFinalizeAttendance = async () => {
     if (!activeMeetingForAttendance) return;
 
-    const records: MemberAttendanceRecord[] = availableUsers.map((u) => {
+    const isTargeted =
+      activeMeetingForAttendance.target_team_id &&
+      activeMeetingForAttendance.target_team_id !== "all" &&
+      activeMeetingForAttendance.target_team_id !== "public";
+
+    const roster = activeRosterUsers.length > 0
+      ? activeRosterUsers
+      : (isTargeted
+          ? availableUsers.filter((u) => attendanceService.isMemberInMeetingScope(u, activeMeetingForAttendance))
+          : availableUsers);
+
+    const records: MemberAttendanceRecord[] = roster.map((u) => {
       const entry = attendanceSheet[u.id] || { status: "present", notes: "" };
       const matchedExcuse = excuses.find(
         (e) =>
@@ -710,14 +887,39 @@ export default function AttendancePage() {
           )}
         </div>
 
-        <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={isAr ? "بحث في الاجتماعات..." : "Search meetings..."}
-            className="h-8 text-xs pl-9 rtl:pl-3 rtl:pr-9 bg-background/50"
-          />
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {/* Target Team Filter */}
+          <div className="flex items-center gap-1.5 bg-background/50 border border-border rounded-lg px-2 h-8">
+            <Filter className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <select
+              value={filterTargetTeam}
+              onChange={(e) => setFilterTargetTeam(e.target.value)}
+              className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer"
+            >
+              <option value="all">{isAr ? "كل نطاقات الحضور (عام وخاص)" : "All Scopes"}</option>
+              <option value="public_only">{isAr ? "اجتماعات عامة فقط (Public)" : "Public Meetings Only"}</option>
+              <option value="team_hr">{isAr ? "الموارد البشرية (HR)" : "Human Resources"}</option>
+              <option value="team_web">{isAr ? "مسار تطوير الويب (Web)" : "Web Development"}</option>
+              <option value="team_mobile">{isAr ? "مسار تطبيقات الموبايل (Mobile)" : "Mobile Development"}</option>
+              <option value="team_uiux">{isAr ? "تصميم الواجهات (UI/UX)" : "UI/UX Design"}</option>
+              <option value="team_ai">{isAr ? "الذكاء الاصطناعي (AI)" : "AI / Data Science"}</option>
+              <option value="team_cyber">{isAr ? "الأمن السيبراني (Cyber)" : "Cybersecurity"}</option>
+              <option value="team_embedded">{isAr ? "الأنظمة المدمجة (Embedded)" : "Embedded Systems"}</option>
+              <option value="team_pr">{isAr ? "العلاقات العامة (PR)" : "PR & Marketing"}</option>
+              <option value="team_media">{isAr ? "الإعلام والمحتوى (Media)" : "Media & Branding"}</option>
+              <option value="team_ops">{isAr ? "العمليات واللوجستيات (Ops)" : "Operations"}</option>
+            </select>
+          </div>
+
+          <div className="relative w-full sm:w-60">
+            <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={isAr ? "بحث في الاجتماعات..." : "Search meetings..."}
+              className="h-8 text-xs pl-9 rtl:pl-3 rtl:pr-9 bg-background/50"
+            />
+          </div>
         </div>
       </div>
 
@@ -750,10 +952,22 @@ export default function AttendancePage() {
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary">
                               {ev.type}
                             </span>
+                            {/* Audience Scope Badge */}
+                            {ev.target_team_id && ev.target_team_id !== "all" && ev.target_team_id !== "public" ? (
+                              <span className="text-[10px] font-semibold text-purple-700 bg-purple-500/15 dark:text-purple-300 px-2 py-0.5 rounded-full flex items-center gap-1 border border-purple-500/30">
+                                <Target className="w-3 h-3" />
+                                {ev.target_team_name || "فريق محدد"}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-cyan-700 bg-cyan-500/15 dark:text-cyan-300 px-2 py-0.5 rounded-full flex items-center gap-1 border border-cyan-500/30">
+                                <Globe className="w-3 h-3" />
+                                {isAr ? "اجتماع عام (لجميع اللجان)" : "Public (All Teams)"}
+                              </span>
+                            )}
                             {isCompleted ? (
                               <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-500/15 dark:text-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1">
                                 <CheckCircle className="w-3 h-3" />
@@ -868,22 +1082,42 @@ export default function AttendancePage() {
                         </Button>
                       )}
 
-                      {/* Admin: Take attendance button */}
+                      {/* Admin: Actions (Edit, Delete, Take attendance) */}
                       {isAdminOrLead && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleOpenTakeAttendance(ev)}
-                          className={`gap-1.5 text-xs h-8 ml-auto ${
-                            isCompleted
-                              ? "bg-muted text-foreground hover:bg-muted/80 border border-border"
-                              : "bg-primary text-white hover:bg-primary/90"
-                          }`}
-                        >
-                          <UserCheck className="w-3.5 h-3.5" />
-                          {isCompleted
-                            ? (isAr ? "مراجعة وتعديل رصد الحضور" : "Review Attendance")
-                            : (isAr ? "رصد الحضور وتطبيق العقوبات" : "Take Attendance & Apply Penalties")}
-                        </Button>
+                        <div className="flex items-center gap-1.5 ml-auto">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => openEditMeetingModal(ev, e)}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg"
+                            title={isAr ? "تعديل الاجتماع" : "Edit Meeting"}
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => openDeleteMeetingModal(ev, e)}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 rounded-lg"
+                            title={isAr ? "حذف الاجتماع" : "Delete Meeting"}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenTakeAttendance(ev)}
+                            className={`gap-1.5 text-xs h-8 ${
+                              isCompleted
+                                ? "bg-muted text-foreground hover:bg-muted/80 border border-border"
+                                : "bg-primary text-white hover:bg-primary/90"
+                            }`}
+                          >
+                            <UserCheck className="w-3.5 h-3.5" />
+                            {isCompleted
+                              ? (isAr ? "مراجعة وتعديل رصد الحضور" : "Review Attendance")
+                              : (isAr ? "رصد الحضور وتطبيق العقوبات" : "Take Attendance & Apply Penalties")}
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </Card>
@@ -1136,12 +1370,34 @@ export default function AttendancePage() {
 
             {/* Roster Sheet */}
             <div className="space-y-3 pt-2">
-              <h4 className="text-xs font-bold text-foreground">
-                {isAr ? "قائمة الأعضاء المكلفين بالحضور:" : "Invited Members Roster:"} ({availableUsers.length})
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-foreground">
+                  {isAr ? "قائمة الأعضاء المكلفين بالحضور:" : "Invited Members Roster:"} ({activeRosterUsers.length})
+                </h4>
+                <span className="text-[11px] font-semibold text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+                  {activeMeetingForAttendance.target_team_id && activeMeetingForAttendance.target_team_id !== "all" && activeMeetingForAttendance.target_team_id !== "public"
+                    ? (activeMeetingForAttendance.target_team_name || "فريق محدد")
+                    : (isAr ? "اجتماع عام (جميع اللجان)" : "Public (All Teams)")}
+                </span>
+              </div>
 
               <div className="divide-y divide-border/60 max-h-[46vh] overflow-y-auto pr-1">
-                {availableUsers.map((u) => {
+                {activeRosterUsers.length === 0 ? (
+                  <div className="py-10 text-center text-muted-foreground border border-dashed rounded-xl my-2">
+                    <Users className="w-7 h-7 mx-auto mb-2 opacity-30 text-primary" />
+                    <p className="text-xs font-semibold text-foreground">
+                      {isAr
+                        ? "لا يوجد أعضاء مسجلين ضمن هذا المسار/الفريق حالياً"
+                        : "No members currently registered in this team scope"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {isAr
+                        ? "تأكد من انتماء الأعضاء لهذا الفريق من إدارة المستخدمين."
+                        : "Assign members to this track in User Management."}
+                    </p>
+                  </div>
+                ) : (
+                  activeRosterUsers.map((u) => {
                   const entry = attendanceSheet[u.id] || { status: "present", notes: "" };
                   const userExcuse = excuses.find(
                     (e) =>
@@ -1226,7 +1482,8 @@ export default function AttendancePage() {
                       </div>
                     </div>
                   );
-                })}
+                })
+              )}
               </div>
             </div>
 
@@ -1272,11 +1529,15 @@ export default function AttendancePage() {
                   onChange={(e) => setExcuseFormData({ ...excuseFormData, meeting_id: e.target.value })}
                   className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                 >
-                  {meetings.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.title} ({new Date(m.date).toLocaleDateString()})
-                    </option>
-                  ))}
+                  {eligibleMeetingsForExcuse.length === 0 ? (
+                    <option value="">{isAr ? "لا توجد اجتماعات مقبلة متاحة لتقديم عذر" : "No upcoming meetings available"}</option>
+                  ) : (
+                    eligibleMeetingsForExcuse.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.title} ({new Date(m.date).toLocaleDateString()}) - {m.target_team_name || "اجتماع عام"}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -1477,20 +1738,48 @@ export default function AttendancePage() {
                 />
               </div>
 
-              <div>
-                <label className="font-semibold text-foreground">
-                  {isAr ? "نوع الاجتماع:" : "Meeting Type:"}
-                </label>
-                <select
-                  value={newMeetingData.type}
-                  onChange={(e) => setNewMeetingData({ ...newMeetingData, type: e.target.value })}
-                  className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
-                >
-                  <option value="General Assembly">{isAr ? "اجتماع عام إلزامي (General Assembly)" : "General Assembly (Mandatory)"}</option>
-                  <option value="Track Sync">{isAr ? "جلسة مسار تقني (Track Sync)" : "Track Sync"}</option>
-                  <option value="Executive Review">{isAr ? "اجتماع قيادة إداري (Executive Review)" : "Executive Review"}</option>
-                  <option value="Workshop">{isAr ? "ورشة عمل تدريبية (Training Workshop)" : "Training Workshop"}</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground">
+                    {isAr ? "نوع الاجتماع:" : "Meeting Type:"}
+                  </label>
+                  <select
+                    value={newMeetingData.type}
+                    onChange={(e) => setNewMeetingData({ ...newMeetingData, type: e.target.value })}
+                    className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-2.5 text-xs"
+                  >
+                    <option value="General Assembly">{isAr ? "اجتماع عام إلزامي" : "General Assembly"}</option>
+                    <option value="Track Sync">{isAr ? "جلسة مسار تقني" : "Track Sync"}</option>
+                    <option value="Executive Review">{isAr ? "اجتماع قيادة إداري" : "Executive Review"}</option>
+                    <option value="Workshop">{isAr ? "ورشة عمل تدريبية" : "Workshop"}</option>
+                    <option value="Team Meeting">{isAr ? "اجتماع فريق مخصص" : "Team Meeting"}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground">
+                    {isAr ? "نطاق الحضور واللجنة المستهدفة:" : "Target Scope / Team:"}
+                  </label>
+                  <select
+                    value={newMeetingData.target_team_id}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const opt = TARGET_SCOPE_OPTIONS.find((t) => t.id === val);
+                      setNewMeetingData({
+                        ...newMeetingData,
+                        target_team_id: val,
+                        target_team_name: opt ? (isAr ? opt.nameAr : opt.name) : "اجتماع عام",
+                      });
+                    }}
+                    className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-2.5 text-xs"
+                  >
+                    {TARGET_SCOPE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {isAr ? opt.nameAr : opt.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <DialogFooter className="pt-2">
@@ -1507,6 +1796,167 @@ export default function AttendancePage() {
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── MODAL 5: EDIT MEETING (ADMIN) ────────────────────── */}
+      {isEditMeetingOpen && editingMeeting && (
+        <Dialog open={isEditMeetingOpen} onOpenChange={setIsEditMeetingOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <Edit className="w-5 h-5 text-primary" />
+                {isAr ? "تعديل بيانات الاجتماع" : "Edit Meeting"}
+              </DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleSaveEditMeeting} className="space-y-4 pt-2 text-xs">
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "عنوان الاجتماع أو الورشة:" : "Meeting Title:"}
+                </label>
+                <Input
+                  required
+                  value={editMeetingData.title}
+                  onChange={(e) => setEditMeetingData({ ...editMeetingData, title: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "الموعد وتاريخ الانعقاد:" : "Date & Time:"}
+                </label>
+                <Input
+                  type="datetime-local"
+                  required
+                  value={editMeetingData.date}
+                  onChange={(e) => setEditMeetingData({ ...editMeetingData, date: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "الموقع / القاعة / رابط الاجتماع:" : "Venue / Room / Link:"}
+                </label>
+                <Input
+                  value={editMeetingData.location}
+                  onChange={(e) => setEditMeetingData({ ...editMeetingData, location: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground">
+                    {isAr ? "نوع الاجتماع:" : "Meeting Type:"}
+                  </label>
+                  <select
+                    value={editMeetingData.type}
+                    onChange={(e) => setEditMeetingData({ ...editMeetingData, type: e.target.value })}
+                    className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-2.5 text-xs"
+                  >
+                    <option value="General Assembly">{isAr ? "اجتماع عام إلزامي" : "General Assembly"}</option>
+                    <option value="Track Sync">{isAr ? "جلسة مسار تقني" : "Track Sync"}</option>
+                    <option value="Executive Review">{isAr ? "اجتماع قيادة إداري" : "Executive Review"}</option>
+                    <option value="Workshop">{isAr ? "ورشة عمل تدريبية" : "Workshop"}</option>
+                    <option value="Team Meeting">{isAr ? "اجتماع فريق مخصص" : "Team Meeting"}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground">
+                    {isAr ? "نطاق الحضور واللجنة المستهدفة:" : "Target Scope / Team:"}
+                  </label>
+                  <select
+                    value={editMeetingData.target_team_id}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const opt = TARGET_SCOPE_OPTIONS.find((t) => t.id === val);
+                      setEditMeetingData({
+                        ...editMeetingData,
+                        target_team_id: val,
+                        target_team_name: opt ? (isAr ? opt.nameAr : opt.name) : "اجتماع عام",
+                      });
+                    }}
+                    className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-2.5 text-xs"
+                  >
+                    {TARGET_SCOPE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {isAr ? opt.nameAr : opt.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditMeetingOpen(false)}
+                >
+                  {isAr ? "إلغاء" : "Cancel"}
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSubmittingEditMeeting}
+                  className="bg-primary text-white"
+                >
+                  {isSubmittingEditMeeting
+                    ? (isAr ? "جارِ الحفظ..." : "Saving...")
+                    : (isAr ? "حفظ التعديلات" : "Save Changes")}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── MODAL 6: DELETE MEETING (ADMIN) ──────────────────── */}
+      {isDeleteMeetingOpen && deletingMeeting && (
+        <Dialog open={isDeleteMeetingOpen} onOpenChange={setIsDeleteMeetingOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2 text-rose-600">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+                {isAr ? "تأكيد حذف الاجتماع" : "Confirm Meeting Deletion"}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-xs">
+              <p className="text-foreground">
+                {isAr
+                  ? `هل أنت متأكد من رغبتك في حذف اجتماع "${deletingMeeting.title}"؟ سيتم حذف سجل الحضور والأعذار المرتبطة به نهائياً.`
+                  : `Are you sure you want to delete "${deletingMeeting.title}"? Associated attendance logs will be permanently removed.`}
+              </p>
+
+              <DialogFooter className="pt-3 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDeleteMeetingOpen(false)}
+                >
+                  {isAr ? "إلغاء" : "Cancel"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isSubmittingDeleteMeeting}
+                  onClick={handleConfirmDeleteMeeting}
+                  className="bg-rose-600 hover:bg-rose-700 text-white"
+                >
+                  {isSubmittingDeleteMeeting
+                    ? (isAr ? "جارِ الحذف..." : "Deleting...")
+                    : (isAr ? "نعم، حذف نهائياً" : "Delete Permanently")}
+                </Button>
+              </DialogFooter>
+            </div>
           </DialogContent>
         </Dialog>
       )}

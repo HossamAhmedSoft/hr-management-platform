@@ -79,6 +79,28 @@ export const dbService = {
     return !!internalDB.updateProfile(id, updates);
   },
 
+  async deleteProfile(id: string): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      await supabase.from("profiles").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Supabase deleteProfile error:", e);
+    }
+    return internalDB.deleteProfile(id);
+  },
+
+  async setPassword(email: string, password: string): Promise<void> {
+    internalDB.setPassword(email, password);
+  },
+
+  async getPassword(email: string): Promise<string | null> {
+    return internalDB.getPassword(email);
+  },
+
+  async verifyPassword(email: string, password?: string): Promise<boolean> {
+    return internalDB.verifyPassword(email, password);
+  },
+
   // ── Teams ───────────────────────────────────────────────
   async getTeams(): Promise<Team[]> {
     try {
@@ -119,6 +141,26 @@ export const dbService = {
       console.warn("Supabase createTeam error:", e);
     }
     return newTeam;
+  },
+
+  async updateTeam(id: string, updates: Partial<Team>): Promise<Team | null> {
+    try {
+      const supabase = createClient();
+      await supabase.from("teams").update(updates).eq("id", id);
+    } catch (e) {
+      console.warn("Supabase updateTeam error:", e);
+    }
+    return internalDB.updateTeam(id, updates);
+  },
+
+  async deleteTeam(id: string): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      await supabase.from("teams").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Supabase deleteTeam error:", e);
+    }
+    return internalDB.deleteTeam(id);
   },
 
   // ── Tasks ───────────────────────────────────────────────
@@ -220,6 +262,36 @@ export const dbService = {
       console.warn("Supabase updateTaskStatus error:", e);
     }
     return internalDB.updateTaskStatus(taskId, status);
+  },
+
+  async updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
+    try {
+      const supabase = createClient();
+      const { assignees, ...dbUpdates } = updates as any;
+      if (assignees !== undefined) {
+        dbUpdates.deliverables = JSON.stringify({
+          assignees: assignees || [],
+          text: updates.deliverables || "",
+        });
+      }
+      await supabase
+        .from("tasks")
+        .update({ ...dbUpdates, updated_at: new Date().toISOString() })
+        .eq("id", id);
+    } catch (e) {
+      console.warn("Supabase updateTask error:", e);
+    }
+    return internalDB.updateTask(id, updates);
+  },
+
+  async deleteTask(id: string): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      await supabase.from("tasks").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Supabase deleteTask error:", e);
+    }
+    return internalDB.deleteTask(id);
   },
 
   // ── Point Events (Ledger) ───────────────────────────────
@@ -344,6 +416,64 @@ export const dbService = {
     return true;
   },
 
+  async updatePointEvent(id: string, updates: Partial<PointEvent>): Promise<PointEvent | null> {
+    const updated = internalDB.updatePointEvent(id, updates);
+    try {
+      const supabase = createClient();
+      const { data: profiles } = await supabase.from("profiles").select("id, academic_notes");
+      if (Array.isArray(profiles)) {
+        for (const p of profiles) {
+          if (p.academic_notes) {
+            try {
+              const parsed = JSON.parse(p.academic_notes);
+              if (Array.isArray(parsed.pointEvents) && parsed.pointEvents.some((pe: any) => pe.id === id)) {
+                parsed.pointEvents = parsed.pointEvents.map((pe: any) =>
+                  pe.id === id ? { ...pe, ...updates, updated_at: new Date().toISOString() } : pe
+                );
+                await supabase
+                  .from("profiles")
+                  .update({ academic_notes: JSON.stringify(parsed), updated_at: new Date().toISOString() })
+                  .eq("id", p.id);
+                break;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Supabase updatePointEvent error:", e);
+    }
+    return updated;
+  },
+
+  async deletePointEvent(id: string): Promise<boolean> {
+    const res = internalDB.deletePointEvent(id);
+    try {
+      const supabase = createClient();
+      const { data: profiles } = await supabase.from("profiles").select("id, academic_notes");
+      if (Array.isArray(profiles)) {
+        for (const p of profiles) {
+          if (p.academic_notes) {
+            try {
+              const parsed = JSON.parse(p.academic_notes);
+              if (Array.isArray(parsed.pointEvents) && parsed.pointEvents.some((pe: any) => pe.id === id)) {
+                parsed.pointEvents = parsed.pointEvents.filter((pe: any) => pe.id !== id);
+                await supabase
+                  .from("profiles")
+                  .update({ academic_notes: JSON.stringify(parsed), updated_at: new Date().toISOString() })
+                  .eq("id", p.id);
+                break;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Supabase deletePointEvent error:", e);
+    }
+    return res;
+  },
+
   // ── Evaluations ─────────────────────────────────────────
   async getEvaluations(): Promise<Evaluation[]> {
     try {
@@ -403,6 +533,30 @@ export const dbService = {
       console.warn("Supabase createEvaluation error:", e);
     }
     return internalDB.createEvaluation(newEval);
+  },
+
+  async updateEvaluation(id: string, updates: Partial<Evaluation>): Promise<Evaluation | null> {
+    try {
+      const supabase = createClient();
+      const { ratings, ...dbEvalRecord } = updates as any;
+      await supabase
+        .from("evaluations")
+        .update({ ...dbEvalRecord, updated_at: new Date().toISOString() })
+        .eq("id", id);
+    } catch (e) {
+      console.warn("Supabase updateEvaluation error:", e);
+    }
+    return internalDB.updateEvaluation(id, updates);
+  },
+
+  async deleteEvaluation(id: string): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      await supabase.from("evaluations").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Supabase deleteEvaluation error:", e);
+    }
+    return internalDB.deleteEvaluation(id);
   },
 
   // ── Appeals ─────────────────────────────────────────────
@@ -493,6 +647,29 @@ export const dbService = {
     return internalDB.createIncident(incident);
   },
 
+  async updateIncident(id: string, updates: Partial<Incident>): Promise<Incident | null> {
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("incidents")
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq("id", id);
+    } catch (e) {
+      console.warn("Supabase updateIncident error:", e);
+    }
+    return internalDB.updateIncident(id, updates);
+  },
+
+  async deleteIncident(id: string): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      await supabase.from("incidents").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Supabase deleteIncident error:", e);
+    }
+    return internalDB.deleteIncident(id);
+  },
+
   // ── Feedback Sessions ───────────────────────────────────
   async getFeedbackSessions(): Promise<FeedbackSession[]> {
     try {
@@ -536,6 +713,29 @@ export const dbService = {
       console.warn("Supabase createFeedbackSession error:", e);
     }
     return internalDB.createFeedbackSession(session);
+  },
+
+  async updateFeedbackSession(id: string, updates: Partial<FeedbackSession>): Promise<FeedbackSession | null> {
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("feedback_sessions")
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq("id", id);
+    } catch (e) {
+      console.warn("Supabase updateFeedbackSession error:", e);
+    }
+    return internalDB.updateFeedbackSession(id, updates);
+  },
+
+  async deleteFeedbackSession(id: string): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      await supabase.from("feedback_sessions").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Supabase deleteFeedbackSession error:", e);
+    }
+    return internalDB.deleteFeedbackSession(id);
   },
 
   // ── Educational Tracks & Attendees ─────────────────────
