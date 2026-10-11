@@ -36,10 +36,39 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
   const [showNotifications, setShowNotifications] = useState(false);
   const isAr = locale === "ar";
+  const isMember = currentUser?.role === "member";
 
-  const pendingPoints = pointEvents.filter((p) => p.status === "pending_review");
-  const pendingAppeals = appeals.filter((a) => a.status === "submitted" || a.status === "under_review");
-  const totalNotifications = pendingPoints.length + pendingAppeals.length;
+  // Notifications scoped to user role
+  const memberTasks = isMember
+    ? tasks.filter(
+        (t) =>
+          (t.created_by === currentUser?.id ||
+            t.assignees?.some((a) => a.profile_id === currentUser?.id)) &&
+          (t.status === "assigned" || t.status === "in_progress")
+      )
+    : [];
+
+  const memberPointUpdates = isMember
+    ? pointEvents.filter((p) => p.member_id === currentUser?.id && p.status === "approved").slice(0, 3)
+    : [];
+
+  const pendingPoints = !isMember
+    ? pointEvents.filter((p) => p.status === "pending_review")
+    : [];
+
+  const pendingAppeals = !isMember
+    ? appeals.filter((a) => a.status === "submitted" || a.status === "under_review")
+    : appeals.filter(
+        (a) => a.member_id === currentUser?.id && (a.status === "submitted" || a.status === "under_review")
+      );
+
+  const pendingTasksToApprove = !isMember
+    ? tasks.filter((t) => t.status === "submitted")
+    : [];
+
+  const totalNotifications = isMember
+    ? memberTasks.length + memberPointUpdates.length + pendingAppeals.length
+    : pendingPoints.length + pendingAppeals.length + pendingTasksToApprove.length;
 
   const getRoleBadge = (role: string) => {
     switch (role) {
