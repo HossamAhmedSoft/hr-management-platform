@@ -29,8 +29,9 @@ import { useApp } from "@/lib/app-context";
 import {
   POLICY_POINT_CATEGORIES,
   POLICY_POINT_CAP_CATEGORIES,
+  OFFICIAL_POINT_TO_CAP_MAPPINGS,
 } from "@/lib/policy-catalog";
-import { getPointClassification } from "@/lib/utils";
+import { getPointClassification, isDuplicateDeduction } from "@/lib/utils";
 import { PointEvent } from "@/types";
 
 export default function PointsPage() {
@@ -58,6 +59,12 @@ export default function PointsPage() {
   const [explanation, setExplanation] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
 
+  React.useEffect(() => {
+    if (!targetMember && availableUsers.length > 0) {
+      setTargetMember(availableUsers[0].id);
+    }
+  }, [availableUsers, targetMember]);
+
   const filteredEvents = pointEvents.filter((p) => {
     if (filterDirection === "positive") return p.direction === "positive";
     if (filterDirection === "negative") return p.direction === "negative";
@@ -75,12 +82,33 @@ export default function PointsPage() {
     e.preventDefault();
     if (!selectedCatObj || !explanation.trim() || !currentUser) return;
 
+    // Check duplicate deduction prevention
+    if (selectedCatObj.direction === "negative") {
+      const isDuplicate = isDuplicateDeduction(pointEvents, targetMember, evidenceUrl || explanation);
+      if (isDuplicate) {
+        alert(
+          isAr
+            ? "تنبيه: توجد واقعة خصم سابقة مسجلة لنفس الواقعة / الدليل!"
+            : "Notice: An existing deduction for this incident/evidence is already on record!"
+        );
+        return;
+      }
+    }
+
+    const mapping = OFFICIAL_POINT_TO_CAP_MAPPINGS.find(
+      (m) => m.point_category_id === selectedCatObj.id
+    );
+    const resolvedCapId =
+      selectedCatObj.direction === "positive"
+        ? mapping?.cap_category_id || "cap-task-exec"
+        : undefined;
+
     addPointEvent({
       member_id: targetMember || availableUsers[0]?.id || "",
       team_id: availableUsers.find((u) => u.id === targetMember)?.team_id || teams[0]?.id || "",
       event_date: eventDate,
       category_id: selectedCatObj.id,
-      cap_category_id: selectedCatObj.direction === "positive" ? "cap-1" : undefined,
+      cap_category_id: resolvedCapId,
       direction: selectedCatObj.direction,
       value: selectedCatObj.default_value,
       explanation,

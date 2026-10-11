@@ -77,8 +77,8 @@ export function StatsCard({
             className={cn(
               "text-xs font-semibold px-2 py-0.5 rounded-full border",
               delta.isPositive
-                ? "bg-[#e6f4ea] text-[#137333] border-[#ceead6] dark:bg-[#34a853]/20 dark:text-[#81c995]"
-                : "bg-[#fce8e6] text-[#c5221f] border-[#fad2cf] dark:bg-[#ea4335]/20 dark:text-[#f28b82]"
+                ? "bg-[#e6f4ea] text-[#137333] border-[#ceead6] dark:bg-[#34a853]/20 dark:text-[#81c995] dark:border-[#34a853]/30"
+                : "bg-[#fce8e6] text-[#c5221f] border-[#fad2cf] dark:bg-[#ea4335]/20 dark:text-[#f28b82] dark:border-[#ea4335]/30"
             )}
           >
             {delta.isPositive ? "+" : ""}

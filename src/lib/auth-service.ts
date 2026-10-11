@@ -1,6 +1,7 @@
 import { Profile, UserRole } from "@/types";
 import { internalDB } from "./internal-db";
 import { createClient } from "./supabase/client";
+import { generateId } from "./utils";
 
 export interface AuthSession {
   user: Profile;
@@ -54,11 +55,11 @@ export function clearSession(): void {
 // ── Pure Database Authentication (Zero Demo Fallbacks) ──
 export async function loginWithCredentials(
   email: string,
-  _password?: string
+  password?: string
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
 
-  // 1. Check live Supabase database
+  // 1. Check live Supabase database first
   try {
     const supabase = createClient();
     const { data: dbProfile, error } = await supabase
@@ -68,46 +69,92 @@ export async function loginWithCredentials(
       .single();
 
     if (!error && dbProfile) {
-      saveSession(dbProfile as Profile);
-      return { success: true, user: dbProfile as Profile };
+      const prof = dbProfile as Profile;
+
+      // Validate password if supplied
+      if (password) {
+        let isPassValid = false;
+        if (internalDB.verifyPassword(cleanEmail, password)) {
+          isPassValid = true;
+        } else if (prof.academic_notes) {
+          try {
+            const meta = JSON.parse(prof.academic_notes);
+            if (meta.pwd === password) {
+              isPassValid = true;
+            }
+          } catch {}
+        }
+
+        if (!isPassValid) {
+          return {
+            success: false,
+            error: "كلمة المرور غير صحيحة. يرجى التأكد من البيانات المدخلة.",
+          };
+        }
+      }
+
+      internalDB.createProfile(prof);
+      if (password) internalDB.setPassword(cleanEmail, password);
+      saveSession(prof);
+      return { success: true, user: prof };
     }
   } catch (err) {
     console.warn("Supabase query error:", err);
   }
 
-  // 2. Check local persistence
+  // 2. Check local persistence fallback
   const existing = internalDB.getProfileByEmail(cleanEmail);
   if (existing) {
+    if (password && !internalDB.verifyPassword(cleanEmail, password)) {
+      return {
+        success: false,
+        error: "كلمة المرور غير صحيحة. يرجى التأكد من البيانات المدخلة.",
+      };
+    }
     saveSession(existing);
     return { success: true, user: existing };
   }
 
   return {
     success: false,
-    error: "الحساب غير مسجل في قاعدة البيانات. إنشاء وتفعيل الحسابات مقتصر فقط على مدير النظام (Super Admin).",
+    error: "الحساب غير مسجل في قاعدة البيانات. يرجى التأكد من البريد الإلكتروني أو مراجعة مدير النظام.",
   };
 }
 
 export async function registerWithCredentials(
   email: string,
-  _password: string,
+  password: string,
   fullName: string,
-  role: UserRole = "member"
+  role: UserRole = "super_admin"
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
+  const userId = generateId();
+
+  // Securely retain password meta inside academic_notes for cross-device authentication
+  const academicNotes = JSON.stringify({
+    pwd: password,
+    created_role: role,
+    init_date: new Date().toISOString(),
+  });
 
   const newProfile: Profile = {
-    id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    id: userId,
     email: cleanEmail,
     full_name: fullName,
     role,
     status: "active",
+    academic_notes: academicNotes,
     join_date: new Date().toISOString().split("T")[0],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
 
-  // 1. Insert into Supabase
+  // Save password in local storage as well
+  if (password) {
+    internalDB.setPassword(cleanEmail, password);
+  }
+
+  // 1. Insert into Supabase with standard UUID
   try {
     const supabase = createClient();
     const { data, error } = await supabase
@@ -120,12 +167,22 @@ export async function registerWithCredentials(
       internalDB.createProfile(data as Profile);
       saveSession(data as Profile);
       return { success: true, user: data as Profile };
+    } else if (error) {
+      console.warn("Supabase insert error details:", error);
+      return {
+        success: false,
+        error: `خطأ في حفظ الحساب بقاعدة البيانات: ${error.message || "فشلت العملية"}`,
+      };
     }
-  } catch (err) {
+  } catch (err: any) {
     console.warn("Supabase insert error:", err);
+    return {
+      success: false,
+      error: `تعذر الاتصال بقاعدة البيانات: ${err?.message || "خطأ في الشبكة"}`,
+    };
   }
 
-  // 2. Save into internal engine
+  // 2. Save into internal engine only if offline
   internalDB.createProfile(newProfile);
   saveSession(newProfile);
   return { success: true, user: newProfile };
@@ -141,7 +198,10 @@ export async function isDatabaseEmpty(): Promise<boolean> {
       .limit(1);
 
     if (!error && Array.isArray(data)) {
-      return data.length === 0;
+      if (data.length > 0) return false;
+      // Supabase is reachable and completely empty -> clear stale local data
+      internalDB.clearAll();
+      return true;
     }
   } catch (err) {
     console.warn("isDatabaseEmpty error:", err);

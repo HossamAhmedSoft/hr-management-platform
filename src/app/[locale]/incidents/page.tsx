@@ -17,11 +17,56 @@ import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useApp } from "@/lib/app-context";
 
 export default function IncidentsPage() {
-  const { incidents, availableUsers, locale } = useApp();
+  const { incidents, addIncident, availableUsers, currentUser, locale } = useApp();
   const isAr = locale === "ar";
+
+  const [isNewIncidentOpen, setIsNewIncidentOpen] = useState(false);
+  const [targetMemberId, setTargetMemberId] = useState(availableUsers[0]?.id || "");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [level, setLevel] = useState<number>(1);
+  const [resolutionNotes, setResolutionNotes] = useState("");
+
+  React.useEffect(() => {
+    if (!targetMemberId && availableUsers.length > 0) {
+      setTargetMemberId(availableUsers[0].id);
+    }
+  }, [availableUsers, targetMemberId]);
+
+  const handleCreateIncident = (e: React.FormEvent) => {
+    e.preventDefault();
+    const finalMemberId = targetMemberId || availableUsers[0]?.id;
+    if (!currentUser || !finalMemberId || !title.trim()) return;
+
+    addIncident({
+      title: title.trim(),
+      description: description.trim(),
+      member_id: finalMemberId,
+      target_member_id: finalMemberId,
+      reported_by: currentUser.id,
+      status: "open",
+      level: level as 1 | 2 | 3 | 4,
+      escalation_level: level,
+      decision_notes: resolutionNotes.trim() || undefined,
+    });
+
+    setTitle("");
+    setDescription("");
+    setResolutionNotes("");
+    setLevel(1);
+    setIsNewIncidentOpen(false);
+  };
 
   const getMemberName = (id: string) => {
     return availableUsers.find((u) => u.id === id)?.full_name || id;
@@ -31,7 +76,7 @@ export default function IncidentsPage() {
     {
       level: 1,
       title: isAr ? "المستوى 1: تنبيه ودي مباشر" : "Level 1: Friendly Notice",
-      tagColor: "bg-[#e8f0fe] text-[#1a73e8] border-[#d2e3fc]",
+      tagColor: "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] border-[#d2e3fc] dark:border-[#1a73e8]/30",
       dotColor: "bg-[#1a73e8]",
       desc: isAr
         ? "محادثة توجيهية هادئة ومباشرة بين العضو وقائد الفريق لمعالجة أي قصور أولي فور حدوثه."
@@ -41,7 +86,7 @@ export default function IncidentsPage() {
     {
       level: 2,
       title: isAr ? "المستوى 2: خطة تحسين الأداء (PIP)" : "Level 2: Performance Improvement Plan (PIP)",
-      tagColor: "bg-[#fef7e0] text-[#b06000] border-[#feefc3]",
+      tagColor: "bg-[#fef7e0] dark:bg-[#fbbc04]/20 text-[#b06000] dark:text-[#fdd663] border-[#feefc3] dark:border-[#fbbc04]/30",
       dotColor: "bg-[#fbbc04]",
       desc: isAr
         ? "خطة أهداف محددة ومكتوبة بمهلة زمنية (عادة أسبوعين إلى 30 يوماً) مع تحديد أوجه الدعم والتدريب اللازمة."
@@ -51,7 +96,7 @@ export default function IncidentsPage() {
     {
       level: 3,
       title: isAr ? "المستوى 3: مراجعة قائد ونائب الفريق" : "Level 3: Head / Vice Head Review",
-      tagColor: "bg-[#feefe3] text-[#e37400] border-[#fed7b2]",
+      tagColor: "bg-[#feefe3] dark:bg-[#e37400]/20 text-[#e37400] dark:text-[#ff9800] border-[#fed7b2] dark:border-[#e37400]/30",
       dotColor: "bg-[#e37400]",
       desc: isAr
         ? "جلسة استماع رسمية على مستوى قيادة اللجنة ومسؤول الموارد البشرية لتقييم أسباب عدم تحقق أهداف الـ PIP."
@@ -61,7 +106,7 @@ export default function IncidentsPage() {
     {
       level: 4,
       title: isAr ? "المستوى 4: تصعيد لقيادة مجتمع GDG" : "Level 4: Community Leadership Escalation",
-      tagColor: "bg-[#fce8e6] text-[#c5221f] border-[#fad2cf]",
+      tagColor: "bg-[#fce8e6] dark:bg-[#ea4335]/20 text-[#c5221f] dark:text-[#f28b82] border-[#fad2cf] dark:border-[#ea4335]/30",
       dotColor: "bg-[#ea4335]",
       desc: isAr
         ? "إحالة الملف إلى قائد GDG NCTU ومجلس الإدارة لاتخاذ القرار المؤسسي النهائي بعد استيفاء حق الدفاع والتحقيق."
@@ -83,7 +128,16 @@ export default function IncidentsPage() {
             ? "نظام التدرج الإداري من 4 مستويات متدرجة الألوان (أزرق → أصفر → برتقالي → أحمر) لضمان الشفافية والعدالة."
             : "4-level progressive vertical stepper ladder with color graduation from Blue to Yellow to Orange to Red."
         }
-      />
+      >
+        <Button
+          size="sm"
+          onClick={() => setIsNewIncidentOpen(true)}
+          className="gap-2 bg-[#ea4335] hover:bg-[#d93025] text-white"
+        >
+          <Plus className="w-4 h-4" />
+          {isAr ? "تسجيل واقعة تصعيد" : "Log Escalation Incident"}
+        </Button>
+      </PageHeader>
 
       {/* Vertical Stepper Escalation Ladder (from ui ana item 4) */}
       <Card className="border border-border bg-card shadow-2xs">
@@ -166,7 +220,7 @@ export default function IncidentsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#e8f0fe] text-[#1a73e8] border border-[#d2e3fc]">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] border border-[#d2e3fc] dark:border-[#1a73e8]/30">
                       Level {inc.escalation_level ?? 1}
                     </span>
                     <h4 className="font-bold text-xs text-foreground">
@@ -185,7 +239,7 @@ export default function IncidentsPage() {
               </p>
 
               {inc.decision_notes && (
-                <div className="text-xs text-[#137333] dark:text-[#81c995] bg-[#e6f4ea] dark:bg-[#34a853]/20 p-2.5 rounded-md border border-[#ceead6]">
+                <div className="text-xs text-[#137333] dark:text-[#81c995] bg-[#e6f4ea] dark:bg-[#34a853]/20 p-2.5 rounded-md border border-[#ceead6] dark:border-[#34a853]/30">
                   <strong>{isAr ? "القرار الرسمي والتسوية:" : "Formal Resolution Note:"}</strong>{" "}
                   {inc.decision_notes}
                 </div>
@@ -194,6 +248,127 @@ export default function IncidentsPage() {
           )))}
         </div>
       </div>
+
+      {/* Log Escalation Incident Dialog */}
+      {isNewIncidentOpen && (
+        <Dialog open={isNewIncidentOpen} onOpenChange={setIsNewIncidentOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-[#ea4335]" />
+                <span>
+                  {isAr ? "تسجيل واقعة تصعيد إداري" : "Log Escalation Incident Case"}
+                </span>
+              </DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateIncident} className="space-y-4 pt-2 text-xs">
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "العضو المعني بالواقعة:" : "Target Member:"}
+                </label>
+                <select
+                  value={targetMemberId}
+                  onChange={(e) => setTargetMemberId(e.target.value)}
+                  className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
+                  required
+                >
+                  {availableUsers.length === 0 ? (
+                    <option value="">{isAr ? "لا يوجد أعضاء مسجلين" : "No members registered"}</option>
+                  ) : (
+                    availableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} ({u.role.replace("_", " ")})
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "مستوى التصعيد المتدرج:" : "Escalation Ladder Level:"}
+                </label>
+                <select
+                  value={level}
+                  onChange={(e) => setLevel(parseInt(e.target.value))}
+                  className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
+                >
+                  <option value={1}>{isAr ? "المستوى 1: تنبيه وتوجيه ودي مباشر (أزرق)" : "Level 1: Friendly Notice (Blue)"}</option>
+                  <option value={2}>{isAr ? "المستوى 2: خطة تحسين الأداء PIP (أصفر)" : "Level 2: PIP Plan (Yellow)"}</option>
+                  <option value={3}>{isAr ? "المستوى 3: مراجعة قائد ونائب الفريق (برتقالي)" : "Level 3: Head/Vice Head Review (Orange)"}</option>
+                  <option value={4}>{isAr ? "المستوى 4: تصعيد لقيادة مجتمع GDG (أحمر)" : "Level 4: Chapter Leadership Hearing (Red)"}</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "عنوان الواقعة:" : "Incident Title:"}
+                </label>
+                <Input
+                  required
+                  placeholder={
+                    isAr
+                      ? "مثال: تأخر متكرر عن تسليم مرحلة المشروع"
+                      : "e.g., Repeated delivery delays on milestone"
+                  }
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "تفاصيل وسياق الواقعة الموثقة:" : "Documented Statement & Facts:"}
+                </label>
+                <Textarea
+                  rows={3}
+                  required
+                  placeholder={
+                    isAr
+                      ? "اشرح ملابسات الحالة وما تم مناقشته مع العضو..."
+                      : "Describe the timeline, facts, and initial discussion..."
+                  }
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "ملاحظات التوجيه أو قرار التسوية (اختياري):" : "Resolution / Settlement Notes (Optional):"}
+                </label>
+                <Input
+                  placeholder={
+                    isAr
+                      ? "ما تم الاتفاق عليه لتسوية الموضوع"
+                      : "Corrective action or agreement agreed upon"
+                  }
+                  value={resolutionNotes}
+                  onChange={(e) => setResolutionNotes(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsNewIncidentOpen(false)}
+                >
+                  {isAr ? "إلغاء" : "Cancel"}
+                </Button>
+                <Button type="submit" size="sm" className="bg-[#ea4335] hover:bg-[#d93025] text-white">
+                  {isAr ? "حفظ وتوثيق الحالة" : "Record Escalation"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   Attendee,
   AuditLog,
 } from "@/types";
+import { generateId } from "./utils";
 
 // ============================================================
 // Internal Enterprise Storage Engine (Pure Production)
@@ -57,6 +58,24 @@ export const internalDB = {
     const updated = [profile, ...profiles.filter((p) => p.id !== profile.id)];
     setTable("profiles", updated);
     return profile;
+  },
+
+  // ── Password Management ────────────────────────────────
+  setPassword(email: string, password: string): void {
+    const passwords = getTable<Record<string, string>>("passwords", [{}])[0] || {};
+    passwords[email.toLowerCase().trim()] = password;
+    setTable("passwords", [passwords]);
+  },
+
+  getPassword(email: string): string | null {
+    const passwords = getTable<Record<string, string>>("passwords", [{}])[0] || {};
+    return passwords[email.toLowerCase().trim()] || null;
+  },
+
+  verifyPassword(email: string, password?: string): boolean {
+    const stored = this.getPassword(email);
+    if (!stored) return true; // if no password set yet, allow
+    return stored === password;
   },
 
   updateProfile(id: string, updates: Partial<Profile>): Profile | null {
@@ -131,13 +150,14 @@ export const internalDB = {
     reviewerNotes?: string
   ): boolean {
     const events = this.getPointEvents();
+    const isDecision = status === "approved" || status === "rejected";
     const updated = events.map((pe) =>
       pe.id === id
         ? {
             ...pe,
             status,
-            decision: status,
-            decision_at: new Date().toISOString(),
+            ...(isDecision ? { decision: status as "approved" | "rejected" } : {}),
+            ...(isDecision ? { decision_at: new Date().toISOString() } : {}),
             decision_rationale: reviewerNotes || pe.decision_rationale,
             updated_at: new Date().toISOString(),
           }
@@ -156,7 +176,7 @@ export const internalDB = {
     const evals = this.getEvaluations();
     const newEval: Evaluation = {
       ...evalData,
-      id: `eval_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: generateId(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -173,7 +193,7 @@ export const internalDB = {
     const appeals = this.getAppeals();
     const newAppeal: Appeal = {
       ...appealData,
-      id: `app_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: generateId(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -186,9 +206,35 @@ export const internalDB = {
     return getTable<Incident>("incidents", []);
   },
 
+  createIncident(incident: Omit<Incident, "id" | "created_at" | "updated_at">): Incident {
+    const incidents = this.getIncidents();
+    const newIncident: Incident = {
+      ...incident,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setTable("incidents", [newIncident, ...incidents]);
+    return newIncident;
+  },
+
   // ── Feedback & PIP ─────────────────────────────────────
   getFeedbackSessions(): FeedbackSession[] {
     return getTable<FeedbackSession>("feedback_sessions", []);
+  },
+
+  createFeedbackSession(
+    session: Omit<FeedbackSession, "id" | "created_at" | "updated_at">
+  ): FeedbackSession {
+    const sessions = this.getFeedbackSessions();
+    const newSession: FeedbackSession = {
+      ...session,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setTable("feedback_sessions", [newSession, ...sessions]);
+    return newSession;
   },
 
   // ── Educational Tracks & Attendees ─────────────────────
@@ -209,5 +255,25 @@ export const internalDB = {
     const logs = this.getAuditLogs();
     setTable("audit_logs", [log, ...logs]);
     return log;
+  },
+
+  // ── Clear Database ─────────────────────────────────────
+  clearAll(): void {
+    if (typeof window === "undefined") return;
+    const tables = [
+      "profiles",
+      "teams",
+      "tasks",
+      "point_events",
+      "evaluations",
+      "appeals",
+      "incidents",
+      "feedback_sessions",
+      "educational_tracks",
+      "attendees",
+      "audit_logs",
+      "passwords",
+    ];
+    tables.forEach((t) => localStorage.removeItem(`${STORAGE_PREFIX}${t}`));
   },
 };

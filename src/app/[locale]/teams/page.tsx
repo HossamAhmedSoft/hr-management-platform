@@ -30,8 +30,8 @@ export default function TeamsPage() {
       nameAr: "الموارد البشرية",
       type: "non_tech",
       icon: Users,
-      color: "text-[#1a73e8]",
-      bg: "bg-[#e8f0fe] border-[#d2e3fc]",
+      color: "text-[#1a73e8] dark:text-[#8ab4f8]",
+      bg: "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 border-[#d2e3fc] dark:border-[#1a73e8]/30",
       desc: "Manages recruitment, performance tracking, conflict mediation, and community welfare.",
     },
     {
@@ -40,8 +40,8 @@ export default function TeamsPage() {
       nameAr: "الإعلام والمحتوى",
       type: "non_tech",
       icon: Palette,
-      color: "text-[#ea4335]",
-      bg: "bg-[#fce8e6] border-[#fad2cf]",
+      color: "text-[#ea4335] dark:text-[#f28b82]",
+      bg: "bg-[#fce8e6] dark:bg-[#ea4335]/20 border-[#fad2cf] dark:border-[#ea4335]/30",
       desc: "Visual branding, video editing, photography, event coverage, and digital reels.",
     },
     {
@@ -50,8 +50,8 @@ export default function TeamsPage() {
       nameAr: "العلاقات العامة والتسويق",
       type: "non_tech",
       icon: Sparkles,
-      color: "text-[#b06000]",
-      bg: "bg-[#fef7e0] border-[#feefc3]",
+      color: "text-[#b06000] dark:text-[#fdd663]",
+      bg: "bg-[#fef7e0] dark:bg-[#fbbc04]/20 border-[#feefc3] dark:border-[#fbbc04]/30",
       desc: "Sponsorship acquisitions, corporate relations, campus reach, and campaigns.",
     },
     {
@@ -60,8 +60,8 @@ export default function TeamsPage() {
       nameAr: "العمليات واللوجستيات",
       type: "non_tech",
       icon: Layers,
-      color: "text-[#137333]",
-      bg: "bg-[#e6f4ea] border-[#ceead6]",
+      color: "text-[#137333] dark:text-[#81c995]",
+      bg: "bg-[#e6f4ea] dark:bg-[#34a853]/20 border-[#ceead6] dark:border-[#34a853]/30",
       desc: "Auditorium reservations, sound equipment, stage lighting, and smooth event execution.",
     },
     {
@@ -70,8 +70,8 @@ export default function TeamsPage() {
       nameAr: "مسار تطوير الويب",
       type: "tech",
       icon: Code,
-      color: "text-[#1a73e8]",
-      bg: "bg-[#e8f0fe] border-[#d2e3fc]",
+      color: "text-[#1a73e8] dark:text-[#8ab4f8]",
+      bg: "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 border-[#d2e3fc] dark:border-[#1a73e8]/30",
       desc: "Full-stack cloud applications with Next.js, TypeScript, PostgreSQL, and modern APIs.",
     },
     {
@@ -80,8 +80,8 @@ export default function TeamsPage() {
       nameAr: "مسار تطبيقات الموبايل",
       type: "tech",
       icon: Smartphone,
-      color: "text-[#1a73e8]",
-      bg: "bg-[#e8f0fe] border-[#d2e3fc]",
+      color: "text-[#1a73e8] dark:text-[#8ab4f8]",
+      bg: "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 border-[#d2e3fc] dark:border-[#1a73e8]/30",
       desc: "Cross-platform iOS and Android mobile engineering with Flutter and native integrations.",
     },
     {
@@ -90,8 +90,8 @@ export default function TeamsPage() {
       nameAr: "مسار تصميم واجهات المستخدم",
       type: "tech",
       icon: Palette,
-      color: "text-[#ea4335]",
-      bg: "bg-[#fce8e6] border-[#fad2cf]",
+      color: "text-[#ea4335] dark:text-[#f28b82]",
+      bg: "bg-[#fce8e6] dark:bg-[#ea4335]/20 border-[#fad2cf] dark:border-[#ea4335]/30",
       desc: "Figma design system architectures, user research, wireframing, and accessibility.",
     },
     {
@@ -100,8 +100,8 @@ export default function TeamsPage() {
       nameAr: "مسار الأنظمة المدمجة وإنترنت الأشياء",
       type: "tech",
       icon: Cpu,
-      color: "text-[#137333]",
-      bg: "bg-[#e6f4ea] border-[#ceead6]",
+      color: "text-[#137333] dark:text-[#81c995]",
+      bg: "bg-[#e6f4ea] dark:bg-[#34a853]/20 border-[#ceead6] dark:border-[#34a853]/30",
       desc: "Microcontrollers, C/C++, sensor telemetry, robotics, and hardware IoT prototyping.",
     },
     {
@@ -110,8 +110,8 @@ export default function TeamsPage() {
       nameAr: "مسار الأمن السيبراني",
       type: "tech",
       icon: Shield,
-      color: "text-[#ea4335]",
-      bg: "bg-[#fce8e6] border-[#fad2cf]",
+      color: "text-[#ea4335] dark:text-[#f28b82]",
+      bg: "bg-[#fce8e6] dark:bg-[#ea4335]/20 border-[#fad2cf] dark:border-[#ea4335]/30",
       desc: "Offensive and defensive security, penetration testing, CTF preparation, and audits.",
     },
   ];
@@ -211,7 +211,7 @@ export default function TeamsPage() {
                     </p>
                   </div>
                 </div>
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#e6f4ea] text-[#137333] border border-[#ceead6]">
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#e6f4ea] dark:bg-[#34a853]/20 text-[#137333] dark:text-[#81c995] border border-[#ceead6] dark:border-[#34a853]/30">
                   Active Committee
                 </span>
               </div>
@@ -229,13 +229,13 @@ export default function TeamsPage() {
                   <span className="text-[11px] text-muted-foreground">{isAr ? "الأعضاء الفعليين" : "Active Members"}</span>
                 </div>
                 <div className="p-3 rounded-lg bg-[#f8f9fa] dark:bg-[#202124] border border-border">
-                  <span className="text-xl font-bold text-[#137333] block font-mono">
+                  <span className="text-xl font-bold text-[#137333] dark:text-[#81c995] block font-mono">
                     {currentStats.tasksRatio}
                   </span>
                   <span className="text-[11px] text-muted-foreground">{isAr ? "إنجاز المهام" : "Milestones Met"}</span>
                 </div>
                 <div className="p-3 rounded-lg bg-[#f8f9fa] dark:bg-[#202124] border border-border">
-                  <span className="text-xl font-bold text-[#1a73e8] block font-mono">
+                  <span className="text-xl font-bold text-[#1a73e8] dark:text-[#8ab4f8] block font-mono">
                     {currentStats.memberCount > 0 ? "Good" : "—"}
                   </span>
                   <span className="text-[11px] text-muted-foreground">{isAr ? "حالة اللجنة" : "Track Status"}</span>

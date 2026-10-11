@@ -502,13 +502,13 @@ export default function MembersPage() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="text-base font-bold flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-[#1a73e8]" />
+                <UserPlus className="w-5 h-5 text-[#1a73e8] dark:text-[#8ab4f8]" />
                 {isAr ? "إنشاء حساب وتعيين الصلاحيات (Super Admin)" : "Create & Provision Account (Super Admin)"}
               </DialogTitle>
             </DialogHeader>
 
             {addAccountSuccess && (
-              <div className="p-3 rounded-lg bg-[#e6f4ea] text-[#137333] text-xs flex items-center gap-2 border border-[#ceead6]">
+              <div className="p-3 rounded-lg bg-[#e6f4ea] dark:bg-[#34a853]/20 text-[#137333] dark:text-[#81c995] text-xs flex items-center gap-2 border border-[#ceead6] dark:border-[#34a853]/30">
                 <CheckCircle className="w-4 h-4 shrink-0" />
                 <span>
                   {isAr
@@ -519,7 +519,7 @@ export default function MembersPage() {
             )}
 
             {addAccountError && (
-              <div className="p-3 rounded-lg bg-[#fce8e6] text-[#c5221f] text-xs flex items-center gap-2 border border-[#fad2cf]">
+              <div className="p-3 rounded-lg bg-[#fce8e6] dark:bg-[#ea4335]/20 text-[#c5221f] dark:text-[#f28b82] text-xs flex items-center gap-2 border border-[#fad2cf] dark:border-[#ea4335]/30">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{addAccountError}</span>
               </div>

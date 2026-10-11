@@ -37,6 +37,12 @@ export default function EvaluationsPage() {
   const [selectedMemberId, setSelectedMemberId] = useState(availableUsers[0]?.id || "");
   const [evalCycle, setEvalCycle] = useState(POLICY_EVALUATION_PERIODS[0]?.id || "");
 
+  React.useEffect(() => {
+    if (!selectedMemberId && availableUsers.length > 0) {
+      setSelectedMemberId(availableUsers[0].id);
+    }
+  }, [availableUsers, selectedMemberId]);
+
   // Rating state for the 6 categories (rating: number | null for N/A)
   const [ratings, setRatings] = useState<{ [catId: string]: { rating: number; isNA: boolean } }>({
     "eval-cat-1": { rating: 4.5, isNA: false },
@@ -344,9 +350,10 @@ export default function EvaluationsPage() {
                 <Button
                   size="sm"
                   onClick={async () => {
-                    if (!currentUser || !selectedMemberId) return;
+                    const targetId = selectedMemberId || availableUsers[0]?.id;
+                    if (!currentUser || !targetId) return;
                     await addEvaluation({
-                      member_id: selectedMemberId,
+                      member_id: targetId,
                       evaluator_id: currentUser.id,
                       period_id: evalCycle || POLICY_EVALUATION_PERIODS[0]?.id || "period-current",
                       template_id: "tpl-default",

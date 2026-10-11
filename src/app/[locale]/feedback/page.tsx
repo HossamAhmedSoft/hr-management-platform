@@ -25,13 +25,55 @@ import {
 import { useApp } from "@/lib/app-context";
 
 export default function FeedbackPage() {
-  const { feedbackSessions, availableUsers, locale } = useApp();
+  const { feedbackSessions, addFeedbackSession, availableUsers, currentUser, locale } = useApp();
   const isAr = locale === "ar";
 
   const [isNewSessionOpen, setIsNewSessionOpen] = useState(false);
+  const [targetMemberId, setTargetMemberId] = useState(availableUsers[0]?.id || "");
+  const [strengths, setStrengths] = useState("");
+  const [improvementArea, setImprovementArea] = useState("");
+  const [nextStep, setNextStep] = useState("");
+  const [supportRequired, setSupportRequired] = useState("");
+  const [followUpDate, setFollowUpDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split("T")[0];
+  });
+  const [hrPrivateNotes, setHrPrivateNotes] = useState("");
+
+  React.useEffect(() => {
+    if (!targetMemberId && availableUsers.length > 0) {
+      setTargetMemberId(availableUsers[0].id);
+    }
+  }, [availableUsers, targetMemberId]);
 
   const getMemberName = (id: string) => {
     return availableUsers.find((u) => u.id === id)?.full_name || id;
+  };
+
+  const handleCreateSession = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !targetMemberId) return;
+
+    addFeedbackSession({
+      member_id: targetMemberId,
+      provider_id: currentUser.id,
+      date: new Date().toISOString().split("T")[0],
+      strengths: strengths.trim() || (isAr ? "التزام ومبادرة إيجابية" : "Positive initiative and commitment"),
+      improvement_area: improvementArea.trim() || (isAr ? "متابعة أهداف الأداء المتفق عليها" : "Follow agreed performance targets"),
+      next_step: nextStep.trim() || (isAr ? "تسليم مهام المرحلة في الموعد" : "Deliver milestone on schedule"),
+      support_required: supportRequired.trim() || (isAr ? "جلسات إرشاد ودعم أسبوعية" : "Weekly guidance and mentoring"),
+      follow_up_date: followUpDate,
+      hr_private_notes: hrPrivateNotes.trim() || undefined,
+      status: "completed",
+    });
+
+    setStrengths("");
+    setImprovementArea("");
+    setNextStep("");
+    setSupportRequired("");
+    setHrPrivateNotes("");
+    setIsNewSessionOpen(false);
   };
 
   return (
@@ -128,6 +170,149 @@ export default function FeedbackPage() {
           </Card>
         )))}
       </div>
+
+      {/* Schedule Feedback Session Dialog */}
+      {isNewSessionOpen && (
+        <Dialog open={isNewSessionOpen} onOpenChange={setIsNewSessionOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <HeartHandshake className="w-5 h-5 text-primary" />
+                <span>
+                  {isAr ? "تسجيل جلسة متابعة وتطوير (PIP)" : "Schedule Feedback & PIP Session"}
+                </span>
+              </DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateSession} className="space-y-4 pt-2 text-xs">
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "العضو المعني بالجلسة:" : "Target Member:"}
+                </label>
+                <select
+                  value={targetMemberId}
+                  onChange={(e) => setTargetMemberId(e.target.value)}
+                  className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
+                  required
+                >
+                  {availableUsers.length === 0 ? (
+                    <option value="">{isAr ? "لا يوجد أعضاء مسجلين" : "No members registered"}</option>
+                  ) : (
+                    availableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} ({u.role.replace("_", " ")})
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "نقاط القوة والإشادة (Strengths):" : "Strengths & Commendations:"}
+                </label>
+                <Textarea
+                  rows={2}
+                  required
+                  placeholder={
+                    isAr
+                      ? "ما تميز به العضو خلال الفترة الماضية..."
+                      : "Key positive contributions and demonstrations..."
+                  }
+                  value={strengths}
+                  onChange={(e) => setStrengths(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground">
+                  {isAr ? "مجالات التطوير والتحسين (Growth Areas):" : "Areas for Growth & Improvement:"}
+                </label>
+                <Textarea
+                  rows={2}
+                  required
+                  placeholder={
+                    isAr
+                      ? "النقاط التي تحتاج إلى تركيز وتطوير..."
+                      : "Specific skills or habits to develop..."
+                  }
+                  value={improvementArea}
+                  onChange={(e) => setImprovementArea(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground">
+                    {isAr ? "الخطوات القادمة المتفق عليها:" : "Agreed Next Steps:"}
+                  </label>
+                  <Input
+                    required
+                    placeholder={isAr ? "أهداف محددة وقابلة للقياس" : "Concrete milestones"}
+                    value={nextStep}
+                    onChange={(e) => setNextStep(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground">
+                    {isAr ? "الدعم المطلوب من الفريق:" : "Support Required:"}
+                  </label>
+                  <Input
+                    required
+                    placeholder={isAr ? "توجيه، تدريب، أو تخفيف عبء" : "Mentorship, tooling, or check-ins"}
+                    value={supportRequired}
+                    onChange={(e) => setSupportRequired(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground">
+                    {isAr ? "تاريخ جلسة المتابعة القادمة:" : "Follow-up Date:"}
+                  </label>
+                  <Input
+                    type="date"
+                    required
+                    value={followUpDate}
+                    onChange={(e) => setFollowUpDate(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground">
+                    {isAr ? "ملاحظات سرية لفريق الموارد (اختياري):" : "HR Confidential Notes (Optional):"}
+                  </label>
+                  <Input
+                    placeholder={isAr ? "مشفرة ولا تظهر للعضو" : "Encrypted HR internal record"}
+                    value={hrPrivateNotes}
+                    onChange={(e) => setHrPrivateNotes(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsNewSessionOpen(false)}
+                >
+                  {isAr ? "إلغاء" : "Cancel"}
+                </Button>
+                <Button type="submit" size="sm" className="bg-primary text-white">
+                  {isAr ? "توثيق الجلسة" : "Save & Finalize Session"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

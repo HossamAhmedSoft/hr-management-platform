@@ -13,6 +13,7 @@ import {
   Attendee,
   AuditLog,
 } from "@/types";
+import { generateId } from "./utils";
 
 // ============================================================
 // Real Production Database Service (Live Supabase PostgreSQL Engine)
@@ -137,7 +138,7 @@ export const dbService = {
   async createTask(task: Omit<Task, "id" | "created_at" | "updated_at">): Promise<Task | null> {
     const newTask: Task = {
       ...task,
-      id: `tsk_${Date.now()}`,
+      id: generateId(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -200,7 +201,7 @@ export const dbService = {
   ): Promise<PointEvent | null> {
     const newEvent: PointEvent = {
       ...event,
-      id: `pe_${Date.now()}`,
+      id: generateId(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -229,12 +230,14 @@ export const dbService = {
   ): Promise<boolean> {
     try {
       const supabase = createClient();
+      const isDecision = status === "approved" || status === "rejected";
       const { error } = await supabase
         .from("point_events")
         .update({
           status,
-          reviewer_notes: reviewerNotes,
-          decided_at: new Date().toISOString(),
+          ...(isDecision ? { decision: status } : {}),
+          ...(isDecision ? { decision_at: new Date().toISOString() } : {}),
+          ...(reviewerNotes ? { decision_rationale: reviewerNotes } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq("id", id);
@@ -268,28 +271,46 @@ export const dbService = {
   },
 
   async createEvaluation(evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">): Promise<Evaluation | null> {
+    const newEvalId = generateId();
     const newEval: Evaluation = {
       ...evalData,
-      id: `eval_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: newEvalId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     try {
       const supabase = createClient();
+      // Destructure ratings so Supabase doesn't reject column not existing
+      const { ratings, ...dbEvalRecord } = newEval;
       const { data, error } = await supabase
         .from("evaluations")
-        .insert([newEval])
+        .insert([dbEvalRecord])
         .select()
         .single();
 
       if (!error && data) {
-        internalDB.createEvaluation(data as Evaluation);
-        return data as Evaluation;
+        if (ratings && ratings.length > 0) {
+          try {
+            await supabase.from("evaluation_ratings").insert(
+              ratings.map((r) => ({
+                id: generateId(),
+                evaluation_id: data.id,
+                category_id: r.category_id,
+                rating: r.rating,
+              }))
+            );
+          } catch (err) {
+            console.warn("evaluation_ratings insert error:", err);
+          }
+        }
+        const fullEval = { ...(data as Evaluation), ratings: ratings || [] };
+        internalDB.createEvaluation(fullEval);
+        return fullEval;
       }
     } catch (e) {
       console.warn("Supabase createEvaluation error:", e);
     }
-    return internalDB.createEvaluation(evalData);
+    return internalDB.createEvaluation(newEval);
   },
 
   // ── Appeals ─────────────────────────────────────────────
@@ -313,7 +334,7 @@ export const dbService = {
   async createAppeal(appeal: Omit<Appeal, "id" | "created_at" | "updated_at">): Promise<Appeal | null> {
     const newAppeal: Appeal = {
       ...appeal,
-      id: `app_${Date.now()}`,
+      id: generateId(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -353,6 +374,33 @@ export const dbService = {
     return internalDB.getIncidents();
   },
 
+  async createIncident(
+    incident: Omit<Incident, "id" | "created_at" | "updated_at">
+  ): Promise<Incident | null> {
+    const newIncident: Incident = {
+      ...incident,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("incidents")
+        .insert([newIncident])
+        .select()
+        .single();
+
+      if (!error && data) {
+        internalDB.createIncident(data as Incident);
+        return data as Incident;
+      }
+    } catch (e) {
+      console.warn("Supabase createIncident error:", e);
+    }
+    return internalDB.createIncident(incident);
+  },
+
   // ── Feedback Sessions ───────────────────────────────────
   async getFeedbackSessions(): Promise<FeedbackSession[]> {
     try {
@@ -360,7 +408,7 @@ export const dbService = {
       const { data, error } = await supabase
         .from("feedback_sessions")
         .select("*")
-        .order("session_date", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (!error && Array.isArray(data)) {
         return data as FeedbackSession[];
@@ -369,6 +417,33 @@ export const dbService = {
       console.warn("Supabase feedback error:", e);
     }
     return internalDB.getFeedbackSessions();
+  },
+
+  async createFeedbackSession(
+    session: Omit<FeedbackSession, "id" | "created_at" | "updated_at">
+  ): Promise<FeedbackSession | null> {
+    const newSession: FeedbackSession = {
+      ...session,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("feedback_sessions")
+        .insert([newSession])
+        .select()
+        .single();
+
+      if (!error && data) {
+        internalDB.createFeedbackSession(data as FeedbackSession);
+        return data as FeedbackSession;
+      }
+    } catch (e) {
+      console.warn("Supabase createFeedbackSession error:", e);
+    }
+    return internalDB.createFeedbackSession(session);
   },
 
   // ── Educational Tracks & Attendees ─────────────────────
@@ -401,7 +476,7 @@ export const dbService = {
   async createAuditLog(log: Omit<AuditLog, "id" | "created_at">): Promise<AuditLog> {
     const newLog: AuditLog = {
       ...log,
-      id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: generateId(),
       created_at: new Date().toISOString(),
     };
     try {

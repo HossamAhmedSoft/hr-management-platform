@@ -47,6 +47,12 @@ export default function TasksPage() {
   const [delayReason, setDelayReason] = useState("");
   const [delayDate, setDelayDate] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 16));
 
+  React.useEffect(() => {
+    if (!newTeam && teams.length > 0) {
+      setNewTeam(teams[0].id);
+    }
+  }, [teams, newTeam]);
+
   const filteredTasks = tasks.filter((t) => {
     if (filterStatus === "all") return true;
     return t.status === filterStatus;
@@ -59,7 +65,7 @@ export default function TasksPage() {
     addTask({
       title: newTitle,
       description: newDesc,
-      team_id: newTeam,
+      team_id: newTeam || teams[0]?.id || "team-general",
       created_by: currentUser?.id || "admin",
       status: "assigned",
       priority: newPriority,

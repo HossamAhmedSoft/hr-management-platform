@@ -132,7 +132,10 @@ export default function DashboardPage() {
     const a = document.createElement("a");
     a.href = url;
     a.download = `gdg_nctu_points_log_${Date.now()}.csv`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -247,7 +250,7 @@ export default function DashboardPage() {
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#1a73e8] text-white">
                   Level 1
                 </span>
-                <span className="text-xs font-bold text-[#1a73e8]">Blue Notice</span>
+                <span className="text-xs font-bold text-[#1a73e8] dark:text-[#8ab4f8]">Blue Notice</span>
               </div>
               <h4 className="font-bold text-xs text-foreground">
                 {isAr ? "تنبيه ودي مباشر" : "Friendly Notice"}
@@ -265,7 +268,7 @@ export default function DashboardPage() {
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#b06000] text-white">
                   Level 2
                 </span>
-                <span className="text-xs font-bold text-[#b06000]">Yellow Notice</span>
+                <span className="text-xs font-bold text-[#b06000] dark:text-[#fdd663]">Yellow Notice</span>
               </div>
               <h4 className="font-bold text-xs text-foreground">
                 {isAr ? "خطة تحسين الأداء (PIP)" : "Performance Plan (PIP)"}
@@ -283,7 +286,7 @@ export default function DashboardPage() {
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#e37400] text-white">
                   Level 3
                 </span>
-                <span className="text-xs font-bold text-[#e37400]">Orange Review</span>
+                <span className="text-xs font-bold text-[#e37400] dark:text-[#ff9800]">Orange Review</span>
               </div>
               <h4 className="font-bold text-xs text-foreground">
                 {isAr ? "مراجعة قائد ونائب الفريق" : "Head/Vice Head Review"}
@@ -301,7 +304,7 @@ export default function DashboardPage() {
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ea4335] text-white">
                   Level 4
                 </span>
-                <span className="text-xs font-bold text-[#ea4335]">Red Escalation</span>
+                <span className="text-xs font-bold text-[#ea4335] dark:text-[#f28b82]">Red Escalation</span>
               </div>
               <h4 className="font-bold text-xs text-foreground">
                 {isAr ? "تصعيد لقيادة مجتمع GDG" : "Leadership Escalation"}
@@ -496,7 +499,7 @@ export default function DashboardPage() {
                 : "Responsive grid of cards for each track with 1-to-5 point scale evaluation inputs."}
             </p>
           </div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#e8f0fe] text-[#1a73e8] border border-[#d2e3fc]">
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] border border-[#d2e3fc] dark:border-[#1a73e8]/30">
             9 Core Tracks
           </span>
         </div>
@@ -517,8 +520,8 @@ export default function DashboardPage() {
                     <div
                       className={`p-2 rounded-lg ${
                         isTech
-                          ? "bg-[#e8f0fe] text-[#1a73e8] dark:bg-[#1a73e8]/20"
-                          : "bg-[#fef7e0] text-[#b06000] dark:bg-[#fbbc04]/20"
+                          ? "bg-[#e8f0fe] text-[#1a73e8] dark:bg-[#1a73e8]/20 dark:text-[#8ab4f8]"
+                          : "bg-[#fef7e0] text-[#b06000] dark:bg-[#fbbc04]/20 dark:text-[#fdd663]"
                       }`}
                     >
                       <Icon className="w-4 h-4" />

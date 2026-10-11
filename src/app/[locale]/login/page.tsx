@@ -27,7 +27,7 @@ import {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, locale, toggleLocale, theme, toggleTheme } = useApp();
+  const { login, locale, toggleLocale, theme, toggleTheme, isAuthenticated } = useApp();
   const isAr = locale === "ar";
 
   const [email, setEmail] = useState("");
@@ -37,6 +37,12 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push(`/${locale}`);
+    }
+  }, [isAuthenticated, locale, router]);
 
   useEffect(() => {
     isDatabaseEmpty().then((empty) => {
@@ -63,6 +69,8 @@ export default function LoginPage() {
       );
       if (res.success && res.user) {
         login(res.user);
+        window.location.href = `/${locale}`;
+        return;
       } else {
         setErrorMessage(res.error || (isAr ? "فشل إنشاء الحساب" : "Failed to create account"));
       }
@@ -70,6 +78,8 @@ export default function LoginPage() {
       const res = await loginWithCredentials(email, password);
       if (res.success && res.user) {
         login(res.user);
+        window.location.href = `/${locale}`;
+        return;
       } else {
         setErrorMessage(
           res.error ||
@@ -143,8 +153,8 @@ export default function LoginPage() {
                 <div
                   className={`inline-flex items-center justify-center w-11 h-11 rounded-2xl mb-1 ${
                     isFirstTimeSetup
-                      ? "bg-[#fef7e0] text-[#b06000]"
-                      : "bg-[#e8f0fe] text-[#1a73e8]"
+                      ? "bg-[#fef7e0] dark:bg-[#fbbc04]/20 text-[#b06000] dark:text-[#fdd663]"
+                      : "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8]"
                   }`}
                 >
                   {isFirstTimeSetup ? (
@@ -174,7 +184,7 @@ export default function LoginPage() {
               </div>
 
               {errorMessage && (
-                <div className="p-3 rounded-lg bg-[#fce8e6] text-[#c5221f] text-xs flex items-center gap-2 border border-[#fad2cf]">
+                <div className="p-3 rounded-lg bg-[#fce8e6] dark:bg-[#ea4335]/20 text-[#c5221f] dark:text-[#f28b82] text-xs flex items-center gap-2 border border-[#fad2cf] dark:border-[#ea4335]/30">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{errorMessage}</span>
                 </div>
@@ -188,14 +198,14 @@ export default function LoginPage() {
                       {isAr ? "الاسم الكامل لمدير النظام:" : "Super Admin Full Name:"}
                     </label>
                     <div className="relative">
-                      <User className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+                      <User className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-2.5 text-muted-foreground" />
                       <Input
                         type="text"
                         required
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder={isAr ? "مثال: حسام أحمد" : "e.g. Hossam Ahmed"}
-                        className="pl-9 h-10 rounded-lg bg-background text-xs"
+                        className="pl-9 rtl:pl-3 rtl:pr-9 h-10 rounded-lg bg-background text-xs"
                       />
                     </div>
                   </div>
@@ -206,14 +216,14 @@ export default function LoginPage() {
                     {isAr ? "البريد الإلكتروني:" : "Email Address:"}
                   </label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+                    <Mail className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-2.5 text-muted-foreground" />
                     <Input
                       type="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@gdgnctu.com"
-                      className="pl-9 h-10 rounded-lg bg-background text-xs"
+                      className="pl-9 rtl:pl-3 rtl:pr-9 h-10 rounded-lg bg-background text-xs"
                     />
                   </div>
                 </div>
@@ -241,19 +251,19 @@ export default function LoginPage() {
                     )}
                   </div>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+                    <Lock className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-2.5 text-muted-foreground" />
                     <Input
                       type={showPassword ? "text" : "password"}
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="pl-9 pr-9 h-10 rounded-lg bg-background text-xs"
+                      className="pl-9 pr-9 rtl:pr-9 rtl:pl-9 h-10 rounded-lg bg-background text-xs"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                      className="absolute right-3 rtl:right-auto rtl:left-3 top-2.5 text-muted-foreground hover:text-foreground"
                     >
                       {showPassword ? (
                         <EyeOff className="w-4 h-4" />
@@ -283,6 +293,26 @@ export default function LoginPage() {
                   )}
                 </Button>
               </form>
+
+              {/* Mode Toggle Switch */}
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFirstTimeSetup(!isFirstTimeSetup);
+                    setErrorMessage("");
+                  }}
+                  className="text-xs text-[#1a73e8] dark:text-[#8ab4f8] hover:underline font-semibold cursor-pointer"
+                >
+                  {isFirstTimeSetup
+                    ? isAr
+                      ? "لديك حساب بالفعل؟ الدخول إلى الحساب"
+                      : "Already initialized? Sign In instead"
+                    : isAr
+                    ? "⚡ تهيئة حساب مدير النظام (Super Admin)"
+                    : "⚡ Initialize Super Admin Account"}
+                </button>
+              </div>
 
               {/* Administrative Footnote */}
               <div className="pt-2 text-center">

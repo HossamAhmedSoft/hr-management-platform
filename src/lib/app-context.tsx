@@ -52,6 +52,8 @@ interface AppContextType {
   rejectPointEvent: (id: string, rationale?: string) => void;
   submitAppeal: (appeal: Omit<Appeal, "id" | "created_at" | "updated_at">) => void;
   addEvaluation: (evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">) => void;
+  addIncident: (incident: Omit<Incident, "id" | "created_at" | "updated_at">) => void;
+  addFeedbackSession: (session: Omit<FeedbackSession, "id" | "created_at" | "updated_at">) => void;
   addAuditLog: (log: Omit<AuditLog, "id" | "created_at">) => void;
   unreadNotificationsCount: number;
 }
@@ -91,6 +93,21 @@ export function AppProvider({
   const [attendees] = useState<Attendee[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [unreadNotificationsCount] = useState<number>(0);
+
+  // Load saved theme on client mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("gdg_theme");
+      if (saved === "dark" || saved === "light") {
+        setTheme(saved);
+        if (saved === "dark") {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+      }
+    }
+  }, []);
 
   // Sync theme with HTML class
   useEffect(() => {
@@ -174,7 +191,13 @@ export function AppProvider({
   };
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    setTheme((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      if (typeof window !== "undefined") {
+        localStorage.setItem("gdg_theme", next);
+      }
+      return next;
+    });
   };
 
   const toggleLocale = () => {
@@ -261,6 +284,20 @@ export function AppProvider({
     }
   };
 
+  const addIncident = async (incident: Omit<Incident, "id" | "created_at" | "updated_at">) => {
+    const created = await dbService.createIncident(incident);
+    if (created) {
+      setIncidents((prev) => [created, ...prev]);
+    }
+  };
+
+  const addFeedbackSession = async (session: Omit<FeedbackSession, "id" | "created_at" | "updated_at">) => {
+    const created = await dbService.createFeedbackSession(session);
+    if (created) {
+      setFeedbackSessions((prev) => [created, ...prev]);
+    }
+  };
+
   const addAuditLog = async (log: Omit<AuditLog, "id" | "created_at">) => {
     const created = await dbService.createAuditLog(log);
     if (created) {
@@ -299,6 +336,8 @@ export function AppProvider({
         rejectPointEvent,
         submitAppeal,
         addEvaluation,
+        addIncident,
+        addFeedbackSession,
         addAuditLog,
         unreadNotificationsCount,
       }}

@@ -26,7 +26,14 @@ export function formatDateTime(date: Date | string, locale: string = "en"): stri
 }
 
 export function generateId(): string {
-  return crypto.randomUUID();
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 export function calculatePercentage(value: number, total: number): number {
@@ -113,3 +120,60 @@ export function calculateWorkingDayDeadline(
 
   return result;
 }
+
+/**
+ * Calculate Educational Attendee Evaluation Score & Certificate Eligibility
+ * Policy: Attendance (40) + Assignments (30) + Participation (20) + Conduct (10) = 100
+ * Passing certificate eligibility threshold >= 75%
+ */
+export function calculateAttendeeEvaluation(
+  attendance: number,
+  assignments: number,
+  participation: number,
+  conduct: number
+): { score: number; eligibleForCertificate: boolean } {
+  const score = Math.round((attendance + assignments + participation + conduct) * 100) / 100;
+  return {
+    score,
+    eligibleForCertificate: score >= 75,
+  };
+}
+
+/**
+ * Calculate Educational Instructor Evaluation Score
+ * Policy: Punctuality (25) + Preparation (25) + Explanation (25) + Student Follow-up (15) + Professionalism (10) = 100
+ */
+export function calculateInstructorEvaluation(
+  punctuality: number,
+  preparation: number,
+  explanation: number,
+  studentFollowUp: number,
+  professionalism: number
+): { score: number } {
+  const score =
+    Math.round(
+      (punctuality + preparation + explanation + studentFollowUp + professionalism) * 100
+    ) / 100;
+  return { score };
+}
+
+/**
+ * Duplicate Deduction Detection
+ * Prevents multiple approved negative-point deductions for the same incident/reference.
+ */
+export function isDuplicateDeduction(
+  existingEvents: { member_id: string; evidence_url?: string; explanation?: string; status?: string }[],
+  memberId: string,
+  incidentKey: string
+): boolean {
+  if (!incidentKey || !incidentKey.trim()) return false;
+  const cleanKey = incidentKey.trim().toLowerCase();
+  return existingEvents.some(
+    (e) =>
+      e.member_id === memberId &&
+      e.status !== "rejected" &&
+      ((e.evidence_url && e.evidence_url.toLowerCase().includes(cleanKey)) ||
+        (e.explanation && e.explanation.toLowerCase().includes(cleanKey)))
+  );
+}
+

@@ -44,21 +44,21 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "super_admin":
-        return { label: isAr ? "مدير النظام" : "Super Admin", color: "bg-[#fce8e6] text-[#c5221f] border-[#fad2cf]" };
+        return { label: isAr ? "مدير النظام" : "Super Admin", color: "bg-[#fce8e6] dark:bg-[#ea4335]/20 text-[#c5221f] dark:text-[#f28b82] border-[#fad2cf] dark:border-[#ea4335]/30" };
       case "hr_admin":
-        return { label: isAr ? "مسؤول الموارد" : "HR Admin", color: "bg-[#e8f0fe] text-[#1a73e8] border-[#d2e3fc]" };
+        return { label: isAr ? "مسؤول الموارد" : "HR Admin", color: "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] border-[#d2e3fc] dark:border-[#1a73e8]/30" };
       case "hr_reviewer":
-        return { label: isAr ? "مراجع الموارد" : "HR Reviewer", color: "bg-[#fef7e0] text-[#b06000] border-[#feefc3]" };
+        return { label: isAr ? "مراجع الموارد" : "HR Reviewer", color: "bg-[#fef7e0] dark:bg-[#fbbc04]/20 text-[#b06000] dark:text-[#fdd663] border-[#feefc3] dark:border-[#fbbc04]/30" };
       case "team_lead":
-        return { label: isAr ? "قائد فريق" : "Team Lead", color: "bg-[#e6f4ea] text-[#137333] border-[#ceead6]" };
+        return { label: isAr ? "قائد فريق" : "Team Lead", color: "bg-[#e6f4ea] dark:bg-[#34a853]/20 text-[#137333] dark:text-[#81c995] border-[#ceead6] dark:border-[#34a853]/30" };
       default:
-        return { label: isAr ? "عضو" : "Member", color: "bg-[#f1f3f4] text-[#3c4043] border-[#dadce0]" };
+        return { label: isAr ? "عضو" : "Member", color: "bg-[#f1f3f4] dark:bg-[#303134] text-[#3c4043] dark:text-[#e8eaed] border-[#dadce0] dark:border-[#5f6368]" };
     }
   };
 
   const badge = currentUser
     ? getRoleBadge(currentUser.role)
-    : { label: isAr ? "عضو" : "Member", color: "bg-[#f1f3f4] text-[#3c4043] border-[#dadce0]" };
+    : { label: isAr ? "عضو" : "Member", color: "bg-[#f1f3f4] dark:bg-[#303134] text-[#3c4043] dark:text-[#e8eaed] border-[#dadce0] dark:border-[#5f6368]" };
 
   return (
     <header className="sticky top-0 z-30 flex flex-col bg-card border-b border-border shadow-2xs">
@@ -87,7 +87,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
               <h1 className="text-base font-bold text-foreground tracking-tight">
                 GDG NCTU - Management Portal
               </h1>
-              <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-semibold rounded bg-[#e8f0fe] text-[#1a73e8] border border-[#d2e3fc]">
+              <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-semibold rounded bg-[#e8f0fe] dark:bg-[#1a73e8]/20 text-[#1a73e8] dark:text-[#8ab4f8] border border-[#d2e3fc] dark:border-[#1a73e8]/30">
                 M3 Console
               </span>
             </div>

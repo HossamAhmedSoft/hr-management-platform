@@ -23,7 +23,7 @@ export default function ForbiddenPage() {
         </div>
 
         <CardContent className="p-8 text-center space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-[#fce8e6] text-[#c5221f] flex items-center justify-center mx-auto">
+          <div className="w-14 h-14 rounded-2xl bg-[#fce8e6] dark:bg-[#ea4335]/20 text-[#c5221f] dark:text-[#f28b82] flex items-center justify-center mx-auto">
             <Lock className="w-7 h-7" />
           </div>
 

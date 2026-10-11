@@ -51,6 +51,7 @@ export default function ReportsPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -125,7 +126,7 @@ export default function ReportsPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
                   <th className="py-2.5 px-3">{isAr ? "الفريق" : "Team"}</th>
