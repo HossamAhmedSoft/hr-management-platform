@@ -56,7 +56,20 @@ export default function FeedbackPage() {
 
       {/* Feedback Sessions List */}
       <div className="space-y-4">
-        {feedbackSessions.map((fs) => (
+        {feedbackSessions.length === 0 ? (
+          <Card className="p-12 text-center text-muted-foreground border-dashed">
+            <HeartHandshake className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
+            <p className="text-sm font-semibold">
+              {isAr ? "لا توجد جلسات متابعة أو خطط تحسين مسجلة حالياً" : "No feedback or PIP sessions scheduled yet"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isAr
+                ? "جلسات المتابعة مصممة لدعم نمو الأعضاء وتوثيق نقاط القوة وخطط التطوير."
+                : "Feedback loops are conducted regularly to guide member growth and alignment."}
+            </p>
+          </Card>
+        ) : (
+          feedbackSessions.map((fs) => (
           <Card key={fs.id} className="p-5 border-border/80 hover:shadow-md transition-all space-y-4">
             <div className="flex items-start justify-between">
               <div>
@@ -113,7 +126,7 @@ export default function FeedbackPage() {
               </span>
             </div>
           </Card>
-        ))}
+        )))}
       </div>
     </div>
   );

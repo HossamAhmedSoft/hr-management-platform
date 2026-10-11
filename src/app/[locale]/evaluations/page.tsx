@@ -24,18 +24,18 @@ import {
 } from "@/components/ui/dialog";
 import { useApp } from "@/lib/app-context";
 import {
-  MOCK_EVALUATION_CATEGORIES,
-  MOCK_EVALUATION_PERIODS,
-} from "@/lib/mock-data";
+  POLICY_EVALUATION_CATEGORIES,
+  POLICY_EVALUATION_PERIODS,
+} from "@/lib/policy-catalog";
 import { calculateEvaluationScore } from "@/lib/utils";
 
 export default function EvaluationsPage() {
-  const { evaluations, availableUsers, currentUser, locale } = useApp();
+  const { evaluations, addEvaluation, availableUsers, currentUser, locale } = useApp();
   const isAr = locale === "ar";
 
   const [isNewEvalOpen, setIsNewEvalOpen] = useState(false);
-  const [selectedMemberId, setSelectedMemberId] = useState(availableUsers[4]?.id || "");
-  const [evalCycle, setEvalCycle] = useState(MOCK_EVALUATION_PERIODS[1]?.id || "");
+  const [selectedMemberId, setSelectedMemberId] = useState(availableUsers[0]?.id || "");
+  const [evalCycle, setEvalCycle] = useState(POLICY_EVALUATION_PERIODS[0]?.id || "");
 
   // Rating state for the 6 categories (rating: number | null for N/A)
   const [ratings, setRatings] = useState<{ [catId: string]: { rating: number; isNA: boolean } }>({
@@ -48,7 +48,7 @@ export default function EvaluationsPage() {
   });
 
   // Calculate live score
-  const calculationInputs = MOCK_EVALUATION_CATEGORIES.map((cat) => ({
+  const calculationInputs = POLICY_EVALUATION_CATEGORIES.map((cat) => ({
     categoryWeight: cat.weight,
     rating: ratings[cat.id]?.isNA ? null : ratings[cat.id]?.rating ?? 3.0,
   }));
@@ -109,7 +109,7 @@ export default function EvaluationsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {MOCK_EVALUATION_CATEGORIES.map((cat) => (
+            {POLICY_EVALUATION_CATEGORIES.map((cat) => (
               <div
                 key={cat.id}
                 className="p-3 rounded-xl border border-border/60 bg-muted/20 text-center space-y-1"
@@ -136,7 +136,14 @@ export default function EvaluationsPage() {
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {evaluations.map((ev) => (
+          {evaluations.length === 0 ? (
+            <Card className="col-span-full p-12 text-center text-muted-foreground border-dashed">
+              <Award className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
+              <p className="text-sm font-semibold">{isAr ? "لا توجد تقييمات معتمدة مسجلة حالياً" : "No evaluations recorded yet"}</p>
+              <p className="text-xs text-muted-foreground mt-1">{isAr ? "اضغط على 'إجراء تقييم جديد' بالأعلى لبدء تقييم أحد الأعضاء." : "Click 'Conduct Evaluation' above to evaluate a team member."}</p>
+            </Card>
+          ) : (
+            evaluations.map((ev) => (
             <Card
               key={ev.id}
               className="p-5 border-border/70 hover:shadow-lg transition-all space-y-4"
@@ -179,7 +186,7 @@ export default function EvaluationsPage() {
                 </div>
               )}
             </Card>
-          ))}
+          )))}
         </div>
       </div>
 
@@ -210,11 +217,15 @@ export default function EvaluationsPage() {
                     onChange={(e) => setSelectedMemberId(e.target.value)}
                     className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                   >
-                    {availableUsers.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.role.replace("_", " ")})
-                      </option>
-                    ))}
+                    {availableUsers.length === 0 ? (
+                      <option value="">{isAr ? "لا يوجد أعضاء مسجلين" : "No members registered"}</option>
+                    ) : (
+                      availableUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name} ({u.role.replace("_", " ")})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -227,7 +238,7 @@ export default function EvaluationsPage() {
                     onChange={(e) => setEvalCycle(e.target.value)}
                     className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                   >
-                    {MOCK_EVALUATION_PERIODS.map((p) => (
+                    {POLICY_EVALUATION_PERIODS.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                       </option>
@@ -243,7 +254,7 @@ export default function EvaluationsPage() {
                   {isAr ? "تقييم المعايير (من 1 إلى 5 نجوم):" : "Rate Categories (1.0 to 5.0):"}
                 </h4>
 
-                {MOCK_EVALUATION_CATEGORIES.map((cat) => {
+                {POLICY_EVALUATION_CATEGORIES.map((cat) => {
                   const currentRating = ratings[cat.id]?.rating ?? 3.0;
                   const isNA = ratings[cat.id]?.isNA ?? false;
                   const subScore = isNA
@@ -332,12 +343,23 @@ export default function EvaluationsPage() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => {
-                    alert(
-                      isAr
-                        ? `تم اعتماد التقييم بنجاح: ${liveResult.score}/100 (${liveResult.band})`
-                        : `Evaluation finalized: ${liveResult.score}/100 (${liveResult.band})`
-                    );
+                  onClick={async () => {
+                    if (!currentUser || !selectedMemberId) return;
+                    await addEvaluation({
+                      member_id: selectedMemberId,
+                      evaluator_id: currentUser.id,
+                      period_id: evalCycle || POLICY_EVALUATION_PERIODS[0]?.id || "period-current",
+                      template_id: "tpl-default",
+                      status: "finalized",
+                      total_score: liveResult.score || 0,
+                      performance_band: liveResult.band || "Satisfactory",
+                      ratings: POLICY_EVALUATION_CATEGORIES.map((cat) => ({
+                        id: `rating_${Date.now()}_${cat.id}`,
+                        evaluation_id: "",
+                        category_id: cat.id,
+                        rating: ratings[cat.id]?.isNA ? null : ratings[cat.id]?.rating ?? 3.0,
+                      })),
+                    });
                     setIsNewEvalOpen(false);
                   }}
                 >

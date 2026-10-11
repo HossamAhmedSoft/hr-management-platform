@@ -37,6 +37,7 @@ import { useApp } from "@/lib/app-context";
 import { Profile, UserRole } from "@/types";
 import { registerWithCredentials } from "@/lib/auth-service";
 import { internalDB } from "@/lib/internal-db";
+import { dbService } from "@/lib/db-service";
 
 export default function MembersPage() {
   const { availableUsers, teams, locale, pointEvents, tasks, evaluations, currentUser } = useApp();
@@ -115,7 +116,7 @@ export default function MembersPage() {
 
     if (res.success && res.user) {
       if (newTeamId || newPhone) {
-        internalDB.updateProfile(res.user.id, {
+        await dbService.updateProfile(res.user.id, {
           team_id: newTeamId || undefined,
           phone: newPhone || undefined,
         });
@@ -214,7 +215,24 @@ export default function MembersPage() {
 
       {/* Members Directory Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredMembers.map((member) => (
+        {filteredMembers.length === 0 ? (
+          <Card className="col-span-full p-12 text-center text-muted-foreground border-dashed">
+            <Users className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
+            <p className="text-sm font-semibold">
+              {isAr ? "لا يوجد أعضاء مسجلين حالياً" : "No members found"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isAr
+                ? (isSuperAdmin
+                    ? "اضغط على 'إنشاء حساب جديد (Super Admin)' بالأعلى لإضافة أعضاء جدد للنظام."
+                    : "سجل مدير النظام (Super Admin) حسابات الأعضاء لتظهر هنا.")
+                : (isSuperAdmin
+                    ? "Click 'Create New Account' above to provision members."
+                    : "Super Admin provisions new accounts.")}
+            </p>
+          </Card>
+        ) : (
+          filteredMembers.map((member) => (
           <Card
             key={member.id}
             onClick={() => setSelectedMember(member)}
@@ -256,7 +274,7 @@ export default function MembersPage() {
               <span>Joined {new Date(member.join_date).toLocaleDateString()}</span>
             </div>
           </Card>
-        ))}
+        )))}
       </div>
 
       {/* Member Details Modal */}

@@ -1,5 +1,4 @@
 import { Profile, UserRole } from "@/types";
-import { MOCK_PROFILES } from "./mock-data";
 import { internalDB } from "./internal-db";
 import { createClient } from "./supabase/client";
 
@@ -52,14 +51,14 @@ export function clearSession(): void {
   }
 }
 
-// ── Live Supabase Authentication Engine ──
+// ── Pure Database Authentication (Zero Demo Fallbacks) ──
 export async function loginWithCredentials(
   email: string,
   _password?: string
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
 
-  // 1. Try Supabase live database
+  // 1. Check live Supabase database
   try {
     const supabase = createClient();
     const { data: dbProfile, error } = await supabase
@@ -73,25 +72,14 @@ export async function loginWithCredentials(
       return { success: true, user: dbProfile as Profile };
     }
   } catch (err) {
-    console.warn("Supabase login query fallback:", err);
+    console.warn("Supabase query error:", err);
   }
 
-  // 2. Try internal database
+  // 2. Check local persistence
   const existing = internalDB.getProfileByEmail(cleanEmail);
   if (existing) {
     saveSession(existing);
     return { success: true, user: existing };
-  }
-
-  // 3. Fallback to official seed accounts
-  const testAccounts = getAvailableTestAccounts();
-  const matched = testAccounts.find(
-    (a) => a.user.email.toLowerCase() === cleanEmail
-  );
-
-  if (matched) {
-    saveSession(matched.user);
-    return { success: true, user: matched.user };
   }
 
   return {
@@ -119,7 +107,7 @@ export async function registerWithCredentials(
     updated_at: new Date().toISOString(),
   };
 
-  // 1. Insert into Supabase live database
+  // 1. Insert into Supabase
   try {
     const supabase = createClient();
     const { data, error } = await supabase
@@ -134,16 +122,16 @@ export async function registerWithCredentials(
       return { success: true, user: data as Profile };
     }
   } catch (err) {
-    console.warn("Supabase register insert fallback:", err);
+    console.warn("Supabase insert error:", err);
   }
 
-  // 2. Save into internal cache
+  // 2. Save into internal engine
   internalDB.createProfile(newProfile);
   saveSession(newProfile);
   return { success: true, user: newProfile };
 }
 
-// Check if database has any accounts registered
+// Check if database has any registered accounts
 export async function isDatabaseEmpty(): Promise<boolean> {
   try {
     const supabase = createClient();
@@ -152,13 +140,14 @@ export async function isDatabaseEmpty(): Promise<boolean> {
       .select("id")
       .limit(1);
 
-    if (!error && data && data.length === 0) {
-      return true;
+    if (!error && Array.isArray(data)) {
+      return data.length === 0;
     }
   } catch (err) {
     console.warn("isDatabaseEmpty error:", err);
   }
-  return false;
+
+  return internalDB.getProfiles().length === 0;
 }
 
 // Role Permissions Matrix
@@ -193,34 +182,4 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
   }
 
   return true;
-}
-
-export function getAvailableTestAccounts(): { user: Profile; label: string; desc: string }[] {
-  return [
-    {
-      user: MOCK_PROFILES[0],
-      label: "Super Admin (GDG Lead)",
-      desc: "Full access to policy, audit logs, and organization-wide administration.",
-    },
-    {
-      user: MOCK_PROFILES[1],
-      label: "HR Admin (HR Lead)",
-      desc: "Manages member performance, feedback sessions, PIPs, and reports.",
-    },
-    {
-      user: MOCK_PROFILES[2],
-      label: "HR Reviewer",
-      desc: "Reviews point evidence, approves recommendations, and examines appeals.",
-    },
-    {
-      user: MOCK_PROFILES[3],
-      label: "Team Lead (Web Lead)",
-      desc: "Assigns tasks, rates monthly evaluations, and recommends points for team.",
-    },
-    {
-      user: MOCK_PROFILES[4],
-      label: "Member (Web Developer)",
-      desc: "Submits deliverables, requests delay, views own ledger, and files appeals.",
-    },
-  ];
 }

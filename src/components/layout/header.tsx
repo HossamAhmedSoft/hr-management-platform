@@ -16,13 +16,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useApp } from "@/lib/app-context";
 
 interface HeaderProps {
@@ -32,18 +25,21 @@ interface HeaderProps {
 export function Header({ onToggleSidebar }: HeaderProps) {
   const {
     currentUser,
-    setCurrentUser,
-    availableUsers,
     locale,
     toggleLocale,
     theme,
     toggleTheme,
-    unreadNotificationsCount,
+    pointEvents,
+    appeals,
     logout,
   } = useApp();
 
   const [showNotifications, setShowNotifications] = useState(false);
   const isAr = locale === "ar";
+
+  const pendingPoints = pointEvents.filter((p) => p.status === "pending_review");
+  const pendingAppeals = appeals.filter((a) => a.status === "submitted" || a.status === "under_review");
+  const totalNotifications = pendingPoints.length + pendingAppeals.length;
 
   const getRoleBadge = (role: string) => {
     switch (role) {
@@ -60,7 +56,9 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     }
   };
 
-  const badge = getRoleBadge(currentUser.role);
+  const badge = currentUser
+    ? getRoleBadge(currentUser.role)
+    : { label: isAr ? "عضو" : "Member", color: "bg-[#f1f3f4] text-[#3c4043] border-[#dadce0]" };
 
   return (
     <header className="sticky top-0 z-30 flex flex-col bg-card border-b border-border shadow-2xs">
@@ -117,34 +115,8 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           </div>
         </div>
 
-        {/* Right: Controls & Persona Switcher */}
+        {/* Right: Controls & User Profile */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Quick Role Switcher for seamless policy auditing */}
-          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#f1f3f4] dark:bg-[#303134] border border-border">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#1a73e8]" />
-            <span className="text-[11px] text-muted-foreground font-medium">
-              {isAr ? "الدور:" : "Role:"}
-            </span>
-            <Select
-              value={currentUser.id}
-              onValueChange={(val) => {
-                const u = availableUsers.find((x) => x.id === val);
-                if (u) setCurrentUser(u);
-              }}
-            >
-              <SelectTrigger className="h-6 w-[140px] text-xs border-0 bg-transparent shadow-none focus:ring-0 p-0 font-medium">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {availableUsers.map((u) => (
-                  <SelectItem key={u.id} value={u.id} className="text-xs">
-                    {u.full_name} ({u.role.replace("_", " ")})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Language Switcher */}
           <Button
             variant="ghost"
@@ -182,8 +154,8 @@ export function Header({ onToggleSidebar }: HeaderProps) {
               title="Notifications"
             >
               <Bell className="w-4 h-4 text-muted-foreground" />
-              {unreadNotificationsCount > 0 && (
-                <span className="absolute 1 top-1 right-1 w-2 h-2 rounded-full bg-[#ea4335]" />
+              {totalNotifications > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#ea4335]" />
               )}
             </Button>
 
@@ -199,36 +171,50 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                     {isAr ? "مركز الإشعارات والتنبيهات" : "Notification Feed"}
                   </span>
                   <span className="text-[10px] text-muted-foreground">
-                    {unreadNotificationsCount} unread
+                    {totalNotifications} {isAr ? "معلق" : "pending"}
                   </span>
                 </div>
-                <div className="py-2 space-y-2 text-xs">
-                  <div className="p-2.5 rounded-md bg-[#e8f0fe] dark:bg-[#1a73e8]/20 flex items-start gap-2">
-                    <CheckCircle className="w-4 h-4 text-[#1a73e8] mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-semibold text-foreground">
-                        {isAr ? "اعتماد نقاط مهمة" : "Point Ledger Entry Approved"}
+                <div className="py-2 space-y-2 text-xs max-h-60 overflow-y-auto">
+                  {totalNotifications === 0 ? (
+                    <div className="py-6 text-center text-muted-foreground">
+                      <CheckCircle className="w-6 h-6 mx-auto mb-1 opacity-40 text-emerald-600" />
+                      <p className="text-xs font-semibold">
+                        {isAr ? "لا توجد إشعارات معلقة" : "No pending notifications"}
                       </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {isAr
-                          ? "+3 نقاط لتسليم مهمة الواجهة قبل الموعد."
-                          : "+3 points awarded for early deliverable."}
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {isAr ? "كل الحركات والتظلمات معتمدة ومستقرة." : "All ledgers and appeals are up to date."}
                       </p>
                     </div>
-                  </div>
-                  <div className="p-2.5 rounded-md bg-[#fef7e0] dark:bg-[#fbbc04]/20 flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-[#b06000] mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-semibold text-foreground">
-                        {isAr ? "إشعار بشأن جلسة غياب" : "Point Notice Pending"}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {isAr
-                          ? "لديك 48 ساعة لتقديم توضيح قبل مراجعة الخصم."
-                          : "48h window to submit explanation."}
-                      </p>
-                    </div>
-                  </div>
+                  ) : (
+                    <>
+                      {pendingPoints.map((p) => (
+                        <div key={p.id} className="p-2.5 rounded-md bg-[#e8f0fe] dark:bg-[#1a73e8]/20 flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 text-[#1a73e8] mt-0.5 shrink-0" />
+                          <div>
+                            <p className="font-semibold text-foreground">
+                              {isAr ? "طلب تسجيل نقاط بانتظار المراجعة" : "Point Entry Pending Review"}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground line-clamp-1">
+                              {p.explanation}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                      {pendingAppeals.map((a) => (
+                        <div key={a.id} className="p-2.5 rounded-md bg-[#fef7e0] dark:bg-[#fbbc04]/20 flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-[#b06000] mt-0.5 shrink-0" />
+                          <div>
+                            <p className="font-semibold text-foreground">
+                              {isAr ? "تظلم جديد بانتظار المراجعة المحايدة" : "Appeal Awaiting Review"}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground line-clamp-1">
+                              {a.grounds || a.objection || (isAr ? "طلب طعن قيد النظر" : "Dispute under review")}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -238,16 +224,18 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           <div className="flex items-center gap-2 pl-2 border-l border-border">
             <Avatar className="w-8 h-8 rounded-full border border-border">
               <AvatarFallback className="bg-[#1a73e8] text-white font-bold text-xs">
-                {currentUser.full_name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .slice(0, 2)
-                  .join("")}
+                {currentUser?.full_name
+                  ? currentUser.full_name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join("")
+                  : "U"}
               </AvatarFallback>
             </Avatar>
             <div className="hidden xl:block text-left">
               <p className="text-xs font-bold text-foreground truncate max-w-[120px] leading-tight">
-                {currentUser.full_name}
+                {currentUser?.full_name || (isAr ? "مستخدم" : "User")}
               </p>
               <span
                 className={`inline-block text-[10px] font-semibold px-1.5 py-0.2 rounded border ${badge.color}`}

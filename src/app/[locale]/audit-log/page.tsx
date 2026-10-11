@@ -14,10 +14,9 @@ import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useApp } from "@/lib/app-context";
-import { MOCK_AUDIT_LOGS } from "@/lib/mock-data";
 
 export default function AuditLogPage() {
-  const { availableUsers, locale } = useApp();
+  const { availableUsers, locale, auditLogs } = useApp();
   const isAr = locale === "ar";
   const [search, setSearch] = useState("");
 
@@ -25,7 +24,7 @@ export default function AuditLogPage() {
     return availableUsers.find((u) => u.id === id)?.full_name || id || "System";
   };
 
-  const filteredLogs = MOCK_AUDIT_LOGS.filter((l) => {
+  const filteredLogs = auditLogs.filter((l) => {
     const actor = getActorName(l.actor_id).toLowerCase();
     const entity = l.entity_type.toLowerCase();
     const action = l.action.toLowerCase();
@@ -62,38 +61,46 @@ export default function AuditLogPage() {
       </div>
 
       <div className="space-y-3">
-        {filteredLogs.map((log) => (
-          <Card
-            key={log.id}
-            className="p-4 border-border/70 hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs"
-          >
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold px-2 py-0.5 rounded bg-primary/10 text-primary">
-                  {log.action}
-                </span>
-                <span className="font-bold text-foreground capitalize">
-                  Table: {log.entity_type}
-                </span>
-                <span className="text-muted-foreground">•</span>
-                <span className="text-muted-foreground">ID: {log.entity_id}</span>
-              </div>
-              <p className="text-muted-foreground">
-                Actor: <strong className="text-foreground">{getActorName(log.actor_id)}</strong>
-              </p>
-              {log.new_state && (
-                <pre className="mt-1 p-2 rounded-lg bg-muted/40 text-[11px] font-mono overflow-x-auto text-foreground/80">
-                  {JSON.stringify(log.new_state, null, 2)}
-                </pre>
-              )}
-            </div>
-
-            <div className="shrink-0 text-muted-foreground text-[11px] flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5" />
-              {new Date(log.created_at).toLocaleString()}
-            </div>
+        {filteredLogs.length === 0 ? (
+          <Card className="p-12 text-center text-muted-foreground border-dashed">
+            <Database className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm font-semibold">{isAr ? "لا توجد عمليات تدقيق مسجلة حتى الآن" : "No audit trail logs recorded yet"}</p>
+            <p className="text-xs text-muted-foreground mt-1">{isAr ? "تُسجل جميع العمليات والاعتمادات تلقائياً في هذا السجل غير القابل للتعديل." : "All state transitions and approvals are automatically appended here."}</p>
           </Card>
-        ))}
+        ) : (
+          filteredLogs.map((log) => (
+            <Card
+              key={log.id}
+              className="p-4 border-border/70 hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs"
+            >
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold px-2 py-0.5 rounded bg-primary/10 text-primary">
+                    {log.action}
+                  </span>
+                  <span className="font-bold text-foreground capitalize">
+                    Table: {log.entity_type}
+                  </span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-muted-foreground">ID: {log.entity_id}</span>
+                </div>
+                <p className="text-muted-foreground">
+                  Actor: <strong className="text-foreground">{getActorName(log.actor_id)}</strong>
+                </p>
+                {log.new_state && (
+                  <pre className="mt-1 p-2 rounded-lg bg-muted/40 text-[11px] font-mono overflow-x-auto text-foreground/80">
+                    {JSON.stringify(log.new_state, null, 2)}
+                  </pre>
+                )}
+              </div>
+
+              <div className="shrink-0 text-muted-foreground text-[11px] flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                {new Date(log.created_at).toLocaleString()}
+              </div>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );

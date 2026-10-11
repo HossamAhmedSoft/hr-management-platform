@@ -9,29 +9,16 @@ import {
   FeedbackSession,
   EducationalTrack,
   Attendee,
-  UserRole,
+  AuditLog,
 } from "@/types";
-import {
-  MOCK_PROFILES,
-  MOCK_TEAMS,
-  MOCK_TASKS,
-  MOCK_POINT_EVENTS,
-  MOCK_EVALUATIONS,
-  MOCK_APPEALS,
-  MOCK_INCIDENTS,
-  MOCK_FEEDBACK_SESSIONS,
-  MOCK_EDUCATIONAL_TRACKS,
-  MOCK_ATTENDEES,
-} from "./mock-data";
 
 // ============================================================
-// Internal Embedded Enterprise Database
-// Self-Contained, Zero External Cloud, Tamper-Proof
+// Internal Enterprise Storage Engine (Pure Production)
 // ============================================================
 
 const STORAGE_PREFIX = "gdg_nctu_db_";
 
-function getTable<T>(tableName: string, defaultData: T[]): T[] {
+function getTable<T>(tableName: string, defaultData: T[] = []): T[] {
   if (typeof window === "undefined") return defaultData;
   try {
     const raw = localStorage.getItem(`${STORAGE_PREFIX}${tableName}`);
@@ -57,7 +44,7 @@ function setTable<T>(tableName: string, data: T[]): void {
 export const internalDB = {
   // ── Profiles & Users ───────────────────────────────────
   getProfiles(): Profile[] {
-    return getTable<Profile>("profiles", MOCK_PROFILES);
+    return getTable<Profile>("profiles", []);
   },
 
   getProfileByEmail(email: string): Profile | null {
@@ -88,12 +75,16 @@ export const internalDB = {
 
   // ── Teams ──────────────────────────────────────────────
   getTeams(): Team[] {
-    return getTable<Team>("teams", MOCK_TEAMS);
+    return getTable<Team>("teams", []);
+  },
+
+  setTeams(teams: Team[]): void {
+    setTable("teams", teams);
   },
 
   // ── Tasks & Deliverables ───────────────────────────────
   getTasks(): Task[] {
-    return getTable<Task>("tasks", MOCK_TASKS);
+    return getTable<Task>("tasks", []);
   },
 
   createTask(taskData: Omit<Task, "id" | "created_at" | "updated_at">): Task {
@@ -119,7 +110,7 @@ export const internalDB = {
 
   // ── Points Ledger ──────────────────────────────────────
   getPointEvents(): PointEvent[] {
-    return getTable<PointEvent>("point_events", MOCK_POINT_EVENTS);
+    return getTable<PointEvent>("point_events", []);
   },
 
   createPointEvent(eventData: Omit<PointEvent, "id" | "created_at" | "updated_at">): PointEvent {
@@ -158,12 +149,24 @@ export const internalDB = {
 
   // ── Monthly Evaluations ────────────────────────────────
   getEvaluations(): Evaluation[] {
-    return getTable<Evaluation>("evaluations", MOCK_EVALUATIONS);
+    return getTable<Evaluation>("evaluations", []);
+  },
+
+  createEvaluation(evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">): Evaluation {
+    const evals = this.getEvaluations();
+    const newEval: Evaluation = {
+      ...evalData,
+      id: `eval_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setTable("evaluations", [newEval, ...evals]);
+    return newEval;
   },
 
   // ── Appeals (Disputes) ─────────────────────────────────
   getAppeals(): Appeal[] {
-    return getTable<Appeal>("appeals", MOCK_APPEALS);
+    return getTable<Appeal>("appeals", []);
   },
 
   createAppeal(appealData: Omit<Appeal, "id" | "created_at" | "updated_at">): Appeal {
@@ -180,20 +183,31 @@ export const internalDB = {
 
   // ── Escalation Incidents ───────────────────────────────
   getIncidents(): Incident[] {
-    return getTable<Incident>("incidents", MOCK_INCIDENTS);
+    return getTable<Incident>("incidents", []);
   },
 
   // ── Feedback & PIP ─────────────────────────────────────
   getFeedbackSessions(): FeedbackSession[] {
-    return getTable<FeedbackSession>("feedback_sessions", MOCK_FEEDBACK_SESSIONS);
+    return getTable<FeedbackSession>("feedback_sessions", []);
   },
 
   // ── Educational Tracks & Attendees ─────────────────────
   getEducationalTracks(): EducationalTrack[] {
-    return getTable<EducationalTrack>("educational_tracks", MOCK_EDUCATIONAL_TRACKS);
+    return getTable<EducationalTrack>("educational_tracks", []);
   },
 
   getAttendees(): Attendee[] {
-    return getTable<Attendee>("attendees", MOCK_ATTENDEES);
+    return getTable<Attendee>("attendees", []);
+  },
+
+  // ── Audit Logs ─────────────────────────────────────────
+  getAuditLogs(): AuditLog[] {
+    return getTable<AuditLog>("audit_logs", []);
+  },
+
+  createAuditLog(log: AuditLog): AuditLog {
+    const logs = this.getAuditLogs();
+    setTable("audit_logs", [log, ...logs]);
+    return log;
   },
 };

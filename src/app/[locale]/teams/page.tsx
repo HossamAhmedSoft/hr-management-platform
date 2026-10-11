@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useApp } from "@/lib/app-context";
 
 export default function TeamsPage() {
-  const { availableUsers, locale } = useApp();
+  const { availableUsers, tasks, evaluations, locale } = useApp();
   const isAr = locale === "ar";
 
   const allTracks = [
@@ -32,8 +32,6 @@ export default function TeamsPage() {
       icon: Users,
       color: "text-[#1a73e8]",
       bg: "bg-[#e8f0fe] border-[#d2e3fc]",
-      memberCount: 8,
-      lead: "Sara Mahmoud",
       desc: "Manages recruitment, performance tracking, conflict mediation, and community welfare.",
     },
     {
@@ -44,8 +42,6 @@ export default function TeamsPage() {
       icon: Palette,
       color: "text-[#ea4335]",
       bg: "bg-[#fce8e6] border-[#fad2cf]",
-      memberCount: 10,
-      lead: "Mariam Fathy",
       desc: "Visual branding, video editing, photography, event coverage, and digital reels.",
     },
     {
@@ -56,20 +52,16 @@ export default function TeamsPage() {
       icon: Sparkles,
       color: "text-[#b06000]",
       bg: "bg-[#fef7e0] border-[#feefc3]",
-      memberCount: 12,
-      lead: "Mostafa Hassan",
       desc: "Sponsorship acquisitions, corporate relations, campus reach, and campaigns.",
     },
     {
-      id: "or",
-      name: "Operations & Logistics (OR)",
+      id: "ops",
+      name: "Operations & Logistics",
       nameAr: "العمليات واللوجستيات",
       type: "non_tech",
       icon: Layers,
       color: "text-[#137333]",
       bg: "bg-[#e6f4ea] border-[#ceead6]",
-      memberCount: 10,
-      lead: "Ahmed Taha",
       desc: "Auditorium reservations, sound equipment, stage lighting, and smooth event execution.",
     },
     {
@@ -80,20 +72,16 @@ export default function TeamsPage() {
       icon: Code,
       color: "text-[#1a73e8]",
       bg: "bg-[#e8f0fe] border-[#d2e3fc]",
-      memberCount: 16,
-      lead: "Kareem Tarek",
       desc: "Full-stack cloud applications with Next.js, TypeScript, PostgreSQL, and modern APIs.",
     },
     {
-      id: "flutter",
-      name: "Flutter / Mobile App Track",
+      id: "mobile",
+      name: "Mobile App Track",
       nameAr: "مسار تطبيقات الموبايل",
       type: "tech",
       icon: Smartphone,
       color: "text-[#1a73e8]",
       bg: "bg-[#e8f0fe] border-[#d2e3fc]",
-      memberCount: 12,
-      lead: "Hassan Ali",
       desc: "Cross-platform iOS and Android mobile engineering with Flutter and native integrations.",
     },
     {
@@ -104,8 +92,6 @@ export default function TeamsPage() {
       icon: Palette,
       color: "text-[#ea4335]",
       bg: "bg-[#fce8e6] border-[#fad2cf]",
-      memberCount: 9,
-      lead: "Laila Youssef",
       desc: "Figma design system architectures, user research, wireframing, and accessibility.",
     },
     {
@@ -116,8 +102,6 @@ export default function TeamsPage() {
       icon: Cpu,
       color: "text-[#137333]",
       bg: "bg-[#e6f4ea] border-[#ceead6]",
-      memberCount: 11,
-      lead: "Youssef Nabil",
       desc: "Microcontrollers, C/C++, sensor telemetry, robotics, and hardware IoT prototyping.",
     },
     {
@@ -128,26 +112,41 @@ export default function TeamsPage() {
       icon: Shield,
       color: "text-[#ea4335]",
       bg: "bg-[#fce8e6] border-[#fad2cf]",
-      memberCount: 10,
-      lead: "Tariq Mansour",
       desc: "Offensive and defensive security, penetration testing, CTF preparation, and audits.",
     },
   ];
 
-  const [selectedTrack, setSelectedTrack] = useState(allTracks[0]);
+  const [selectedTrackId, setSelectedTrackId] = useState(allTracks[0].id);
+  const selectedTrack = allTracks.find((t) => t.id === selectedTrackId) || allTracks[0];
+
+  const getTrackStats = (trackId: string) => {
+    const trackMembers = availableUsers.filter((u) => u.team_id?.toLowerCase().includes(trackId.toLowerCase()));
+    const lead = trackMembers.find((u) => u.role === "team_lead" || u.role === "hr_admin" || u.role === "super_admin");
+    const trackTasks = tasks.filter((t) => t.team_id?.toLowerCase().includes(trackId.toLowerCase()));
+    const completedTasks = trackTasks.filter((t) => t.status === "completed");
+    const tasksRatio = trackTasks.length > 0 ? `${Math.round((completedTasks.length / trackTasks.length) * 100)}%` : "—";
+    return {
+      memberCount: trackMembers.length,
+      leadName: lead ? lead.full_name : (isAr ? "لم يتم التعيين بعد" : "Unassigned"),
+      tasksRatio,
+      members: trackMembers,
+    };
+  };
+
+  const currentStats = getTrackStats(selectedTrack.id);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <PageHeader
         title={
           isAr
-            ? "دليل اللجان والمسارات التقنية التسعة"
-            : "Tracks & Committees Directory (9 Units)"
+            ? "دليل اللجان والمسارات التقنية"
+            : "Tracks & Committees Directory"
         }
         description={
           isAr
-            ? "الهيكل التنظيمي المعتمد في GDG NCTU: اللجان غير التقنية (HR, Media, PR, OR) والمسارات التقنية (Web, Flutter, UI/UX, Embedded, Cyber)."
-            : "Official organizational matrix spanning Non-Tech (HR, Media, PR, OR) and Tech (Web, Flutter, UI/UX, Embedded, Cyber)."
+            ? "الهيكل التنظيمي المعتمد في GDG NCTU: اللجان غير التقنية والمسارات التقنية، مستخرجة مباشرة من قاعدة البيانات."
+            : "Official organizational matrix spanning Non-Tech and Technical tracks, driven directly from the database."
         }
       />
 
@@ -161,10 +160,11 @@ export default function TeamsPage() {
             {allTracks.map((t) => {
               const isSelected = selectedTrack.id === t.id;
               const Icon = t.icon;
+              const stats = getTrackStats(t.id);
               return (
                 <div
                   key={t.id}
-                  onClick={() => setSelectedTrack(t)}
+                  onClick={() => setSelectedTrackId(t.id)}
                   className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                     isSelected
                       ? "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 border-[#1a73e8] shadow-2xs"
@@ -185,7 +185,7 @@ export default function TeamsPage() {
                     </div>
                   </div>
                   <span className="text-xs font-bold px-2 py-0.5 rounded bg-muted text-foreground">
-                    {t.memberCount}
+                    {stats.memberCount}
                   </span>
                 </div>
               );
@@ -207,7 +207,7 @@ export default function TeamsPage() {
                       {isAr ? selectedTrack.nameAr : selectedTrack.name}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      Track Leader: <strong className="text-foreground">{selectedTrack.lead}</strong>
+                      Track Leader: <strong className="text-foreground">{currentStats.leadName}</strong>
                     </p>
                   </div>
                 </div>
@@ -221,31 +221,53 @@ export default function TeamsPage() {
             </CardHeader>
 
             <CardContent className="pt-4 space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-center text-xs">
                 <div className="p-3 rounded-lg bg-[#f8f9fa] dark:bg-[#202124] border border-border">
                   <span className="text-xl font-bold text-foreground block font-mono">
-                    {selectedTrack.memberCount}
+                    {currentStats.memberCount}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">Active Members</span>
+                  <span className="text-[11px] text-muted-foreground">{isAr ? "الأعضاء الفعليين" : "Active Members"}</span>
                 </div>
                 <div className="p-3 rounded-lg bg-[#f8f9fa] dark:bg-[#202124] border border-border">
                   <span className="text-xl font-bold text-[#137333] block font-mono">
-                    95%
+                    {currentStats.tasksRatio}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">Attendance</span>
+                  <span className="text-[11px] text-muted-foreground">{isAr ? "إنجاز المهام" : "Milestones Met"}</span>
                 </div>
                 <div className="p-3 rounded-lg bg-[#f8f9fa] dark:bg-[#202124] border border-border">
                   <span className="text-xl font-bold text-[#1a73e8] block font-mono">
-                    4.8 / 5
+                    {currentStats.memberCount > 0 ? "Good" : "—"}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">Avg Rubric Score</span>
+                  <span className="text-[11px] text-muted-foreground">{isAr ? "حالة اللجنة" : "Track Status"}</span>
                 </div>
-                <div className="p-3 rounded-lg bg-[#f8f9fa] dark:bg-[#202124] border border-border">
-                  <span className="text-xl font-bold text-[#b06000] block font-mono">
-                    100%
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">Milestones Met</span>
-                </div>
+              </div>
+
+              {/* Members in this track */}
+              <div className="pt-2">
+                <h4 className="text-xs font-bold text-foreground mb-2">
+                  {isAr ? "أعضاء المسار المسجلين:" : "Registered Members:"}
+                </h4>
+                {currentStats.members.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-4 text-center border border-dashed rounded-lg">
+                    {isAr ? "لا يوجد أعضاء منضمين لهذا المسار حتى الآن" : "No members assigned to this track yet"}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {currentStats.members.map((m) => (
+                      <div key={m.id} className="p-2.5 rounded-lg border border-border flex items-center gap-2.5 text-xs">
+                        <Avatar className="w-8 h-8">
+                          <AvatarFallback className="text-[11px] bg-primary/10 text-primary font-bold">
+                            {m.full_name.slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-bold text-foreground truncate">{m.full_name}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{m.role.replace("_", " ")}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

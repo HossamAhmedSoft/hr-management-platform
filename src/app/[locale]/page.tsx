@@ -40,9 +40,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useApp } from "@/lib/app-context";
 import {
-  MOCK_POINT_CATEGORIES,
-  MOCK_POINT_CAP_CATEGORIES,
-} from "@/lib/mock-data";
+  POLICY_POINT_CATEGORIES,
+  POLICY_POINT_CAP_CATEGORIES,
+} from "@/lib/policy-catalog";
 
 export default function DashboardPage() {
   const {
@@ -54,6 +54,7 @@ export default function DashboardPage() {
     addPointEvent,
     evaluations,
     appeals,
+    submitAppeal,
     incidents,
   } = useApp();
 
@@ -68,7 +69,7 @@ export default function DashboardPage() {
   const [isAddPointModalOpen, setIsAddPointModalOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
   const [newExplanation, setNewExplanation] = useState("");
-  const [newSelectedCategory, setNewSelectedCategory] = useState(MOCK_POINT_CATEGORIES[0]?.id || "");
+  const [newSelectedCategory, setNewSelectedCategory] = useState(POLICY_POINT_CATEGORIES[0]?.id || "");
 
   // Metrics
   const approvedPositive = pointEvents
@@ -80,21 +81,19 @@ export default function DashboardPage() {
     .reduce((sum, p) => sum + p.value, 0);
 
   const totalPointsNet = approvedPositive + approvedNegative;
-  const attendanceRate = 96.2; // Attendance Benchmark
-  const activeWarningsCount = incidents.filter((i) => i.status === "open").length + 1;
+  const attendanceRate = evaluations.length > 0
+    ? Math.round((evaluations.reduce((sum, e) => {
+        const attRating = e.ratings?.find((r) => r.category_id === "eval-cat-3")?.rating;
+        return sum + (attRating ? (attRating / 5) * 100 : 100);
+      }, 0) / evaluations.length))
+    : 100;
+  const activeWarningsCount = incidents.filter((i) => i.status === "open").length;
+  const avgEvalScore = evaluations.length > 0
+    ? (evaluations.reduce((sum, e) => sum + (e.total_score || 0), 0) / evaluations.length).toFixed(1)
+    : "—";
 
   // Track Rubric Ratings State (for Track-Based KPIs & Rubrics Matrix)
-  const [trackScores, setTrackScores] = useState<{ [trackId: string]: number }>({
-    hr: 4.8,
-    media: 4.6,
-    pr: 4.5,
-    or: 4.7,
-    web: 4.9,
-    flutter: 4.4,
-    uiux: 4.8,
-    embedded: 4.5,
-    cyber: 4.7,
-  });
+  const [trackScores, setTrackScores] = useState<{ [trackId: string]: number }>({});
 
   const allTracksList = [
     { id: "hr", name: "Human Resources", nameAr: "الموارد البشرية", type: "non_tech", icon: Users, desc: "Recruitment, member retention, welfare & performance policy." },
@@ -198,17 +197,17 @@ export default function DashboardPage() {
           value={activeWarningsCount}
           subtitle={isAr ? "حالات تحت المتابعة والتوجيه" : "Under progressive review ladder"}
           icon={<AlertTriangle className="w-5 h-5" />}
-          delta={{ value: "0 Legal Breaches", isPositive: true }}
+          delta={{ value: activeWarningsCount === 0 ? "0 Violations" : `${activeWarningsCount} Active`, isPositive: activeWarningsCount === 0 }}
           accentColor="yellow"
         />
 
         {/* Metric 4: Performance Distribution */}
         <StatsCard
-          title={isAr ? "توزيع الأداء الشهري" : "Performance Distribution"}
-          value="88.5 / 100"
-          subtitle={isAr ? "92% بمستوى قوي إلى متميز" : "92% in Strong to Outstanding tier"}
+          title={isAr ? "متوسط التقييم الشهري" : "Monthly Performance Average"}
+          value={avgEvalScore !== "—" ? `${avgEvalScore} / 100` : "—"}
+          subtitle={evaluations.length > 0 ? (isAr ? `${evaluations.length} تقييمات معتمدة` : `${evaluations.length} Finalized Evaluations`) : (isAr ? "في انتظار بدء دورة التقييم" : "Awaiting Evaluation Cycle")}
           icon={<TrendingUp className="w-5 h-5" />}
-          delta={{ value: "+4.2% MoM", isPositive: true }}
+          delta={{ value: evaluations.length > 0 ? "Active Cycle" : "Clean Slate", isPositive: true }}
           accentColor="red"
         />
       </div>
@@ -407,7 +406,16 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredPointEvents.map((evt) => (
+                {filteredPointEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                      <Award className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
+                      <p className="text-sm font-semibold">{isAr ? "لا توجد وقائع نقاط مسجلة حالياً" : "No point events recorded yet"}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{isAr ? "اضغط على 'تسجيل حركة نقاط' بالأعلى لإضافة حركة جديدة." : "Click 'Record Point Event' above to register a new entry."}</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredPointEvents.map((evt) => (
                   <tr key={evt.id} className="hover:bg-[#f8f9fa] dark:hover:bg-[#202124] transition-colors">
                     {/* Points Pill */}
                     <td className="py-3 px-4 font-mono font-bold whitespace-nowrap">
@@ -466,7 +474,7 @@ export default function DashboardPage() {
                       </Button>
                     </td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>
@@ -496,7 +504,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {allTracksList.map((tr) => {
             const Icon = tr.icon;
-            const currentScore = trackScores[tr.id] || 4.5;
+            const currentScore = trackScores[tr.id] ?? null;
             const isTech = tr.type === "tech";
 
             return (
@@ -526,7 +534,7 @@ export default function DashboardPage() {
                   </div>
 
                   <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-[#f1f3f4] dark:bg-[#303134] text-foreground">
-                    ★ {currentScore.toFixed(1)} / 5.0
+                    {currentScore !== null ? `★ ${currentScore.toFixed(1)} / 5.0` : (isAr ? "غير مقيّم" : "Unrated")}
                   </span>
                 </div>
 
@@ -538,14 +546,16 @@ export default function DashboardPage() {
                 <div className="pt-2 border-t border-border space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="text-muted-foreground">Rubric Evaluation:</span>
-                    <span className="font-bold text-primary">{currentScore.toFixed(1)} / 5.0</span>
+                    <span className="font-bold text-primary">
+                      {currentScore !== null ? `${currentScore.toFixed(1)} / 5.0` : (isAr ? "حرّك للتقييم" : "Slide to Rate")}
+                    </span>
                   </div>
                   <input
                     type="range"
                     min="1"
                     max="5"
                     step="0.1"
-                    value={currentScore}
+                    value={currentScore ?? 3.0}
                     onChange={(e) =>
                       setTrackScores((prev) => ({
                         ...prev,
@@ -607,12 +617,16 @@ export default function DashboardPage() {
                 <Button
                   size="sm"
                   className="bg-[#1a73e8] hover:bg-[#1765cc] text-white"
-                  onClick={() => {
-                    alert(
-                      isAr
-                        ? "تم تسجيل التظلم وتعيين مراجع محايد وفق المهلة الرسمية."
-                        : "Dispute submitted to neutral review queue."
-                    );
+                  onClick={async () => {
+                    if (!disputeReason.trim() || !currentUser) return;
+                    await submitAppeal({
+                      member_id: currentUser.id,
+                      entity_type: "point_event",
+                      entity_id: "point_event",
+                      grounds: disputeReason,
+                      deadline_date: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
+                      status: "under_review",
+                    });
                     setIsDisputeModalOpen(false);
                     setDisputeReason("");
                   }}
@@ -645,7 +659,7 @@ export default function DashboardPage() {
                   onChange={(e) => setNewSelectedCategory(e.target.value)}
                   className="w-full mt-1 h-9 rounded-md border border-border bg-background px-3 text-xs"
                 >
-                  {MOCK_POINT_CATEGORIES.map((c) => (
+                  {POLICY_POINT_CATEGORIES.map((c) => (
                     <option key={c.id} value={c.id}>
                       [{c.direction === "positive" ? "+" : ""}{c.default_value} pts]{" "}
                       {isAr ? c.name_ar : c.name}
@@ -684,11 +698,11 @@ export default function DashboardPage() {
                   size="sm"
                   className="bg-[#1a73e8] hover:bg-[#1765cc] text-white"
                   onClick={() => {
-                    const cat = MOCK_POINT_CATEGORIES.find((c) => c.id === newSelectedCategory);
-                    if (cat && newExplanation.trim()) {
+                    const cat = POLICY_POINT_CATEGORIES.find((c) => c.id === newSelectedCategory);
+                    if (cat && newExplanation.trim() && currentUser) {
                       addPointEvent({
                         member_id: currentUser.id,
-                        team_id: "team-web",
+                        team_id: currentUser.team_id || teams[0]?.id || "",
                         event_date: new Date().toISOString().split("T")[0],
                         category_id: cat.id,
                         direction: cat.direction,

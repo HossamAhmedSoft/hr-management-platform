@@ -44,17 +44,16 @@ export default function AppealsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!grounds.trim()) return;
+    if (!grounds.trim() || !currentUser) return;
 
     submitAppeal({
       member_id: currentUser.id,
       entity_type: appealType,
-      entity_id: "point-4",
+      entity_id: `appeal_${Date.now()}`,
       grounds,
       evidence_url: evidenceUrl,
       deadline_date: deadlineDate.toISOString().split("T")[0],
       status: "under_review",
-      neutral_reviewer_id: "user-reviewer",
     });
 
     setGrounds("");
@@ -104,50 +103,64 @@ export default function AppealsPage() {
 
       {/* Appeals List */}
       <div className="space-y-4">
-        {appeals.map((app) => (
-          <Card
-            key={app.id}
-            className="p-5 border-border/80 hover:shadow-md transition-all space-y-4"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-bold text-sm text-foreground">
-                  Appeal by: {getMemberName(app.member_id)}
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Target: {app.entity_type} • Neutral Reviewer: {app.neutral_reviewer_id ? getMemberName(app.neutral_reviewer_id) : "Pending assignment"}
-                </p>
-              </div>
-              <StatusBadge status={app.status} />
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-muted/20 border border-border/60 text-xs space-y-2">
-              <span className="font-bold text-foreground block">
-                {isAr ? "أسباب التظلم والمبررات:" : "Appeal Grounds & Justification:"}
-              </span>
-              <p className="text-foreground">{app.grounds}</p>
-
-              {app.evidence_url && (
-                <a
-                  href={app.evidence_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary hover:underline text-[11px] block mt-1"
-                >
-                  🔗 {isAr ? "الدليل والوثائق المرفقة" : "Attached Proof / Evidence"}
-                </a>
-              )}
-            </div>
-
-            <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
-              <span>Deadline: {app.deadline_date}</span>
-              <span className="flex items-center gap-1 text-emerald-600 font-semibold">
-                <CheckCircle className="w-3.5 h-3.5" />
-                Neutral Review Assigned
-              </span>
-            </div>
+        {appeals.length === 0 ? (
+          <Card className="p-12 text-center text-muted-foreground border-dashed">
+            <Scale className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
+            <p className="text-sm font-semibold">
+              {isAr ? "لا توجد تظلمات مسجلة حالياً" : "No appeals or disputes currently submitted"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isAr
+                ? "يحق لأي عضو تقديم تظلم رسمي بشأن أي خصم أو تقييم خلال 7 أيام عمل مصرية."
+                : "Members can appeal within 7 Egyptian working days of any disciplinary entry."}
+            </p>
           </Card>
-        ))}
+        ) : (
+          appeals.map((app) => (
+            <Card
+              key={app.id}
+              className="p-5 border-border/80 hover:shadow-md transition-all space-y-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-sm text-foreground">
+                    Appeal by: {getMemberName(app.member_id)}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Target: {app.entity_type} • Neutral Reviewer: {app.neutral_reviewer_id ? getMemberName(app.neutral_reviewer_id) : "Pending assignment"}
+                  </p>
+                </div>
+                <StatusBadge status={app.status} />
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-muted/20 border border-border/60 text-xs space-y-2">
+                <span className="font-bold text-foreground block">
+                  {isAr ? "أسباب التظلم والمبررات:" : "Appeal Grounds & Justification:"}
+                </span>
+                <p className="text-foreground">{app.grounds}</p>
+
+                {app.evidence_url && (
+                  <a
+                    href={app.evidence_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary hover:underline text-[11px] block mt-1"
+                  >
+                    🔗 {isAr ? "الدليل والوثائق المرفقة" : "Attached Proof / Evidence"}
+                  </a>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
+                <span>Deadline: {app.deadline_date}</span>
+                <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Neutral Review Assigned
+                </span>
+              </div>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Submit Appeal Dialog */}

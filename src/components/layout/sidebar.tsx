@@ -241,7 +241,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             {secondaryNav.map((item) => {
               const Icon = item.icon;
               const isActive = pathname.startsWith(item.href);
-              const isAllowed = canAccessRoute(currentUser.role, item.href);
+              const isAllowed = currentUser ? canAccessRoute(currentUser.role, item.href) : true;
 
               return (
                 <Link

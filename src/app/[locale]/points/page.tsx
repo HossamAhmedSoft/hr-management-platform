@@ -27,9 +27,9 @@ import {
 } from "@/components/ui/dialog";
 import { useApp } from "@/lib/app-context";
 import {
-  MOCK_POINT_CATEGORIES,
-  MOCK_POINT_CAP_CATEGORIES,
-} from "@/lib/mock-data";
+  POLICY_POINT_CATEGORIES,
+  POLICY_POINT_CAP_CATEGORIES,
+} from "@/lib/policy-catalog";
 import { getPointClassification } from "@/lib/utils";
 import { PointEvent } from "@/types";
 
@@ -52,9 +52,9 @@ export default function PointsPage() {
   const [reviewRationale, setReviewRationale] = useState("");
 
   // Form states
-  const [targetMember, setTargetMember] = useState(availableUsers[4]?.id || "");
-  const [selectedCategory, setSelectedCategory] = useState(MOCK_POINT_CATEGORIES[0]?.id || "");
-  const [eventDate, setEventDate] = useState("2026-10-14");
+  const [targetMember, setTargetMember] = useState(availableUsers[0]?.id || "");
+  const [selectedCategory, setSelectedCategory] = useState(POLICY_POINT_CATEGORIES[0]?.id || "");
+  const [eventDate, setEventDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [explanation, setExplanation] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
 
@@ -69,15 +69,15 @@ export default function PointsPage() {
     return availableUsers.find((u) => u.id === id)?.full_name || id;
   };
 
-  const selectedCatObj = MOCK_POINT_CATEGORIES.find((c) => c.id === selectedCategory);
+  const selectedCatObj = POLICY_POINT_CATEGORIES.find((c) => c.id === selectedCategory);
 
   const handleRecommend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCatObj || !explanation.trim()) return;
+    if (!selectedCatObj || !explanation.trim() || !currentUser) return;
 
     addPointEvent({
-      member_id: targetMember,
-      team_id: availableUsers.find((u) => u.id === targetMember)?.team_id || "team-web",
+      member_id: targetMember || availableUsers[0]?.id || "",
+      team_id: availableUsers.find((u) => u.id === targetMember)?.team_id || teams[0]?.id || "",
       event_date: eventDate,
       category_id: selectedCatObj.id,
       cap_category_id: selectedCatObj.direction === "positive" ? "cap-1" : undefined,
@@ -197,7 +197,7 @@ export default function PointsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {MOCK_POINT_CAP_CATEGORIES.map((cap) => (
+            {POLICY_POINT_CAP_CATEGORIES.map((cap) => (
               <div
                 key={cap.id}
                 className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1 text-xs"
@@ -244,7 +244,14 @@ export default function PointsPage() {
 
       {/* Ledger Table */}
       <div className="space-y-3">
-        {filteredEvents.map((evt) => (
+        {filteredEvents.length === 0 ? (
+          <Card className="p-12 text-center text-muted-foreground border-dashed">
+            <Award className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
+            <p className="text-sm font-semibold">{isAr ? "لا توجد حركات نقاط مسجلة حالياً" : "No point events recorded yet"}</p>
+            <p className="text-xs text-muted-foreground mt-1">{isAr ? "استخدم زر 'تسجيل / اقتراح حركة نقاط' بالأعلى لتسجيل حركة جديدة." : "Use the 'Recommend Point Event' button above to register a new entry."}</p>
+          </Card>
+        ) : (
+          filteredEvents.map((evt) => (
           <Card
             key={evt.id}
             className="p-4 border-border/70 hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
@@ -317,7 +324,7 @@ export default function PointsPage() {
               </div>
             )}
           </Card>
-        ))}
+        )))}
       </div>
 
       {/* Record Point Event Dialog */}
@@ -339,11 +346,15 @@ export default function PointsPage() {
                   onChange={(e) => setTargetMember(e.target.value)}
                   className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                 >
-                  {availableUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name} ({u.role.replace("_", " ")})
-                    </option>
-                  ))}
+                  {availableUsers.length === 0 ? (
+                    <option value="">{isAr ? "لا يوجد أعضاء مسجلين" : "No members registered"}</option>
+                  ) : (
+                    availableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} ({u.role.replace("_", " ")})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -356,7 +367,7 @@ export default function PointsPage() {
                   onChange={(e) => setSelectedCategory(e.target.value)}
                   className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                 >
-                  {MOCK_POINT_CATEGORIES.map((c) => (
+                  {POLICY_POINT_CATEGORIES.map((c) => (
                     <option key={c.id} value={c.id}>
                       [{c.direction === "positive" ? "+" : ""}{c.default_value} pts]{" "}
                       {isAr ? c.name_ar : c.name}

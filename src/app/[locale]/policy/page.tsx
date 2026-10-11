@@ -13,7 +13,6 @@ import {
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useApp } from "@/lib/app-context";
-import { MOCK_POINT_CAP_CATEGORIES } from "@/lib/mock-data";
 
 export default function PolicyPage() {
   const { locale } = useApp();

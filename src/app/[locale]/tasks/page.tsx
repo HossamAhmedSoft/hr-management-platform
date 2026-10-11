@@ -42,10 +42,10 @@ export default function TasksPage() {
   const [newDesc, setNewDesc] = useState("");
   const [newTeam, setNewTeam] = useState(teams[0]?.id || "");
   const [newPriority, setNewPriority] = useState<TaskPriority>("medium");
-  const [newDeadline, setNewDeadline] = useState("2026-10-25T18:00");
+  const [newDeadline, setNewDeadline] = useState(() => new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16));
   const [deliverableLink, setDeliverableLink] = useState("");
   const [delayReason, setDelayReason] = useState("");
-  const [delayDate, setDelayDate] = useState("2026-10-30T18:00");
+  const [delayDate, setDelayDate] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 16));
 
   const filteredTasks = tasks.filter((t) => {
     if (filterStatus === "all") return true;
@@ -60,7 +60,7 @@ export default function TasksPage() {
       title: newTitle,
       description: newDesc,
       team_id: newTeam,
-      created_by: currentUser.id,
+      created_by: currentUser?.id || "admin",
       status: "assigned",
       priority: newPriority,
       deadline: new Date(newDeadline).toISOString(),
@@ -135,7 +135,20 @@ export default function TasksPage() {
 
       {/* Tasks Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredTasks.map((task) => (
+        {filteredTasks.length === 0 ? (
+          <Card className="col-span-full p-12 text-center text-muted-foreground border-dashed">
+            <CheckSquare className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
+            <p className="text-sm font-semibold">
+              {isAr ? "لا توجد مهام مسجلة حالياً" : "No tasks found"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isAr
+                ? "اضغط على 'إنشاء مهمة جديدة' بالأعلى لتعيين تكليف لإحدى اللجان أو الأعضاء."
+                : "Click 'Create Task' above to assign deliverables to a team."}
+            </p>
+          </Card>
+        ) : (
+          filteredTasks.map((task) => (
           <Card
             key={task.id}
             className="p-5 border-border/70 hover:shadow-lg transition-all flex flex-col justify-between"
@@ -208,7 +221,7 @@ export default function TasksPage() {
               </div>
             </div>
           </Card>
-        ))}
+        )))}
       </div>
 
       {/* New Task Modal */}

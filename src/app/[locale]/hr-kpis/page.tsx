@@ -21,25 +21,25 @@ export default function HRKPIsPage() {
   const hrMetrics = [
     {
       title: isAr ? "التواصل ودعم الأعضاء" : "Communication & Member Support",
-      score: "4.8 / 5.0",
+      target: "5.0 / 5.0",
       description: isAr
-        ? "سرعة الرد على استفسارات الأعضاء وتوفير بيئة داعمة للنمو."
+        ? "سرعة الرد على استفسارات الأعضاء وتوفير بيئة داعمة للنمو والتوجيه."
         : "Responsiveness to member requests and supportive engagement.",
       icon: Heart,
       color: "text-rose-500",
     },
     {
       title: isAr ? "سرية السجلات والبيانات" : "Confidentiality of Records",
-      score: "5.0 / 5.0",
+      target: "5.0 / 5.0",
       description: isAr
-        ? "حماية تامة للبيانات الحساسة، الملاحظات الخاصة والتحقيقات."
+        ? "حماية تامة للبيانات الحساسة، الملاحظات الخاصة والتحقيقات الإدارية."
         : "Zero data leakage, encrypted notes and strict access control.",
       icon: ShieldCheck,
       color: "text-primary",
     },
     {
       title: isAr ? "دمج ومتابعة الأعضاء الجدد" : "Member Integration & Follow-up",
-      score: "4.6 / 5.0",
+      target: "5.0 / 5.0",
       description: isAr
         ? "متابعة مسار اندماج الأعضاء باللجان وخطط التطوير الفردية."
         : "Smooth onboarding, peer buddy matching and check-ins.",
@@ -48,7 +48,7 @@ export default function HRKPIsPage() {
     },
     {
       title: isAr ? "عدالة ونزاهة التقييم" : "Fairness of Evaluation",
-      score: "4.9 / 5.0",
+      target: "5.0 / 5.0",
       description: isAr
         ? "تطبيق حيادي لميثاق النقاط وتفعيل مراجعة التظلمات المحايدة."
         : "Objective evidence-based scoring and neutral appeal resolution.",
@@ -91,7 +91,7 @@ export default function HRKPIsPage() {
                   </div>
                 </div>
                 <span className="text-xl font-black text-foreground">
-                  {kpi.score}
+                  {kpi.target}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground pt-1">

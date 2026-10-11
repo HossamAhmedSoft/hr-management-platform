@@ -145,7 +145,20 @@ export default function IncidentsPage() {
         </h3>
 
         <div className="space-y-3">
-          {incidents.map((inc) => (
+          {incidents.length === 0 ? (
+            <Card className="p-12 text-center text-muted-foreground border-dashed">
+              <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-40 text-emerald-500" />
+              <p className="text-sm font-semibold">
+                {isAr ? "لا توجد مخالفات أو وقائع مسجلة حالياً" : "No active incidents recorded"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isAr
+                  ? "السجل الإداري منضبط تماماً وخالٍ من أي بلاغات أو مخالفات مفتوحة."
+                  : "All teams are in good standing with zero open disciplinary reports."}
+              </p>
+            </Card>
+          ) : (
+            incidents.map((inc) => (
             <Card
               key={inc.id}
               className="p-4 border border-border bg-card hover:shadow-xs transition-all space-y-3"
@@ -178,7 +191,7 @@ export default function IncidentsPage() {
                 </div>
               )}
             </Card>
-          ))}
+          )))}
         </div>
       </div>
     </div>

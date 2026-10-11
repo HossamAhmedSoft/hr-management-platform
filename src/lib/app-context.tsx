@@ -13,19 +13,8 @@ import {
   FeedbackSession,
   EducationalTrack,
   Attendee,
+  AuditLog,
 } from "@/types";
-import {
-  MOCK_PROFILES,
-  MOCK_TEAMS,
-  MOCK_TASKS,
-  MOCK_POINT_EVENTS,
-  MOCK_EVALUATIONS,
-  MOCK_APPEALS,
-  MOCK_INCIDENTS,
-  MOCK_FEEDBACK_SESSIONS,
-  MOCK_EDUCATIONAL_TRACKS,
-  MOCK_ATTENDEES,
-} from "@/lib/mock-data";
 import {
   saveSession,
   getSession,
@@ -35,7 +24,7 @@ import {
 import { dbService } from "@/lib/db-service";
 
 interface AppContextType {
-  currentUser: Profile;
+  currentUser: Profile | null;
   setCurrentUser: (user: Profile) => void;
   availableUsers: Profile[];
   isAuthenticated: boolean;
@@ -55,12 +44,15 @@ interface AppContextType {
   feedbackSessions: FeedbackSession[];
   educationalTracks: EducationalTrack[];
   attendees: Attendee[];
+  auditLogs: AuditLog[];
   addTask: (task: Omit<Task, "id" | "created_at" | "updated_at">) => void;
   updateTaskStatus: (taskId: string, newStatus: Task["status"]) => void;
   addPointEvent: (event: Omit<PointEvent, "id" | "created_at" | "updated_at">) => void;
   approvePointEvent: (id: string, rationale?: string) => void;
   rejectPointEvent: (id: string, rationale?: string) => void;
   submitAppeal: (appeal: Omit<Appeal, "id" | "created_at" | "updated_at">) => void;
+  addEvaluation: (evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">) => void;
+  addAuditLog: (log: Omit<AuditLog, "id" | "created_at">) => void;
   unreadNotificationsCount: number;
 }
 
@@ -76,9 +68,9 @@ export function AppProvider({
   const router = useRouter();
   const pathname = usePathname();
 
-  const [currentUser, setCurrentUser] = useState<Profile>(() => {
+  const [currentUser, setCurrentUser] = useState<Profile | null>(() => {
     const session = getSession();
-    return session?.user || MOCK_PROFILES[0];
+    return session?.user || null;
   });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return !!getSession();
@@ -87,16 +79,18 @@ export function AppProvider({
   const [locale, setLocale] = useState<"en" | "ar">(initialLocale);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
-  const [teams, setTeams] = useState<Team[]>(MOCK_TEAMS);
-  const [tasks, setTasks] = useState<Task[]>(MOCK_TASKS);
-  const [pointEvents, setPointEvents] = useState<PointEvent[]>(MOCK_POINT_EVENTS);
-  const [evaluations, setEvaluations] = useState<Evaluation[]>(MOCK_EVALUATIONS);
-  const [appeals, setAppeals] = useState<Appeal[]>(MOCK_APPEALS);
-  const [incidents, setIncidents] = useState<Incident[]>(MOCK_INCIDENTS);
-  const [feedbackSessions, setFeedbackSessions] = useState<FeedbackSession[]>(MOCK_FEEDBACK_SESSIONS);
-  const [educationalTracks] = useState<EducationalTrack[]>(MOCK_EDUCATIONAL_TRACKS);
-  const [attendees] = useState<Attendee[]>(MOCK_ATTENDEES);
-  const [unreadNotificationsCount] = useState<number>(3);
+  const [availableUsers, setAvailableUsers] = useState<Profile[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [pointEvents, setPointEvents] = useState<PointEvent[]>([]);
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+  const [appeals, setAppeals] = useState<Appeal[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [feedbackSessions, setFeedbackSessions] = useState<FeedbackSession[]>([]);
+  const [educationalTracks] = useState<EducationalTrack[]>([]);
+  const [attendees] = useState<Attendee[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [unreadNotificationsCount] = useState<number>(0);
 
   // Sync theme with HTML class
   useEffect(() => {
@@ -113,32 +107,45 @@ export function AppProvider({
     document.documentElement.setAttribute("lang", locale);
   }, [locale]);
 
-  // Initial live synchronization from Supabase database
+  // Live synchronization from Supabase database
   useEffect(() => {
     let isMounted = true;
     async function syncDatabase() {
       try {
-        const [liveTeams, liveTasks, livePoints, liveEvaluations, liveAppeals, liveIncidents, liveFeedback] =
-          await Promise.all([
-            dbService.getTeams(),
-            dbService.getTasks(),
-            dbService.getPointEvents(),
-            dbService.getEvaluations(),
-            dbService.getAppeals(),
-            dbService.getIncidents(),
-            dbService.getFeedbackSessions(),
-          ]);
+        const [
+          liveProfiles,
+          liveTeams,
+          liveTasks,
+          livePoints,
+          liveEvaluations,
+          liveAppeals,
+          liveIncidents,
+          liveFeedback,
+          liveAuditLogs,
+        ] = await Promise.all([
+          dbService.getProfiles(),
+          dbService.getTeams(),
+          dbService.getTasks(),
+          dbService.getPointEvents(),
+          dbService.getEvaluations(),
+          dbService.getAppeals(),
+          dbService.getIncidents(),
+          dbService.getFeedbackSessions(),
+          dbService.getAuditLogs(),
+        ]);
 
         if (!isMounted) return;
-        if (liveTeams && liveTeams.length > 0) setTeams(liveTeams);
-        if (liveTasks && liveTasks.length > 0) setTasks(liveTasks);
-        if (livePoints && livePoints.length > 0) setPointEvents(livePoints);
-        if (liveEvaluations && liveEvaluations.length > 0) setEvaluations(liveEvaluations);
-        if (liveAppeals && liveAppeals.length > 0) setAppeals(liveAppeals);
-        if (liveIncidents && liveIncidents.length > 0) setIncidents(liveIncidents);
-        if (liveFeedback && liveFeedback.length > 0) setFeedbackSessions(liveFeedback);
+        if (liveProfiles) setAvailableUsers(liveProfiles);
+        if (liveTeams) setTeams(liveTeams);
+        if (liveTasks) setTasks(liveTasks);
+        if (livePoints) setPointEvents(livePoints);
+        if (liveEvaluations) setEvaluations(liveEvaluations);
+        if (liveAppeals) setAppeals(liveAppeals);
+        if (liveIncidents) setIncidents(liveIncidents);
+        if (liveFeedback) setFeedbackSessions(liveFeedback);
+        if (liveAuditLogs) setAuditLogs(liveAuditLogs);
       } catch (err) {
-        console.warn("Using fallback local seed:", err);
+        console.warn("Error loading live database:", err);
       }
     }
     syncDatabase();
@@ -162,7 +169,7 @@ export function AppProvider({
   const logout = () => {
     clearSession();
     setIsAuthenticated(false);
-    setCurrentUser(MOCK_PROFILES[4]); // Fallback to member
+    setCurrentUser(null);
     router.push(`/${locale}/login`);
   };
 
@@ -173,7 +180,6 @@ export function AppProvider({
   const toggleLocale = () => {
     const nextLocale = locale === "en" ? "ar" : "en";
     setLocale(nextLocale);
-    // Replace URL locale prefix
     if (pathname) {
       const newPath = pathname.replace(`/${locale}`, `/${nextLocale}`);
       router.push(newPath);
@@ -248,12 +254,26 @@ export function AppProvider({
     }
   };
 
+  const addEvaluation = async (evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">) => {
+    const created = await dbService.createEvaluation(evalData);
+    if (created) {
+      setEvaluations((prev) => [created, ...prev]);
+    }
+  };
+
+  const addAuditLog = async (log: Omit<AuditLog, "id" | "created_at">) => {
+    const created = await dbService.createAuditLog(log);
+    if (created) {
+      setAuditLogs((prev) => [created, ...prev]);
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
         currentUser,
         setCurrentUser: handleSetCurrentUser,
-        availableUsers: MOCK_PROFILES,
+        availableUsers,
         isAuthenticated,
         login,
         logout,
@@ -271,12 +291,15 @@ export function AppProvider({
         feedbackSessions,
         educationalTracks,
         attendees,
+        auditLogs,
         addTask,
         updateTaskStatus,
         addPointEvent,
         approvePointEvent,
         rejectPointEvent,
         submitAppeal,
+        addEvaluation,
+        addAuditLog,
         unreadNotificationsCount,
       }}
     >

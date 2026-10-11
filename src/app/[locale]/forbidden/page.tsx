@@ -33,8 +33,8 @@ export default function ForbiddenPage() {
 
           <p className="text-xs text-muted-foreground leading-relaxed">
             {isAr
-              ? `الصفحة المطلوبة تتطلب صلاحيات إدارية عليا (Super Admin أو HR Admin). دورك الحالي هو [${currentUser.role}].`
-              : `The requested resource is restricted to Super Admin or HR leadership. Your current active role is [${currentUser.role}].`}
+              ? `الصفحة المطلوبة تتطلب صلاحيات إدارية عليا (Super Admin أو HR Admin). دورك الحالي هو [${currentUser?.role || "عضو"}].`
+              : `The requested resource is restricted to Super Admin or HR leadership. Your current active role is [${currentUser?.role || "member"}].`}
           </p>
 
           <div className="pt-2">

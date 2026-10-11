@@ -82,7 +82,13 @@ export default function EducationPage() {
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {educationalTracks.map((tr) => (
+          {educationalTracks.length === 0 ? (
+            <Card className="col-span-full p-8 text-center text-muted-foreground border-dashed">
+              <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
+              <p className="text-sm font-semibold">{isAr ? "لا توجد مسارات تعليمية مسجلة حالياً" : "No educational tracks enrolled yet"}</p>
+            </Card>
+          ) : (
+            educationalTracks.map((tr) => (
             <Card key={tr.id} className="p-5 border-border/80 hover:shadow-lg transition-all space-y-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -109,7 +115,7 @@ export default function EducationPage() {
                 </span>
               </div>
             </Card>
-          ))}
+          )))}
         </div>
       </div>
 
@@ -122,7 +128,12 @@ export default function EducationPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {attendees.map((att) => (
+            {attendees.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                {isAr ? "لا يوجد طلاب مسجلون حالياً في المسارات التعليمية" : "No enrolled students currently registered"}
+              </p>
+            ) : (
+              attendees.map((att) => (
               <div
                 key={att.id}
                 className="p-3.5 rounded-xl border border-border/60 bg-muted/20 flex items-center justify-between gap-3 text-xs"
@@ -148,7 +159,7 @@ export default function EducationPage() {
                   )}
                 </div>
               </div>
-            ))}
+            )))}
           </div>
         </CardContent>
       </Card>

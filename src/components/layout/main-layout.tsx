@@ -20,7 +20,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const isAuthOrErrorPage = Boolean(
     pathname && (pathname.includes("/login") || pathname.includes("/forbidden"))
   );
-  const isAllowed = isAuthOrErrorPage || (isAuthenticated && canAccessRoute(currentUser.role, pathname || "/"));
+  const isAllowed = isAuthOrErrorPage || (Boolean(isAuthenticated && currentUser) && canAccessRoute(currentUser!.role, pathname || "/"));
 
   useEffect(() => {
     if (!isAuthOrErrorPage) {

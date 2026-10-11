@@ -11,6 +11,7 @@ import {
   FeedbackSession,
   EducationalTrack,
   Attendee,
+  AuditLog,
 } from "@/types";
 
 // ============================================================
@@ -27,7 +28,7 @@ export const dbService = {
         .select("*")
         .order("created_at", { ascending: true });
 
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as Profile[];
       }
     } catch (e) {
@@ -82,7 +83,7 @@ export const dbService = {
         .select("*")
         .order("created_at", { ascending: true });
 
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as Team[];
       }
     } catch (e) {
@@ -124,7 +125,7 @@ export const dbService = {
         .select("*")
         .order("deadline", { ascending: true });
 
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as Task[];
       }
     } catch (e) {
@@ -185,7 +186,7 @@ export const dbService = {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as PointEvent[];
       }
     } catch (e) {
@@ -257,13 +258,38 @@ export const dbService = {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as Evaluation[];
       }
     } catch (e) {
       console.warn("Supabase evaluations error:", e);
     }
     return internalDB.getEvaluations();
+  },
+
+  async createEvaluation(evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">): Promise<Evaluation | null> {
+    const newEval: Evaluation = {
+      ...evalData,
+      id: `eval_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("evaluations")
+        .insert([newEval])
+        .select()
+        .single();
+
+      if (!error && data) {
+        internalDB.createEvaluation(data as Evaluation);
+        return data as Evaluation;
+      }
+    } catch (e) {
+      console.warn("Supabase createEvaluation error:", e);
+    }
+    return internalDB.createEvaluation(evalData);
   },
 
   // ── Appeals ─────────────────────────────────────────────
@@ -275,7 +301,7 @@ export const dbService = {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as Appeal[];
       }
     } catch (e) {
@@ -318,7 +344,7 @@ export const dbService = {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as Incident[];
       }
     } catch (e) {
@@ -336,7 +362,7 @@ export const dbService = {
         .select("*")
         .order("session_date", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as FeedbackSession[];
       }
     } catch (e) {
@@ -353,4 +379,47 @@ export const dbService = {
   async getAttendees(): Promise<Attendee[]> {
     return internalDB.getAttendees();
   },
+
+  // ── Audit Logs ─────────────────────────────────────────
+  async getAuditLogs(): Promise<AuditLog[]> {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("audit_logs")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        return data as AuditLog[];
+      }
+    } catch (e) {
+      console.warn("Supabase audit_logs error:", e);
+    }
+    return internalDB.getAuditLogs();
+  },
+
+  async createAuditLog(log: Omit<AuditLog, "id" | "created_at">): Promise<AuditLog> {
+    const newLog: AuditLog = {
+      ...log,
+      id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      created_at: new Date().toISOString(),
+    };
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("audit_logs")
+        .insert([newLog])
+        .select()
+        .single();
+
+      if (!error && data) {
+        internalDB.createAuditLog(data as AuditLog);
+        return data as AuditLog;
+      }
+    } catch (e) {
+      console.warn("Supabase createAuditLog error:", e);
+    }
+    return internalDB.createAuditLog(newLog);
+  },
 };
+

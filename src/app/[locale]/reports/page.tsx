@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import {
   BarChart3,
   Download,
@@ -17,8 +17,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useApp } from "@/lib/app-context";
 
 export default function ReportsPage() {
-  const { teams, evaluations, pointEvents, tasks, locale } = useApp();
+  const { teams, evaluations, pointEvents, tasks, availableUsers, locale } = useApp();
   const isAr = locale === "ar";
+
+  const completedTasks = tasks.filter((t) => t.status === "completed").length;
+  const taskDeliveryRate = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+  const avgEvalScore = evaluations.length > 0
+    ? (evaluations.reduce((sum, e) => sum + (e.total_score || 0), 0) / evaluations.length).toFixed(1)
+    : "—";
 
   const handleExportOrgReport = () => {
     const csvContent =
@@ -28,10 +34,13 @@ export default function ReportsPage() {
       "\n\n" +
       "Team,Members,TaskCompletionRate,AvgEvaluationScore\n" +
       teams
-        .map(
-          (t) =>
-            `"${t.name}",${t.member_count || 10},92%,88.5`
-        )
+        .map((t) => {
+          const mCount = availableUsers.filter((u) => u.team_id === t.id).length;
+          const tTasks = tasks.filter((tk) => tk.team_id === t.id);
+          const tCompleted = tTasks.filter((tk) => tk.status === "completed").length;
+          const rate = tTasks.length > 0 ? `${Math.round((tCompleted / tTasks.length) * 100)}%` : "0%";
+          return `"${t.name}",${mCount},${rate},${avgEvalScore}`;
+        })
         .join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -50,8 +59,8 @@ export default function ReportsPage() {
         title={isAr ? "التقارير الإدارية والتحليلات" : "Executive Reports & Analytics"}
         description={
           isAr
-            ? "تقارير شاملة لأداء اللجان، نسب تسليم المهام في الموعد، وتوزيع درجات التقييم الشهري."
-            : "Aggregated performance intelligence across teams, on-time deliverable ratios, and score distributions."
+            ? "تقارير شاملة لأداء اللجان، نسب تسليم المهام في الموعد، وتوزيع درجات التقييم الشهري المحسوبة مباشرة من قاعدة البيانات."
+            : "Aggregated performance intelligence across teams, on-time deliverable ratios, and score distributions computed from live data."
         }
       >
         <Button
@@ -70,29 +79,39 @@ export default function ReportsPage() {
           <span className="text-xs font-semibold text-muted-foreground uppercase">
             {isAr ? "متوسط تقييم الأداء العام" : "Overall Org Performance"}
           </span>
-          <p className="text-3xl font-black text-primary mt-1">88.3 / 100</p>
+          <p className="text-3xl font-black text-primary mt-1">
+            {avgEvalScore !== "—" ? `${avgEvalScore} / 100` : "—"}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Strong Performance Band Average
+            {evaluations.length > 0
+              ? (isAr ? `${evaluations.length} تقييمات معتمدة مسجلة` : `${evaluations.length} finalized evaluations`)
+              : (isAr ? "في انتظار بدء دورة التقييم" : "Awaiting evaluation cycle")}
           </p>
         </Card>
 
         <Card className="p-5 border-border/70">
           <span className="text-xs font-semibold text-muted-foreground uppercase">
-            {isAr ? "نسبة التسليم في الموعد" : "On-Time Task Delivery Rate"}
+            {isAr ? "نسبة تسليم المهام" : "Task Delivery Rate"}
           </span>
-          <p className="text-3xl font-black text-emerald-600 mt-1">94.2%</p>
+          <p className="text-3xl font-black text-emerald-600 mt-1">
+            {tasks.length > 0 ? `${taskDeliveryRate}%` : "—"}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Exceeds 85% target threshold
+            {tasks.length > 0
+              ? (isAr ? `${completedTasks} من إجمالي ${tasks.length} مهام منجزة` : `${completedTasks} of ${tasks.length} tasks completed`)
+              : (isAr ? "لا توجد مهام مسجلة حالياً" : "No tasks created yet")}
           </p>
         </Card>
 
         <Card className="p-5 border-border/70">
           <span className="text-xs font-semibold text-muted-foreground uppercase">
-            {isAr ? "معدل الرضا الداخلي" : "Member Retention & Satisfaction"}
+            {isAr ? "إجمالي الأعضاء المسجلين" : "Active Member Roster"}
           </span>
-          <p className="text-3xl font-black text-amber-600 mt-1">96.8%</p>
+          <p className="text-3xl font-black text-amber-600 mt-1">
+            {availableUsers.length}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Based on mid-term pulse surveys
+            {isAr ? `${teams.length} لجان ومسارات معتمدة` : `Distributed across ${teams.length} teams`}
           </p>
         </Card>
       </div>
@@ -117,21 +136,37 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {teams.map((t) => (
-                  <tr key={t.id} className="hover:bg-muted/20">
-                    <td className="py-3 px-3 font-bold text-foreground">
-                      {isAr ? t.name_ar : t.name}
+                {teams.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                      {isAr ? "لا توجد فرق مضافة حالياً" : "No teams available"}
                     </td>
-                    <td className="py-3 px-3 capitalize text-muted-foreground">
-                      {t.type.replace("_", " ")}
-                    </td>
-                    <td className="py-3 px-3">{t.member_count}</td>
-                    <td className="py-3 px-3 font-semibold text-emerald-600">
-                      95%
-                    </td>
-                    <td className="py-3 px-3 font-bold text-primary">89.4</td>
                   </tr>
-                ))}
+                ) : (
+                  teams.map((t) => {
+                    const mCount = availableUsers.filter((u) => u.team_id === t.id).length;
+                    const tTasks = tasks.filter((tk) => tk.team_id === t.id);
+                    const tDone = tTasks.filter((tk) => tk.status === "completed").length;
+                    const rate = tTasks.length > 0 ? `${Math.round((tDone / tTasks.length) * 100)}%` : "—";
+                    return (
+                      <tr key={t.id} className="hover:bg-muted/20">
+                        <td className="py-3 px-3 font-bold text-foreground">
+                          {isAr ? t.name_ar : t.name}
+                        </td>
+                        <td className="py-3 px-3 capitalize text-muted-foreground">
+                          {t.type.replace("_", " ")}
+                        </td>
+                        <td className="py-3 px-3">{mCount}</td>
+                        <td className="py-3 px-3 font-semibold text-emerald-600">
+                          {rate}
+                        </td>
+                        <td className="py-3 px-3 font-bold text-primary">
+                          {avgEvalScore}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
