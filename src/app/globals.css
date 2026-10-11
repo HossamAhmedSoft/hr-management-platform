@@ -1,0 +1,174 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --background: #f8f9fa;
+  --foreground: #202124;
+  --card: #ffffff;
+  --card-foreground: #202124;
+  --popover: #ffffff;
+  --popover-foreground: #202124;
+  --primary: #1a73e8;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f3f4;
+  --secondary-foreground: #202124;
+  --muted: #f1f3f4;
+  --muted-foreground: #5f6368;
+  --accent: #e8f0fe;
+  --accent-foreground: #1a73e8;
+  --destructive: #ea4335;
+  --destructive-foreground: #ffffff;
+  --border: #dadce0;
+  --input: #dadce0;
+  --ring: #1a73e8;
+
+  --google-blue: #1a73e8;
+  --google-red: #ea4335;
+  --google-yellow: #fbbc04;
+  --google-green: #34a853;
+  --google-border: #dadce0;
+  --google-surface: #ffffff;
+  --google-bg: #f8f9fa;
+  --google-text: #202124;
+  --google-text-secondary: #5f6368;
+}
+
+.dark {
+  --background: #171717;
+  --foreground: #e8eaed;
+  --card: #202124;
+  --card-foreground: #e8eaed;
+  --popover: #202124;
+  --popover-foreground: #e8eaed;
+  --primary: #8ab4f8;
+  --primary-foreground: #202124;
+  --secondary: #303134;
+  --secondary-foreground: #e8eaed;
+  --muted: #303134;
+  --muted-foreground: #9aa0a6;
+  --accent: #303134;
+  --accent-foreground: #8ab4f8;
+  --destructive: #ea4335;
+  --destructive-foreground: #ffffff;
+  --border: #3c4043;
+  --input: #3c4043;
+  --ring: #8ab4f8;
+
+  --google-border: #3c4043;
+  --google-surface: #202124;
+  --google-bg: #171717;
+  --google-text: #e8eaed;
+  --google-text-secondary: #9aa0a6;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+[dir="rtl"], [dir="rtl"] body {
+  font-family: 'Cairo', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="ltr"], [dir="ltr"] body {
+  direction: ltr;
+  text-align: left;
+}
+
+/* Google 4-Color Signature Accent Bar */
+.google-accent-strip {
+  height: 4px;
+  width: 100%;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+.google-accent-strip .seg-blue {
+  background-color: #1a73e8;
+  flex: 1;
+}
+
+.google-accent-strip .seg-red {
+  background-color: #ea4335;
+  flex: 1;
+}
+
+.google-accent-strip .seg-yellow {
+  background-color: #fbbc04;
+  flex: 1;
+}
+
+.google-accent-strip .seg-green {
+  background-color: #34a853;
+  flex: 1;
+}
+
+/* Google Workspace Card styling */
+.google-card {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.google-card:hover {
+  box-shadow: 0 1px 3px 0 rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
+}
+
+/* Clean Google Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #dadce0;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #3c4043;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #bdc1c6;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #5f6368;
+}
