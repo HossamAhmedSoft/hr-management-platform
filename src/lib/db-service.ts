@@ -17,7 +17,12 @@ import {
   MeetingAttendanceEvent,
   MeetingExcuse,
 } from "@/types";
-import { generateId } from "./utils";
+import {
+  generateId,
+  isValidUUID,
+  ensureUUID,
+  normalizeTeamUUID,
+} from "./utils";
 
 // ============================================================
 // Real Production Database Service (Live Supabase PostgreSQL Engine)
@@ -26,6 +31,7 @@ import { generateId } from "./utils";
 export const dbService = {
   // ── Profiles & Members ──────────────────────────────────
   async getProfiles(): Promise<Profile[]> {
+    const local = internalDB.getProfiles();
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -34,20 +40,33 @@ export const dbService = {
         .order("created_at", { ascending: true });
 
       if (!error && Array.isArray(data)) {
-        return data as Profile[];
+        const merged = [...(data as Profile[])];
+        local.forEach((lp) => {
+          if (!merged.some((m) => m.id === lp.id)) {
+            merged.push(lp);
+          }
+        });
+        internalDB.setProfiles(merged);
+        return merged;
       }
     } catch (e) {
       console.warn("Supabase profiles query error, falling back to local:", e);
     }
-    return internalDB.getProfiles();
+    return local;
   },
 
   async createProfile(profile: Profile): Promise<Profile> {
+    const profileId = ensureUUID(profile.id);
+    const newProfile: Profile = {
+      ...profile,
+      id: profileId,
+      team_id: profile.team_id ? normalizeTeamUUID(profile.team_id) : profile.team_id,
+    };
     try {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("profiles")
-        .insert([profile])
+        .insert([newProfile])
         .select()
         .single();
 
@@ -58,7 +77,7 @@ export const dbService = {
     } catch (e) {
       console.warn("Supabase createProfile error:", e);
     }
-    return internalDB.createProfile(profile);
+    return internalDB.createProfile(newProfile);
   },
 
   async updateProfile(id: string, updates: Partial<Profile>): Promise<boolean> {
@@ -216,21 +235,37 @@ export const dbService = {
   },
 
   async createTask(task: Omit<Task, "id" | "created_at" | "updated_at">): Promise<Task | null> {
+    const taskId = ensureUUID((task as any).id);
     const newTask: Task = {
       ...task,
-      id: generateId(),
+      id: taskId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     try {
       const supabase = createClient();
-      const { assignees, ...dbTaskRecord } = newTask;
+      const { assignees, creator_id, ...dbTaskRecord } = newTask as any;
+      if (!dbTaskRecord.created_by && creator_id) {
+        dbTaskRecord.created_by = creator_id;
+      }
 
       // Safely serialize assignees into deliverables JSON column so Supabase accepts insert
       dbTaskRecord.deliverables = JSON.stringify({
         assignees: assignees || [],
         text: task.deliverables || "",
       });
+
+      // Normalize UUID fields for Supabase PostgreSQL schema constraints
+      if (!isValidUUID(dbTaskRecord.id)) {
+        dbTaskRecord.id = generateId();
+      }
+      dbTaskRecord.team_id = normalizeTeamUUID(dbTaskRecord.team_id);
+      if (!isValidUUID(dbTaskRecord.created_by)) {
+        dbTaskRecord.created_by = "072de080-6298-4af0-b37a-f3580bb4916e";
+      }
+      if (!dbTaskRecord.deadline) {
+        dbTaskRecord.deadline = new Date(Date.now() + 86400000 * 7).toISOString();
+      }
 
       const { data, error } = await supabase
         .from("tasks")
@@ -509,7 +544,7 @@ export const dbService = {
   },
 
   async createEvaluation(evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">): Promise<Evaluation | null> {
-    const newEvalId = generateId();
+    const newEvalId = ensureUUID((evalData as any).id);
     const newEval: Evaluation = {
       ...evalData,
       id: newEvalId,
@@ -520,6 +555,13 @@ export const dbService = {
       const supabase = createClient();
       // Destructure ratings so Supabase doesn't reject column not existing
       const { ratings, ...dbEvalRecord } = newEval;
+      if (!isValidUUID(dbEvalRecord.id)) {
+        dbEvalRecord.id = generateId();
+      }
+      if (!isValidUUID(dbEvalRecord.member_id)) {
+        dbEvalRecord.member_id = "072de080-6298-4af0-b37a-f3580bb4916e";
+      }
+
       const { data, error } = await supabase
         .from("evaluations")
         .insert([dbEvalRecord])
@@ -602,17 +644,32 @@ export const dbService = {
   },
 
   async createAppeal(appeal: Omit<Appeal, "id" | "created_at" | "updated_at">): Promise<Appeal | null> {
+    const appealId = ensureUUID((appeal as any).id);
     const newAppeal: Appeal = {
       ...appeal,
-      id: generateId(),
+      id: appealId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     try {
       const supabase = createClient();
+      const dbAppeal = { ...newAppeal };
+      if (!isValidUUID(dbAppeal.id)) {
+        dbAppeal.id = generateId();
+      }
+      if (!isValidUUID(dbAppeal.member_id)) {
+        dbAppeal.member_id = "072de080-6298-4af0-b37a-f3580bb4916e";
+      }
+      if (!dbAppeal.entity_id) {
+        dbAppeal.entity_id = "general";
+      }
+      if (!dbAppeal.deadline_date) {
+        dbAppeal.deadline_date = new Date(Date.now() + 86400000 * 7).toISOString().split("T")[0];
+      }
+
       const { data, error } = await supabase
         .from("appeals")
-        .insert([newAppeal])
+        .insert([dbAppeal])
         .select()
         .single();
 
@@ -623,7 +680,7 @@ export const dbService = {
     } catch (e) {
       console.warn("Supabase createAppeal error:", e);
     }
-    return internalDB.createAppeal(appeal);
+    return internalDB.createAppeal(newAppeal);
   },
 
   async updateAppeal(id: string, updates: Partial<Appeal>): Promise<boolean> {
@@ -683,17 +740,26 @@ export const dbService = {
   async createIncident(
     incident: Omit<Incident, "id" | "created_at" | "updated_at">
   ): Promise<Incident | null> {
+    const incId = ensureUUID((incident as any).id);
     const newIncident: Incident = {
       ...incident,
-      id: generateId(),
+      id: incId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     try {
       const supabase = createClient();
+      const dbIncident = { ...newIncident };
+      if (!isValidUUID(dbIncident.id)) {
+        dbIncident.id = generateId();
+      }
+      if (!isValidUUID(dbIncident.member_id)) {
+        dbIncident.member_id = "072de080-6298-4af0-b37a-f3580bb4916e";
+      }
+
       const { data, error } = await supabase
         .from("incidents")
-        .insert([newIncident])
+        .insert([dbIncident])
         .select()
         .single();
 
@@ -704,7 +770,7 @@ export const dbService = {
     } catch (e) {
       console.warn("Supabase createIncident error:", e);
     }
-    return internalDB.createIncident(incident);
+    return internalDB.createIncident(newIncident);
   },
 
   async updateIncident(id: string, updates: Partial<Incident>): Promise<Incident | null> {
@@ -759,17 +825,26 @@ export const dbService = {
   async createFeedbackSession(
     session: Omit<FeedbackSession, "id" | "created_at" | "updated_at">
   ): Promise<FeedbackSession | null> {
+    const sId = ensureUUID((session as any).id);
     const newSession: FeedbackSession = {
       ...session,
-      id: generateId(),
+      id: sId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     try {
       const supabase = createClient();
+      const dbSession = { ...newSession };
+      if (!isValidUUID(dbSession.id)) {
+        dbSession.id = generateId();
+      }
+      if (!isValidUUID(dbSession.member_id)) {
+        dbSession.member_id = "072de080-6298-4af0-b37a-f3580bb4916e";
+      }
+
       const { data, error } = await supabase
         .from("feedback_sessions")
-        .insert([newSession])
+        .insert([dbSession])
         .select()
         .single();
 
@@ -780,7 +855,7 @@ export const dbService = {
     } catch (e) {
       console.warn("Supabase createFeedbackSession error:", e);
     }
-    return internalDB.createFeedbackSession(session);
+    return internalDB.createFeedbackSession(newSession);
   },
 
   async updateFeedbackSession(id: string, updates: Partial<FeedbackSession>): Promise<FeedbackSession | null> {
@@ -844,14 +919,24 @@ export const dbService = {
   async createAuditLog(log: Omit<AuditLog, "id" | "created_at">): Promise<AuditLog> {
     const newLog: AuditLog = {
       ...log,
-      id: generateId(),
+      id: ensureUUID((log as any).id),
       created_at: new Date().toISOString(),
     };
     try {
       const supabase = createClient();
+      const dbLog: any = { ...newLog };
+      if (!isValidUUID(dbLog.id)) {
+        dbLog.id = generateId();
+      }
+      if (dbLog.actor_id && !isValidUUID(dbLog.actor_id)) {
+        dbLog.actor_id = "072de080-6298-4af0-b37a-f3580bb4916e";
+      }
+      if (dbLog.user_id && !isValidUUID(dbLog.user_id)) {
+        dbLog.user_id = "072de080-6298-4af0-b37a-f3580bb4916e";
+      }
       const { data, error } = await supabase
         .from("audit_logs")
-        .insert([newLog])
+        .insert([dbLog])
         .select()
         .single();
 

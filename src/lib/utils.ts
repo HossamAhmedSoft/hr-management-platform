@@ -36,6 +36,37 @@ export function generateId(): string {
   });
 }
 
+export function isValidUUID(str?: string): boolean {
+  if (!str) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+}
+
+export function ensureUUID(val?: string): string {
+  if (val && isValidUUID(val)) return val;
+  return generateId();
+}
+
+export const SUPABASE_TEAM_UUIDS: Record<string, string> = {
+  hr: "11111111-1111-1111-1111-111111111101",
+  pr: "11111111-1111-1111-1111-111111111102",
+  ops: "11111111-1111-1111-1111-111111111103",
+  media: "11111111-1111-1111-1111-111111111104",
+  web: "11111111-1111-1111-1111-111111111105",
+  mobile: "11111111-1111-1111-1111-111111111106",
+  ai: "11111111-1111-1111-1111-111111111107",
+  cyber: "11111111-1111-1111-1111-111111111108",
+};
+
+export function normalizeTeamUUID(teamId?: string): string {
+  if (!teamId) return "11111111-1111-1111-1111-111111111101";
+  if (isValidUUID(teamId)) return teamId;
+  const clean = teamId.toLowerCase().replace("team_", "").replace("team-", "").trim();
+  for (const [key, uuid] of Object.entries(SUPABASE_TEAM_UUIDS)) {
+    if (clean.includes(key) || key.includes(clean)) return uuid;
+  }
+  return "11111111-1111-1111-1111-111111111101";
+}
+
 export function calculatePercentage(value: number, total: number): number {
   if (total === 0) return 0;
   return Math.round((value / total) * 100 * 100) / 100;

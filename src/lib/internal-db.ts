@@ -118,6 +118,10 @@ export const internalDB = {
     return stored;
   },
 
+  setProfiles(profiles: Profile[]): void {
+    setTable("profiles", profiles);
+  },
+
   getProfileByEmail(email: string): Profile | null {
     const profiles = this.getProfiles();
     return profiles.find((p) => p.email.toLowerCase() === email.toLowerCase()) || null;
