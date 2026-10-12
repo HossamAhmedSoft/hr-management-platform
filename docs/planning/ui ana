@@ -1,0 +1,37 @@
+Act as a Senior Principal UI/UX Designer and Frontend Engineer specializing in Google Design Systems (Material 3 & Google Workspace UI). 
+
+Build a modern, highly responsive Rules, Points System & Performance Management Web Application dashboard for "GDG on Campus (Google Developer Groups)".
+
+### 1. Brand Identity & Visual Language:
+- Aesthetic: Clean, modern, highly structured Google Workspace / Admin Console aesthetic with high information density and generous whitespace.
+- Google 4-Color Signature Accent Bar: Include a persistent subtle top border/strip divided into 4 equal segments: Blue (#1a73e8), Red (#ea4335), Yellow (#fbbc04), and Green (#34a853).
+- Colors Palette:
+  * Primary / Actions / Headers: Google Blue (#1a73e8)
+  * Success / Tech / Positive: Google Green (#34a853) & Soft Green (#e6f4ea)
+  * Danger / Penalties / Escalation: Google Red (#ea4335) & Soft Red (#fce8e6)
+  * Warning / Intermediate: Google Yellow / Amber (#fbbc04 / #b06000) & Soft Amber (#fef7e0)
+  * Backgrounds: Light Gray (#f8f9fa) for pages/cards, Pure White (#ffffff) for surfaces.
+  * Borders & Dividers: Subtle 1px solid Google Border (#dadce0).
+  * Text Colors: Dark Charcoal (#202124) for headings, Slate Gray (#5f6368) for secondary/metadata.
+
+### 2. Typography & Direction:
+- Bi-directional support (Native RTL for Arabic with LTR tech chips/labels).
+- Headings & English Meta: 'Google Sans' or 'Inter', 600-700 weight.
+- Arabic Body & Content: 'Cairo' or 'Readex Pro', sharp, legible, and modern.
+
+### 3. Key Components & Layout Structure:
+1. Modern App Header: Title in English ("GDG NCTU - Management Portal"), search bar, filter tabs, and user profile.
+2. Metric Overview Cards: Summary of total points, attendance rate, active warnings, and performance distribution.
+3. Points Log & Rules Table:
+   - Data table with crisp 1px borders (#dadce0).
+   - Rounded pill badges: Green (+points), Red (-points), Neutral (Pending/Investigation).
+   - Action controls for filtering by track (Non-Tech / Tech) and status.
+4. Escalation Ladder Component (Vertical Stepper):
+   - 4-level progressive cards (Level 1: Friendly Notice, Level 2: PIP, Level 3: Head/Vice Head Review, Level 4: Community Leadership Escalation).
+   - Level indicator tags with color graduation from Blue to Yellow to Orange to Red.
+5. Track-Based KPIs & Rubrics Matrix:
+   - Responsive grid of cards for each track (HR, Media, PR, OR, Web, Flutter, UI/UX, Embedded, Cyber).
+   - 5-star or 1-to-5 point scale evaluation inputs with clear criteria descriptions.
+6. Responsive & Interactive:
+   - Smooth hover micro-interactions, modal dialogs for adding/disputing points, and export options (PDF/CSV).
+   - Use Tailwind CSS or pure clean CSS with semantic HTML.

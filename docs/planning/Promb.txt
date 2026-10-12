@@ -1,0 +1,1490 @@
+# MASTER BUILD PROMPT — GDG NCTU HR MANAGEMENT & PERFORMANCE PLATFORM
+
+## 1. YOUR ROLE AND MISSION
+
+Act as a Senior Full-Stack Engineer, Software Architect, Product Designer, Database Engineer, QA Engineer, and Security Engineer.
+
+Your mission is to **design, implement, test, and deliver a complete, functional, production-minded HR Management Web Application** for:
+
+**GDG on Campus — New Cairo Technological University (GDG NCTU)**
+
+The application must digitize and operationalize the official document:
+
+**“GDG NCTU — Team Rules & Points System: Work Guidelines & Member Performance Evaluation.”**
+
+This is an implementation task, not a request for a proposal, tutorial, mockup, or architecture document alone.
+
+You must inspect the existing repository and development environment, establish a coherent architecture, implement the application, run available checks, fix errors, and document how to run and deploy it.
+
+Do not stop after generating a plan. Do not deliver only a static UI. Do not leave critical functionality as TODOs, fake buttons, hardcoded dashboards, or simulated database operations.
+
+If you have terminal, filesystem, browser, or other development tools, use them to implement and verify the application directly.
+
+If a service requires credentials or external authorization that you do not have, implement the integration boundary, provide clear setup instructions, and continue building everything else that can be completed independently.
+
+## 2. PRODUCT VISION
+
+Build a centralized HR operations and member performance platform that replaces scattered spreadsheets and manual calculations with a transparent, auditable workflow.
+
+The platform must support:
+
+- Member directory and team management.
+- Task assignment, deadlines, deliverables, and task status tracking.
+- Positive and negative points management.
+- Evidence collection and verification.
+- Monthly performance evaluations out of 100.
+- Team-specific and role-specific evaluation criteria.
+- HR operational KPIs.
+- Educational track, instructor, teaching assistant, and attendee evaluation records.
+- Feedback sessions and performance improvement plans.
+- Warnings, escalation cases, and disciplinary review workflows.
+- Member appeals and grievance handling.
+- Reports, analytics, exports, and historical records.
+- Role-based access control.
+- Notifications and deadline reminders.
+- Secure audit trails and administrative settings.
+
+The primary objective is fair, evidence-based performance management and member development, not automated punishment.
+
+## 3. NON-NEGOTIABLE IMPLEMENTATION RULES
+
+1. Read and understand the entire available source policy before implementing its business rules.
+2. Treat the official policy as the source of truth for all documented rules.
+3. Never silently invent, change, or reinterpret policy thresholds, point values, deadlines, evaluation weights, or disciplinary procedures.
+4. When the policy is ambiguous, preserve the documented information and expose the ambiguity as an administrator-configurable or explicitly unresolved policy item. Do not silently choose a consequential interpretation.
+5. Keep positive and negative points separate from the monthly performance score.
+6. A negative points balance must never automatically suspend, remove, or expel a member.
+7. Never automatically finalize a disciplinary penalty based only on a numeric score.
+8. Require evidence, appropriate review, and member notification wherever the policy requires them.
+9. Record who performed each consequential action, when it occurred, what changed, and why.
+10. Never expose one member's confidential records to another ordinary member.
+11. Do not store credentials, API secrets, or service-role keys in frontend code.
+12. Do not claim that a feature is implemented unless it actually works.
+13. Do not overwrite an existing project blindly. Inspect the repository first and preserve valid existing work.
+14. Do not use mock data as the permanent production data source.
+15. Do not block the entire implementation because an optional integration is unavailable.
+
+## 4. RECOMMENDED TECHNOLOGY STACK
+
+Use the following stack unless the existing repository or execution environment makes it genuinely unsuitable.
+
+- Framework: Next.js with the App Router.
+- Language: TypeScript with strict type checking.
+- UI: React, Tailwind CSS, and accessible reusable components, preferably shadcn/ui.
+- Icons: Lucide.
+- Database: PostgreSQL.
+- Backend and authentication: Supabase Auth and Supabase PostgreSQL.
+- Authorization: PostgreSQL Row Level Security (RLS), server-side permission checks, and role-aware application services.
+- Forms: React Hook Form with Zod validation.
+- Tables: TanStack Table where advanced sorting, filtering, and pagination are needed.
+- Charts: Recharts.
+- Date handling: a reliable date utility library with explicit timezone handling.
+- Testing: Vitest and React Testing Library, plus Playwright for critical end-to-end workflows.
+- Deployment: Vercel or another compatible hosting platform, with Supabase or an equivalent managed PostgreSQL backend.
+
+Use stable, compatible package versions.
+
+If Supabase credentials are unavailable, create the application structure, database migrations, seed scripts, environment variable templates, and setup instructions without pretending the live database is connected.
+
+## 5. DESIGN AND USER EXPERIENCE
+
+Create a polished, modern, professional internal operations dashboard.
+
+The visual direction should be inspired by a contemporary technology community: clean layouts, restrained Google-inspired blue/red/yellow/green accents, neutral surfaces, readable typography, clear information hierarchy, and consistent spacing.
+
+Do not copy Google's proprietary branding assets without authorization.
+
+### Required design characteristics
+
+- Responsive desktop, tablet, and mobile layouts.
+- Arabic and English interface support.
+- Arabic RTL and English LTR layouts.
+- Language switcher.
+- Consistent navigation, page titles, breadcrumbs, and contextual actions.
+- Searchable, sortable, filterable tables.
+- Pagination for large datasets.
+- Loading, empty, error, and success states.
+- Accessible forms, keyboard navigation, visible focus indicators, and appropriate contrast.
+- Confirmation dialogs for consequential actions.
+- Toast notifications for completed actions and actionable errors.
+- Clear distinction between drafts, pending review, approved, rejected, and archived records.
+- No excessive gradients, distracting animations, or unnecessary decorative components.
+
+The application must remain usable with realistic amounts of data.
+
+### Required main navigation
+
+1. Dashboard.
+2. Members.
+3. Teams & Roles.
+4. Tasks.
+5. Points Ledger.
+6. Monthly Evaluations.
+7. Feedback & PIP.
+8. Attendance & Sessions.
+9. Incidents & Escalations.
+10. Appeals & Grievances.
+11. Educational Tracks.
+12. HR KPIs.
+13. Reports & Analytics.
+14. Audit Log.
+15. Policy & Settings.
+
+Display navigation items according to the current user's permissions.
+
+## 6. USER ROLES AND PERMISSIONS
+
+Implement granular, server-enforced role-based access control.
+
+### A. Super Admin / Community Leadership
+
+- Manage global configuration and approved policy versions.
+- Manage user accounts, teams, roles, and permissions.
+- Review authorized escalation cases.
+- Access organization-wide reports where permitted.
+- Designate neutral reviewers for appeals.
+- Review administrative audit trails.
+
+Do not assume every leadership member should have unrestricted access to all confidential HR records. Separate operational administration from confidential case access.
+
+### B. HR Admin
+
+- Manage member profiles and organizational records.
+- Review tasks and evidence where authorized.
+- Record and review point events.
+- Manage monthly evaluations.
+- Schedule feedback sessions.
+- Manage PIP records and escalation workflows.
+- Track appeals and grievance deadlines.
+- Generate reports and exports within authorized scope.
+
+Separate the ability to create a negative-point record from the ability to approve it whenever appropriate.
+
+### C. HR Reviewer
+
+- Review evidence and pending point events.
+- Approve or reject assigned cases.
+- Document the review decision.
+- Access only the cases and records authorized for that reviewer.
+
+Prevent users from approving their own consequential decisions when the workflow requires independent review.
+
+### D. Team Lead
+
+- View members within their assigned team.
+- Create and assign tasks.
+- Define deliverables, deadlines, and task acceptance criteria.
+- Update task status and record delivery reviews.
+- Submit evidence-backed point recommendations.
+- Submit monthly evaluation ratings.
+- Document feedback and improvement actions.
+- View authorized team reports.
+
+A Team Lead must not automatically have unrestricted access to confidential HR cases or unrelated teams.
+
+### E. Member
+
+- View and edit permitted profile information.
+- View their assigned tasks and deadlines.
+- Update permitted task statuses and submit deliverables.
+- View their own approved point records and evaluation results.
+- View their own feedback and PIP action items where authorized.
+- Submit explanations and appeals.
+- Track the status of their own appeals.
+- Receive notifications about relevant decisions.
+
+Members must never see other members' private evaluations, incident evidence, grievances, or confidential notes.
+
+### F. Educational Track Roles
+
+Support configurable roles for:
+
+- Track Lead.
+- Lead Instructor.
+- Teaching Assistant / Mentor.
+- Attendee / Student.
+
+Grant access to educational evaluation workflows only where relevant.
+
+Implement a permission matrix, not just frontend visibility rules. Enforce authorization at the database and server layers.
+
+## 7. ORGANIZATIONAL STRUCTURE
+
+Support configurable teams and tracks.
+
+### Technical teams
+
+- Web Development Track.
+- Flutter Development Track.
+- Cybersecurity Track.
+- Embedded Systems Track.
+- UI/UX Design Track.
+
+### Non-technical teams
+
+- Human Resources (HR).
+- Public Relations & Partnerships (PR).
+- Operations & Logistics (OR).
+- Media & Creative.
+
+Allow authorized administrators to add, edit, archive, and configure teams without code changes.
+
+Each member should have:
+
+- Unique internal ID.
+- Full name.
+- Email or approved login identifier.
+- Profile image, if available.
+- Team and assigned role.
+- Team Lead.
+- Membership status.
+- Join date.
+- Academic or availability notes where necessary and appropriately protected.
+- Relevant task, evaluation, and points history.
+- Created and updated timestamps.
+
+Avoid collecting unnecessary sensitive personal information.
+
+Support historical team transfers without rewriting previous evaluations or deleting prior records.
+
+## 8. MEMBER MANAGEMENT
+
+Create a complete member directory with:
+
+- Search by name or identifier.
+- Filters by team, role, status, and evaluation period.
+- Sorting and pagination.
+- Member detail pages.
+- Membership history.
+- Task history.
+- Positive and negative point ledger.
+- Monthly performance history.
+- Feedback sessions and action items.
+- Authorized incident and appeal history.
+- Exportable summaries according to permissions.
+
+Provide bulk member import from CSV and, where practical, XLSX.
+
+The import workflow must include:
+
+1. File validation.
+2. Column mapping.
+3. Preview.
+4. Duplicate detection.
+5. Validation errors.
+6. Confirmation before import.
+7. Import summary and error report.
+
+Never silently merge conflicting identities or overwrite existing records.
+
+## 9. TASK MANAGEMENT
+
+Implement a full task management module.
+
+Each task must support:
+
+- Title.
+- Description.
+- Team.
+- Assigned member or members.
+- Assigning Team Lead.
+- Creation date.
+- Start date if applicable.
+- Deadline.
+- Priority.
+- Expected deliverables.
+- Acceptance criteria.
+- Reference links and attachments where supported.
+- Current status.
+- Delivery date.
+- Review status.
+- Reviewer comments.
+- Evidence links.
+- Created and updated timestamps.
+
+### Suggested task statuses
+
+- Draft.
+- Assigned.
+- In Progress.
+- Blocked.
+- Submitted.
+- Under Review.
+- Revision Required.
+- Completed.
+- Cancelled.
+
+Document the status transitions and enforce them through the backend.
+
+A member should be able to notify their Team Lead of an expected delay and propose an alternative plan.
+
+The Team Lead must be able to review the request and record the decision.
+
+Do not penalize members automatically merely because a deadline has passed. A violation requires review of the applicable policy conditions, prior communication, relevant circumstances, and available evidence.
+
+Maintain an immutable or append-only history of consequential task status changes.
+
+## 10. OFFICIAL POINTS SYSTEM
+
+Implement a dedicated points ledger based on the source policy.
+
+Positive and negative points are independent from the monthly performance score.
+
+### A. Positive points
+
+| Category | Points | Documented condition |
+|---|---:|---|
+| Completed Core Task | +5 | A core task is delivered on time and meets previously agreed requirements and quality standards. |
+| Initiative & Innovation | +3 | A documented idea or implementation improves team workflows or saves time and effort. |
+| Peer Support & Knowledge Sharing | +2 | Meaningful help or knowledge sharing improves team output. |
+| Documentation & Archiving | +2 | Work is documented and archived professionally for future reference and reuse. |
+| Additional Contribution | +1 to +3 | An additional contribution agreed upon with the Team Lead, valued according to its actual impact. |
+
+### B. Negative points
+
+| Category | Points | Documented condition |
+|---|---:|---|
+| Failure to Update Task Status | -1 | Status is not updated after a prior reminder, without notification. |
+| Unjustified Delay | -2 | A deadline is missed without early notification or an agreed alternative. |
+| Unexcused Essential Meeting Absence | -2 | Absence is reviewed after considering personal circumstances. |
+| Disruption of Collaborative Work | -3 | Repeated failure to respond to important work messages causes actual disruption. |
+| Incomplete or Deficient Delivery | -3 | Delivery is materially incomplete relative to documented requirements, without an adequate explanation. |
+| Failure to Attend an Assigned Event or Responsibility | -5 | Failure to fulfill direct responsibility causes disruption to the event. |
+| Inappropriate Conduct | -5 to -10 | Documented misconduct requiring neutral review and protection of both parties' rights. |
+| Serious Violations | Investigation referral | Data leakage, taking credit for others' work, or damaging community digital systems. |
+
+The source policy defines investigation referral rather than a fixed numeric penalty for serious violations. Do not invent one.
+
+### C. Mandatory points ledger fields
+
+Each record must include:
+
+- Unique record ID.
+- Member.
+- Team at the time of the incident.
+- Event date.
+- Record creation timestamp.
+- Point category.
+- Positive or negative direction.
+- Point value.
+- Objective explanation.
+- Related task, event, or incident when applicable.
+- Evidence URL or securely stored attachment reference.
+- Recording HR officer or authorized Team Lead.
+- Submission status.
+- Member notification timestamp.
+- Member explanation, when applicable.
+- Reviewer.
+- Approval or rejection decision.
+- Decision timestamp.
+- Decision rationale.
+- Duplicate-event reference, if relevant.
+- Policy version used.
+- Audit metadata.
+
+Use a workflow such as:
+
+Draft → Submitted → Pending Review → Approved or Rejected.
+
+For negative-point records, allow the member to be notified and provide an explanation before final approval, in accordance with the policy.
+
+A serious incident should be recorded and referred for investigation without forcing an unsupported numeric penalty.
+
+### D. Points ledger safeguards
+
+- No duplicate deductions for the same incident.
+- No penalty for a task that was never officially assigned.
+- No penalty for an unpublished or undocumented requirement.
+- No negative-point record without an objective reason and appropriate evidence.
+- No unauthorized edits to approved records.
+- Corrections must create an auditable reversal or adjustment rather than erase history.
+- Approved points must retain their original policy version.
+- Display pending and approved points separately.
+- Only approved point events contribute to the official approved balance.
+
+### E. Monthly positive-point caps
+
+The source policy specifies these monthly positive-point category caps:
+
+| Category | Points per event | Monthly cap |
+|---|---:|---:|
+| Attendance & Commitment | +2 | 6 |
+| Task Execution | +3 | 9 |
+| Work Quality Added | +1 | 3 |
+| Reliability & Transparency | +2 | 4 |
+| Collaboration & Helping Others | +2 | 6 |
+| Initiative & Innovation | +2 | 4 |
+| Ownership & Leadership | +3 | 6 |
+
+These caps must be configurable through authorized policy settings and applied per member, category, and evaluation month.
+
+Important: the policy's positive-point examples and its separate detailed point-event table are not perfectly aligned in every category. Do not assume that the examples and the detailed event values are interchangeable.
+
+Implement a policy-mapping layer that lets authorized administrators explicitly map each point-event category to a cap category.
+
+Until that mapping is confirmed, flag ambiguous mappings and prevent silent over-crediting. Never silently change the official values to force consistency.
+
+Show the member's remaining cap for each category.
+
+The approved point balance for a period must be calculated from the actual approved ledger records, not manually edited summary fields.
+
+### F. Monthly net-point classification
+
+Use the source policy's proposed classification:
+
+- Green: net balance of +10 or higher.
+- Normal: 0 through +9.
+- Warning: -1 through -5.
+- Red: -6 or lower.
+
+Display the classification as a support and review indicator, not an automatic disciplinary decision.
+
+Display the underlying positive balance, negative balance, net balance, and the period used for calculation.
+
+## 11. INCIDENT MANAGEMENT AND ESCALATION
+
+Create an incident management module that supports the documented intervention levels.
+
+### Level 1 — Friendly Warning
+
+- Clarify the issue.
+- Understand the obstacles.
+- Offer support and guidance.
+- Record the conversation where appropriate.
+
+### Level 2 — Performance Improvement Plan (PIP)
+
+Use when the same issue recurs.
+
+Include:
+
+- Specific performance concern.
+- Supporting evidence.
+- Agreed improvement actions.
+- Support required.
+- Responsible person.
+- Start and target dates.
+- Follow-up schedule.
+- Progress status.
+- Outcome and closure notes.
+
+### Level 3 — Team Review
+
+A review involving the Team Lead and/or Head or Vice Head.
+
+Include:
+
+- Review of relevant previous assignments.
+- Identification of contributing factors.
+- Agreed support.
+- A defined correction period.
+- Follow-up decision.
+
+### Level 4 — Leadership Escalation
+
+For serious violations or persistent repeated issues.
+
+Include:
+
+- Case summary.
+- Evidence and chronology.
+- Authorized reviewers.
+- Member explanation.
+- Neutral review notes.
+- Decision and rationale.
+- Follow-up and closure status.
+
+Escalation must be documented, proportionate, and consistent with the official policy.
+
+Do not infer automatic escalation solely from the member's net points.
+
+Restrict sensitive evidence and investigation notes to authorized reviewers.
+
+## 12. MONTHLY PERFORMANCE EVALUATION — 100 POINTS
+
+This evaluation must remain separate from the points ledger.
+
+Implement the exact source-policy weights:
+
+| Evaluation category | Weight |
+|---|---:|
+| Task Completion | 30 |
+| Quality & Standards | 25 |
+| Reliability | 15 |
+| Knowledge Sharing | 10 |
+| Documentation | 10 |
+| Growth & Initiative | 10 |
+| Total | 100 |
+
+Each category is rated from 1 to 5.
+
+### Calculation
+
+For every applicable category:
+
+Category Score = (Rating / 5) × Category Weight.
+
+Total Score = Sum of all applicable category scores.
+
+When all six categories are applicable, the maximum total is 100.
+
+Use decimal-safe calculations and a documented rounding rule. Keep unrounded values internally and round the displayed total consistently.
+
+### N/A fairness rule
+
+If a category cannot be assessed because the member had no actual opportunity to demonstrate it, mark it N/A rather than zero.
+
+Recalculate the score proportionally using the remaining applicable weights:
+
+Adjusted Score = Sum of Applicable Category Scores / Sum of Applicable Category Weights × 100.
+
+If no categories are applicable, mark the evaluation as Not Evaluated rather than producing a misleading zero.
+
+Record the reason for every N/A.
+
+### Performance bands
+
+Use the policy's thresholds:
+
+- 90–100: Outstanding Performance.
+- 75–89: Strong Performance.
+- 60–74: Needs Improvement.
+- Below 60: Coaching / Guidance Session.
+
+Preserve the exact underlying numeric score. Display the band separately.
+
+The score alone must never automatically trigger disciplinary action.
+
+### Evaluation workflow
+
+1. Evaluation period is opened.
+2. The member completes a self-assessment where enabled.
+3. The Team Lead rates the applicable categories and provides evidence.
+4. The system validates ratings, weights, and N/A explanations.
+5. HR reviews the evaluation.
+6. The evaluation is finalized by an authorized person.
+7. The member is notified.
+8. A feedback session is scheduled and documented.
+9. Development actions and follow-up dates are tracked.
+
+Support draft, submitted, under review, finalized, and reopened states with explicit permissions.
+
+Finalized evaluations must not be silently overwritten. Corrections require an authorized amendment with a recorded reason.
+
+## 13. TEAM-SPECIFIC EVALUATION CRITERIA
+
+The policy requires specialized evaluation according to team responsibilities.
+
+Implement configurable criteria templates for the following teams.
+
+### Human Resources (HR)
+
+- Communication and Member Support.
+- Confidentiality of Records.
+- Member Integration and Follow-up.
+- Fairness of Evaluation.
+
+### Public Relations (PR)
+
+- Professionalism of Official Correspondence.
+- Partnership Documentation and Follow-up.
+- Sponsor Suitability.
+- Respect for Authorization Boundaries.
+
+### Operations & Logistics (OR)
+
+- Logistics Preparation.
+- Coordination and Crisis Management.
+- Resource Management.
+- Post-Event Documentation.
+
+### Media & Creative
+
+- Visual Identity Compliance.
+- Production Quality.
+- Scheduling and Archiving.
+- Early Coordination.
+
+Each criterion must support a rating from 1 to 5 and documented examples or evidence.
+
+The policy does not prescribe exact numeric weights for these non-technical team-specific criteria. Do not invent official weights.
+
+Allow authorized administrators to configure a criteria template, record its effective date, and maintain version history.
+
+### Technical tracks
+
+Support specialized evaluation templates for:
+
+**Web Development**
+- Clean Code.
+- Git and Pull Request workflow.
+- Testing.
+- Accessibility.
+- Security.
+
+**Flutter Development**
+- Architecture.
+- UI implementation.
+- State Management.
+- Documentation.
+- GitHub workflow.
+
+**UI/UX Design**
+- User Research.
+- User Flows.
+- Design System consistency.
+- Figma file organization.
+
+**Embedded Systems**
+- Circuit Design.
+- Code efficiency.
+- Hardware testing.
+- Safety.
+- Fault documentation.
+
+**Cybersecurity**
+- Scope compliance.
+- Authorized testing environments.
+- Vulnerability documentation.
+- Prohibition of unauthorized testing.
+
+Do not fabricate weights for these specialized criteria. Make templates configurable and distinguish approved policy rules from locally configured evaluation details.
+
+## 14. EDUCATIONAL TRACKS AND INSTRUCTORS
+
+Implement a separate educational evaluation module.
+
+### A. Attendee evaluation — 100 points
+
+Use the official weights:
+
+| Criterion | Points |
+|---|---:|
+| Attendance and Punctuality | 40 |
+| Assignments and Practical Projects | 30 |
+| Participation and Interaction | 20 |
+| Conduct and Collaboration | 10 |
+| Total | 100 |
+
+Record session attendance, assignment completion, participation evidence, and conduct-related notes where relevant.
+
+A certificate of completion is associated with a score of at least 75%.
+
+Implement certificate eligibility calculation. Actual issuance or certificate generation may be added through an authorized workflow.
+
+Do not automatically disqualify an attendee because data is missing. Distinguish incomplete evaluation from a confirmed low score.
+
+### B. Lead Instructor evaluation — 100 points
+
+Use the exact weights:
+
+| Criterion | Points |
+|---|---:|
+| Punctuality | 25 |
+| Preparation and Material Quality | 25 |
+| Explanation and Interaction | 25 |
+| Student Follow-up | 15 |
+| Professionalism and Collaboration | 10 |
+| Total | 100 |
+
+Store supporting observations, evaluator identity, evaluation period, and feedback.
+
+### C. Teaching Assistants and Mentors
+
+Track relevant responsibilities:
+
+- Helping attendees resolve bugs during practical workshops.
+- Reviewing tasks in coordination with the instructor.
+- Helping students understand errors rather than merely providing direct solutions.
+- Preparing development environments and GitHub repositories.
+
+Support configurable role-specific criteria without inventing official weights.
+
+### D. Educational tracks
+
+Associate evaluations with a specific course, track, cohort, instructor, and evaluation period.
+
+Keep educational evaluations distinct from the standard member monthly performance score unless an explicitly approved workflow links them.
+
+## 15. FEEDBACK AND DEVELOPMENT
+
+Implement a dedicated feedback management module.
+
+Every feedback record should include:
+
+- Member.
+- Feedback provider.
+- Related evaluation or incident.
+- Date.
+- Strengths.
+- Improvement area.
+- Concrete next step.
+- Support required.
+- Follow-up date.
+- Member comments, where appropriate.
+- Completion status.
+
+A monthly feedback summary must include at least:
+
+1. One strength.
+2. One development action.
+3. Required support.
+4. Follow-up date.
+
+Feedback must be constructive and evidence-based.
+
+Support private HR notes separately from member-visible feedback.
+
+## 16. APPEALS AND GRIEVANCES
+
+Implement the official appeal mechanism.
+
+A member has the right to submit a written grievance within seven working days of notification of a deduction or evaluation.
+
+The review must be conducted by a neutral reviewer or community leadership, with no negative consequences merely for submitting a good-faith appeal.
+
+### Required functionality
+
+- Create an appeal linked to the relevant point record or evaluation.
+- Record the original notification timestamp.
+- Calculate and display the deadline.
+- Allow the member to explain the objection and attach evidence.
+- Track submission and review statuses.
+- Assign an authorized neutral reviewer.
+- Record reviewer findings and the final decision.
+- Notify the member of the outcome.
+- Preserve the original decision and all subsequent adjustments.
+- Provide a complete audit trail.
+
+Use a configurable working-day calendar for deadline calculation. Do not assume that weekends or public holidays follow a particular calendar unless it is configured and approved.
+
+The system must show how the deadline was calculated.
+
+Suggested statuses:
+
+- Draft.
+- Submitted.
+- Under Review.
+- Additional Information Requested.
+- Upheld.
+- Partially Upheld.
+- Overturned.
+- Closed.
+
+These are workflow states, not additional policy penalties.
+
+## 17. ATTENDANCE, SESSIONS, AND COMMUNICATION
+
+Create a module for official meetings, sessions, and events.
+
+Support:
+
+- Event title and type.
+- Event date and time.
+- Mandatory or optional attendance.
+- Responsible team.
+- Attendance records.
+- Absence notifications.
+- Absence explanations.
+- Session recording links when authorized.
+- Follow-up actions.
+- Related tasks.
+
+The policy specifies that important messages should generally be acknowledged within 24 hours unless otherwise announced.
+
+However, it also states that members are not expected to be available at all times and that reasonable response windows must be defined.
+
+Therefore:
+
+- Support configurable response windows.
+- Record the relevant message or communication reference when available.
+- Allow reminders and documented follow-ups.
+- Do not claim that the system automatically tracks WhatsApp response times unless an authorized integration actually provides that data.
+- Never treat a missing integration record as proof of misconduct.
+- Require the documented prior reminder and actual collaborative impact before considering the relevant negative-point category.
+
+Respect academic, medical, and emergency circumstances as described by the policy.
+
+## 18. HR DASHBOARD AND ANALYTICS
+
+Create role-specific dashboards.
+
+### HR Dashboard
+
+Display:
+
+- Total active members.
+- Members by team.
+- Tasks by status.
+- Overdue tasks requiring review.
+- Pending positive-point submissions.
+- Pending negative-point reviews.
+- Evaluations awaiting completion.
+- Evaluations awaiting HR review.
+- Upcoming feedback sessions.
+- Open PIPs.
+- Open appeals.
+- Cases approaching their review deadlines.
+- Monthly performance distribution.
+- Monthly positive and negative points trends.
+
+### Team Lead Dashboard
+
+Display only the assigned team's authorized data:
+
+- Team members.
+- Assigned tasks and deadlines.
+- Task completion rate.
+- Outstanding submissions.
+- Pending task reviews.
+- Evaluation completion.
+- Follow-up actions.
+
+### Member Dashboard
+
+Display:
+
+- Personal task list.
+- Upcoming deadlines.
+- Task progress.
+- Approved positive and negative points.
+- Pending point records where disclosure is permitted.
+- Monthly evaluation history.
+- Feedback action items.
+- Appeal status.
+- Upcoming relevant sessions.
+
+### Analytics safeguards
+
+- Clearly label draft, pending, and approved data.
+- Define every metric.
+- Show the reporting period.
+- Avoid misleading rankings based on incomplete evaluations.
+- Do not equate fewer logged violations with better performance without sufficient context.
+- Do not publicly rank individual members by disciplinary records.
+
+## 19. REPORTS AND EXPORTS
+
+Implement reports for:
+
+- Member performance history.
+- Monthly evaluations.
+- Team performance.
+- Points ledger.
+- Pending reviews.
+- Feedback and PIP progress.
+- Attendance and sessions.
+- Appeals and grievance outcomes.
+- Educational track evaluations.
+- HR operational KPIs.
+
+Provide CSV exports and, where practical, XLSX exports.
+
+Support filters by team, member, month, evaluation status, and category.
+
+All exports must enforce the same permissions as the application.
+
+Record exports of sensitive data in the audit log.
+
+Do not include confidential investigation notes in ordinary reports.
+
+## 20. HR OPERATIONAL KPIs
+
+Implement a separate HR operational performance dashboard based on the HR-specific criteria in the policy.
+
+The HR evaluation criteria are:
+
+1. Communication and member support.
+2. Confidentiality of records.
+3. Member integration and follow-up.
+4. Fairness of evaluation.
+
+Rate each criterion from 1 to 5, provide documented evidence, and maintain monthly history.
+
+The policy does not define numeric weights for these four HR-specific criteria. Do not fabricate them.
+
+Allow an authorized administrator to configure approved weights or use an unweighted average with an explicit label indicating that it is a locally selected configuration rather than an official policy weight.
+
+Also track the organization's documented system-success indicators:
+
+- Task on-time delivery rate.
+- Response acknowledgement within 24 hours, where reliable data exists.
+- Changes in warning frequency.
+- Improvement in member performance.
+- Community satisfaction survey results.
+
+Clearly distinguish measured values from manually reported or unavailable data.
+
+## 21. POLICY MANAGEMENT AND VERSIONING
+
+Build a policy settings area for authorized administrators.
+
+It should manage:
+
+- Policy versions.
+- Effective dates.
+- Point categories and values.
+- Monthly positive-point caps.
+- Cap-category mappings.
+- Net-point classification thresholds.
+- Evaluation weights.
+- Team-specific criteria.
+- Educational evaluation criteria.
+- Working-day calendars.
+- Notification preferences.
+- Required approval workflows.
+
+Each published policy version must be immutable for historical interpretation.
+
+New policy changes must be effective prospectively, with prior notice where required.
+
+Do not retroactively apply a new policy to finalized historical evaluations or point records without an explicitly authorized, documented correction process.
+
+Include a source-policy review screen listing unresolved ambiguities, such as category mapping and unspecified criteria weights.
+
+Policy settings must not enable arbitrary changes that bypass validation or audit logging.
+
+## 22. DATABASE DESIGN
+
+Create a normalized relational PostgreSQL schema with foreign keys, indexes, constraints, and migrations.
+
+Include appropriate tables or equivalent relational entities for:
+
+- profiles.
+- user_roles.
+- permissions.
+- teams.
+- team_memberships.
+- membership_history.
+- tasks.
+- task_assignees.
+- task_deliverables.
+- task_status_history.
+- task_delay_requests.
+- events.
+- attendance_records.
+- point_categories.
+- point_cap_categories.
+- point_cap_mappings.
+- point_events.
+- point_event_evidence.
+- point_event_reviews.
+- policy_versions.
+- policy_settings.
+- evaluation_templates.
+- evaluation_template_versions.
+- evaluation_categories.
+- evaluation_periods.
+- evaluations.
+- evaluation_ratings.
+- evaluation_evidence.
+- evaluation_review_history.
+- feedback_sessions.
+- feedback_action_items.
+- improvement_plans.
+- incidents.
+- incident_evidence.
+- incident_reviews.
+- escalation_history.
+- appeals.
+- appeal_reviews.
+- educational_tracks.
+- educational_cohorts.
+- educational_sessions.
+- attendees.
+- attendee_evaluations.
+- instructor_evaluations.
+- mentor_evaluations.
+- notifications.
+- notification_preferences.
+- audit_logs.
+- import_jobs.
+- application_settings.
+
+You may consolidate or extend these entities when a better normalized design is justified. Avoid unnecessary duplication.
+
+### Database requirements
+
+- Use UUIDs or another consistent, robust identifier strategy.
+- Add created_at and updated_at where appropriate.
+- Use explicit foreign-key relationships.
+- Add indexes for common queries.
+- Use database transactions for consequential multi-step operations.
+- Use numeric types appropriate for scores and fractional values.
+- Prevent invalid point values and ratings with constraints.
+- Store timestamps consistently and render them in the configured local timezone.
+- Use soft deletion only where appropriate.
+- Preserve historical records and immutable event history.
+- Use secure storage for uploaded evidence.
+- Keep secrets out of database records and client bundles.
+- Use server-side pagination for large tables.
+
+Do not store the current points balance as an independently editable source of truth. Calculate it from the approved ledger or maintain a transactionally consistent derived summary with reconciliation.
+
+## 23. AUTHENTICATION AND SECURITY
+
+Implement:
+
+- Secure sign-in and sign-out.
+- Session handling.
+- Password reset or an appropriate supported authentication flow.
+- Protected routes.
+- Server-side authorization.
+- PostgreSQL Row Level Security policies.
+- Least-privilege access.
+- Secure file access.
+- Input validation.
+- Output encoding.
+- Rate limiting for sensitive endpoints where practical.
+- Secure error handling.
+- Environment variable validation.
+- Protection against unauthorized privilege escalation.
+- Audit logging for consequential actions.
+
+Do not trust role names or member IDs supplied by the client.
+
+Use verified server-side identities and database authorization.
+
+Do not expose Supabase service-role credentials to the browser.
+
+Avoid leaking sensitive information through logs, error messages, URLs, or notifications.
+
+Design authorization tests proving that a member cannot read another member's confidential records, even by directly calling an API or querying an endpoint.
+
+## 24. AUDIT LOGGING
+
+Maintain a tamper-resistant audit history for important operations.
+
+Record:
+
+- Actor.
+- Action.
+- Entity type and ID.
+- Timestamp.
+- Relevant before-and-after values, with sensitive fields redacted.
+- Reason for the change.
+- Approval or review reference where applicable.
+- Request correlation identifier where useful.
+
+Include events for:
+
+- Point submissions and approvals.
+- Evaluation submissions and finalization.
+- Policy changes.
+- Permission changes.
+- Incident decisions.
+- Appeals and appeal decisions.
+- Member imports.
+- Sensitive exports.
+- Changes to deadlines or evaluation criteria.
+
+Do not allow ordinary users to edit or delete audit records.
+
+## 25. NOTIFICATIONS
+
+Implement an in-app notification center.
+
+Support notifications for:
+
+- Task assignment.
+- Approaching deadlines.
+- Task submission and review.
+- Revision requests.
+- Point-event submission.
+- Point approval or rejection.
+- Monthly evaluation submission and finalization.
+- Feedback session scheduling.
+- PIP follow-up dates.
+- Appeal deadlines and status changes.
+- Relevant administrative decisions.
+
+Add configurable reminders and a notification preferences page.
+
+Email integration may be implemented when credentials are available.
+
+WhatsApp integration must not be assumed. Implement it only if an authorized API or provider is explicitly configured.
+
+Avoid sending confidential incident details in ordinary email or external notifications. Use a secure link to the authorized application view instead.
+
+## 26. MONTHLY WORKFLOW AND REPORTING CYCLE
+
+Implement the operational cycle described in the policy.
+
+### Beginning of the month
+
+- Announce goals.
+- Define tasks, deliverables, deadlines, and responsibilities.
+- Publish the applicable evaluation criteria.
+- Confirm the policy version.
+
+### During the month
+
+- Update task status.
+- Record deliverables and evidence.
+- Identify blockers.
+- Handle justified delay requests.
+- Record point recommendations and reviews.
+- Schedule support and corrective action when necessary.
+
+### End of the month
+
+- Collect member self-assessments where enabled.
+- Collect Team Lead evaluations.
+- Validate evidence and missing data.
+- Review and finalize monthly scores.
+- Conduct feedback sessions.
+- Create development action plans where appropriate.
+
+### End of the season
+
+- Review the system's overall effectiveness.
+- Analyze task delivery, communication, warning trends, and member satisfaction.
+- Review the process with community members.
+- Publish future policy changes prospectively.
+
+Do not automatically carry forward unfinished evaluations as finalized records.
+
+## 27. USER INTERFACE PAGES
+
+Implement the following pages and working workflows.
+
+### Public / Authentication
+
+- Sign-in.
+- Password reset.
+- Unauthorized access.
+- Not-found page.
+
+### Dashboard
+
+- Role-specific metrics.
+- Recent activity.
+- Pending actions.
+- Upcoming deadlines.
+
+### Members
+
+- Directory.
+- Create member.
+- Edit permitted profile fields.
+- Member detail.
+- Membership history.
+- Import members.
+
+### Teams
+
+- Team directory.
+- Team detail.
+- Member assignment.
+- Team Lead assignment.
+- Criteria templates.
+
+### Tasks
+
+- Task list.
+- Task detail.
+- Create and edit task.
+- Assign members.
+- Submit deliverables.
+- Review submissions.
+- Delay requests.
+- Status history.
+
+### Points
+
+- Ledger.
+- New point recommendation.
+- Evidence upload or linking.
+- Review queue.
+- Point record detail.
+- Monthly cap usage.
+- Member point summary.
+
+### Evaluations
+
+- Evaluation periods.
+- Evaluation templates.
+- Member self-assessment.
+- Team Lead assessment.
+- HR review.
+- Finalized evaluation detail.
+- Evaluation history.
+
+### Feedback and PIP
+
+- Feedback calendar.
+- Feedback session detail.
+- Development actions.
+- PIP list and detail.
+- Follow-up tracking.
+
+### Incidents
+
+- Incident list.
+- Incident creation.
+- Evidence management.
+- Review and escalation.
+- Case history.
+- Restricted case details.
+
+### Appeals
+
+- Member appeal submission.
+- Appeal tracking.
+- Reviewer queue.
+- Appeal decision.
+- Deadline tracking.
+
+### Educational Tracks
+
+- Track and cohort management.
+- Sessions.
+- Attendance.
+- Attendee evaluations.
+- Instructor evaluations.
+- Mentor records.
+- Certificate eligibility.
+
+### Reports
+
+- Organization overview.
+- Team reports.
+- Monthly evaluation reports.
+- Points reports.
+- Feedback and PIP reports.
+- Appeals reports.
+- Educational reports.
+- Export history.
+
+### Administration
+
+- User and role management.
+- Permission matrix.
+- Policy version management.
+- Evaluation templates.
+- Cap mappings.
+- Working-day calendar.
+- Notification settings.
+- Audit log.
+- System settings.
+
+Every visible primary action must either work or be clearly marked as unavailable due to missing configuration.
+
+## 28. SAMPLE DATA AND DEMONSTRATION MODE
+
+Provide a safe development seed dataset containing fictional members, teams, tasks, point events, evaluations, and feedback examples.
+
+Clearly identify all seed records as demonstration data.
+
+Do not use actual member data in publicly accessible demonstrations.
+
+Make seed scripts repeatable and safe for development.
+
+Never automatically seed production with demonstration users or default administrator credentials.
+
+## 29. IMPORTING EXISTING EXCEL DATA
+
+Support migration from existing HR spreadsheets.
+
+Provide import templates for:
+
+- Members.
+- Teams.
+- Tasks.
+- Historical point events.
+- Historical monthly evaluations.
+
+Each import must validate data and provide a preview.
+
+Historical records must preserve their original dates, values, explanations, and available evidence references.
+
+Mark imported records with their import source and timestamp.
+
+Do not fabricate missing evidence, approval history, or reviewer identities.
+
+If historical approval data is unavailable, represent that limitation explicitly instead of falsely labeling an old record as formally approved.
+
+## 30. TESTING REQUIREMENTS
+
+Write and run meaningful automated tests.
+
+### Points system tests
+
+- Correct positive and negative values.
+- Correct approved-balance calculation.
+- Pending events excluded from the official balance.
+- Monthly cap enforcement.
+- Correct category mapping.
+- Duplicate-event protection.
+- Invalid event values rejected.
+- Corrections preserve history.
+- Serious violations route to investigation without invented penalties.
+
+### Performance evaluation tests
+
+- Exact six-category weighting.
+- Rating range validation from 1 to 5.
+- Maximum score of 100 when all categories are applicable and rated 5.
+- Correct N/A proportional recalculation.
+- All-N/A evaluations return Not Evaluated.
+- Correct performance band classification.
+- No coupling between the point balance and the monthly score.
+
+### Appeals tests
+
+- Deadline calculated from the original notification timestamp.
+- Configured working days respected.
+- Member can access only their own appeal.
+- Reviewer authorization enforced.
+- Decision and history preserved.
+
+### Security tests
+
+- Member cannot access another member's private data.
+- Team Lead cannot access unauthorized teams.
+- HR Reviewer cannot approve unauthorized cases.
+- Client-side role manipulation does not grant access.
+- RLS blocks unauthorized database access.
+- Sensitive attachments cannot be accessed without authorization.
+
+### Workflow tests
+
+- Task creation and assignment.
+- Deliverable submission and review.
+- Point submission and approval.
+- Evaluation submission and finalization.
+- Feedback creation.
+- PIP follow-up.
+- Appeal submission and decision.
+- Import validation.
+- Export authorization.
+
+Run linting, type checking, unit tests, and production builds.
+
+Fix failures caused by your implementation.
+
+Do not claim that tests passed unless they were actually run successfully.
+
+## 31. DEFINITION OF DONE
+
+The implementation is complete only when:
+
+1. The application has a coherent, working navigation system.
+2. Authentication works or its external configuration requirements are documented.
+3. Roles and permissions are enforced server-side.
+4. Database migrations are present and consistent.
+5. Members and teams can be managed.
+6. Tasks can be assigned, updated, submitted, and reviewed.
+7. The points ledger calculates approved balances correctly.
+8. Monthly caps and ambiguous mappings are handled safely.
+9. Monthly evaluations calculate scores and N/A adjustments correctly.
+10. Educational evaluations use the official documented weights.
+11. Feedback, PIP, incidents, and appeals have functional workflows.
+12. Audit logs capture consequential changes.
+13. Reports and authorized exports work.
+14. Forms validate input and display useful errors.
+15. Core business logic has automated tests.
+16. The application passes available lint, type-check, and production-build checks.
+17. Setup, environment variables, database migration, seed data, and deployment instructions are documented.
+18. No critical user-facing workflow relies on fake data or placeholder behavior in the completed scope.
+19. Security and data access assumptions are explicitly documented.
+20. Any unresolved policy ambiguity is clearly reported rather than silently decided.
+
+## 32. EXECUTION STRATEGY
+
+Follow this execution order.
+
+### Phase 1 — Inspect
+
+- Inspect the repository and available tools.
+- Read existing documentation and project configuration.
+- Identify reusable components and existing functionality.
+- Review the complete source policy available in the working environment.
+- Record policy ambiguities that affect implementation.
+
+### Phase 2 — Architecture
+
+- Define the application structure.
+- Design the relational data model.
+- Define roles and permissions.
+- Define point calculations and evaluation formulas.
+- Define workflows and state transitions.
+- Define the unresolved policy decisions.
+
+### Phase 3 — Foundation
+
+- Configure the framework and dependencies.
+- Build the visual design system.
+- Implement authentication and protected layouts.
+- Create database migrations and seed scripts.
+- Implement core authorization and audit infrastructure.
+
+### Phase 4 — Core Business Modules
+
+Implement in this order:
+
+1. Members and teams.
+2. Tasks and deliverables.
+3. Points ledger and cap handling.
+4. Monthly evaluations.
+5. Feedback and PIP.
+6. Incidents, escalation, and appeals.
+7. Attendance and educational tracks.
+8. Dashboards, analytics, and exports.
+9. Policy administration and integrations.
+
+### Phase 5 — Verification
+
+- Run database and authorization checks.
+- Run unit and integration tests.
+- Run browser-level tests for critical workflows.
+- Test Arabic RTL and English LTR.
+- Test responsive layouts.
+- Fix discovered defects.
+- Verify production build.
+
+### Phase 6 — Handover
+
+Deliver:
+
+- Complete source code.
+- Database migrations.
+- Safe seed data.
+- Environment variable example file.
+- Setup guide.
+- Deployment guide.
+- Test instructions and actual test results.
+- Feature implementation checklist.
+- Security notes.
+- Unresolved policy decisions requiring human approval.
+
+## 33. FINAL OPERATING INSTRUCTIONS
+
+Start by inspecting the current environment and existing repository.
+
+Then begin implementation immediately.
+
+Do not stop after producing architecture notes or a list of proposed files.
+
+Do not ask the user to manually implement code that you can implement using available tools.
+
+Make reasonable, reversible engineering decisions without unnecessary clarification.
+
+When a decision changes official policy or affects consequential HR outcomes, do not guess. Implement the safe workflow and clearly flag the required human decision.
+
+Work incrementally, keep the application runnable, and verify each major phase before moving forward.
+
+If execution limits prevent completion in one run, leave the repository in a working state, identify exactly what has been completed, list remaining tasks, and continue from the existing implementation in the next run.
+
+Your final response must report:
+
+- What was actually implemented.
+- The application architecture and technology stack.
+- Database and authentication status.
+- Working modules and workflows.
+- Tests actually executed and their results.
+- Any missing credentials or deployment steps.
+- Any unresolved policy ambiguities.
+- Exact instructions for running the application locally and deploying it.
+
+**Begin now. Inspect the environment and implement the application.**
