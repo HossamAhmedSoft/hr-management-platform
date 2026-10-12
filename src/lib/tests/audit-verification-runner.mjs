@@ -276,7 +276,7 @@ console.log("=================================================\n");
 
   const passed =
     !memberCanSeeAudit &&
-    !memberCanSeePolicy &&
+    memberCanSeePolicy &&
     !memberCanSeeKpis &&
     !memberCanSeeMembers &&
     !memberCanSeeTeams &&
@@ -287,10 +287,10 @@ console.log("=================================================\n");
 
   assert(
     "TEST-9",
-    "Authorization isolation: Member blocked from /audit-log, /policy, /hr-kpis, /members, /teams, /education; Admin allowed",
+    "Authorization isolation: Member allowed /policy, blocked from /audit-log, /hr-kpis, /members, /teams, /education; Admin allowed",
     passed,
-    "Member blocked, Admin allowed",
-    `Member Audit: ${memberCanSeeAudit}, Member Members: ${memberCanSeeMembers}, Member Teams: ${memberCanSeeTeams}, Member Education: ${memberCanSeeEducation}`
+    "Member allowed /policy, Admin allowed all",
+    `Member Audit: ${memberCanSeeAudit}, Member Policy: ${memberCanSeePolicy}, Member Teams: ${memberCanSeeTeams}`
   );
 }
 

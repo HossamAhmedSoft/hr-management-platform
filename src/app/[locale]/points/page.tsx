@@ -144,8 +144,12 @@ export default function PointsPage() {
   }, [memberParam]);
 
   useEffect(() => {
-    if (!targetMember && selectableUsers.length > 0) {
-      setTargetMember(selectableUsers[0].id);
+    if (selectableUsers.length > 0) {
+      if (!targetMember || !selectableUsers.some((u) => u.id === targetMember)) {
+        setTargetMember(selectableUsers[0].id);
+      }
+    } else {
+      setTargetMember("");
     }
   }, [selectableUsers, targetMember]);
 

@@ -160,13 +160,6 @@ export default function AttendancePage() {
     reloadData();
   }, []);
 
-  // Set default meeting for excuse modal if meetings exist
-  useEffect(() => {
-    if (!excuseFormData.meeting_id && meetings.length > 0) {
-      setExcuseFormData((prev) => ({ ...prev, meeting_id: meetings[0].id }));
-    }
-  }, [meetings, excuseFormData.meeting_id]);
-
   // ── Stats Calculations ───────────────────────────────────
   const totalMeetings = meetings.length;
   const completedMeetings = meetings.filter((m) => m.attendance_taken || m.status === "completed").length;
@@ -263,6 +256,33 @@ export default function AttendancePage() {
 
     return list;
   }, [meetings, excuses, currentUser]);
+
+  // ── Member vs Admin Displayed Stats ───────────────────────
+  const memberPresentCount = myAttendanceRecords.filter((r) => r.record?.status === "present").length;
+  const memberExcusedCount = visibleExcuses.filter((e) => e.status === "approved").length;
+  const memberAbsentCount = myAttendanceRecords.filter((r) => r.record?.status === "absent").length;
+  const memberPendingExcusesCount = visibleExcuses.filter((e) => e.status === "pending").length;
+
+  const displayTotalMeetings = isMember ? filteredMeetings.length : totalMeetings;
+  const displayAttendanceRate = isMember
+    ? (memberPresentCount + memberAbsentCount > 0
+        ? Math.round((memberPresentCount / (memberPresentCount + memberAbsentCount + memberExcusedCount)) * 100)
+        : 100)
+    : attendanceRate;
+  const displayExcusedCount = isMember ? memberExcusedCount : totalExcusedCount;
+  const displayAbsentCount = isMember ? memberAbsentCount : totalAbsentCount;
+  const displayPendingCount = isMember ? memberPendingExcusesCount : pendingExcusesCount;
+
+  // Set default meeting for excuse modal from strictly eligible meetings
+  useEffect(() => {
+    if (eligibleMeetingsForExcuse.length > 0) {
+      if (!excuseFormData.meeting_id || !eligibleMeetingsForExcuse.some((m) => m.id === excuseFormData.meeting_id)) {
+        setExcuseFormData((prev) => ({ ...prev, meeting_id: eligibleMeetingsForExcuse[0].id }));
+      }
+    } else {
+      setExcuseFormData((prev) => ({ ...prev, meeting_id: "" }));
+    }
+  }, [eligibleMeetingsForExcuse, excuseFormData.meeting_id]);
 
   // ── Helper to find member status in meeting ──────────────
   const getMemberStatusInMeeting = (meeting: MeetingAttendanceEvent) => {
@@ -769,10 +789,10 @@ export default function AttendancePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">
-                {isAr ? "إجمالي الاجتماعات" : "Total Meetings"}
+                {isAr ? (isMember ? "اجتماعاتي المقررة" : "إجمالي الاجتماعات") : (isMember ? "My Assigned Meetings" : "Total Meetings")}
               </p>
               <h3 className="text-xl font-bold tracking-tight text-foreground">
-                {totalMeetings}
+                {displayTotalMeetings}
               </h3>
             </div>
           </div>
@@ -785,10 +805,10 @@ export default function AttendancePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">
-                {isAr ? "نسبة الحضور الإجمالية" : "Attendance Rate"}
+                {isAr ? (isMember ? "نسبة حضوري الشخصي" : "نسبة الحضور الإجمالية") : (isMember ? "My Attendance Rate" : "Attendance Rate")}
               </p>
               <h3 className="text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-                {attendanceRate}%
+                {displayAttendanceRate}%
               </h3>
             </div>
           </div>
@@ -801,10 +821,10 @@ export default function AttendancePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">
-                {isAr ? "الأعذار المعتمدة" : "Approved Excuses"}
+                {isAr ? (isMember ? "أعذاري المعتمدة" : "الأعذار المعتمدة") : (isMember ? "My Approved Excuses" : "Approved Excuses")}
               </p>
               <h3 className="text-xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
-                {totalExcusedCount}
+                {displayExcusedCount}
               </h3>
             </div>
           </div>
@@ -817,10 +837,10 @@ export default function AttendancePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">
-                {isAr ? "عقوبات الغياب المطبقة" : "Penalized Absences"}
+                {isAr ? (isMember ? "غيابي المسجل" : "عقوبات الغياب المطبقة") : (isMember ? "My Recorded Absences" : "Penalized Absences")}
               </p>
               <h3 className="text-xl font-bold tracking-tight text-rose-600 dark:text-rose-400">
-                {totalAbsentCount}
+                {displayAbsentCount}
               </h3>
             </div>
           </div>
@@ -833,10 +853,10 @@ export default function AttendancePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">
-                {isAr ? "أعذار قيد المراجعة" : "Pending Excuses"}
+                {isAr ? (isMember ? "أعذاري قيد النظر" : "أعذار قيد المراجعة") : (isMember ? "My Pending Excuses" : "Pending Excuses")}
               </p>
               <h3 className="text-xl font-bold tracking-tight text-purple-600 dark:text-purple-400">
-                {pendingExcusesCount}
+                {displayPendingCount}
               </h3>
             </div>
           </div>
@@ -1599,6 +1619,14 @@ export default function AttendancePage() {
                   : "💡 Advance excuse submission protects you from point deductions and warning notices under policy."}
               </div>
 
+              {eligibleMeetingsForExcuse.length === 0 && (
+                <div className="p-3 rounded-lg bg-amber-500/10 text-amber-800 dark:text-amber-200 text-xs">
+                  {isAr
+                    ? "⚠️ لا توجد اجتماعات مستقبلية متاحة لتقديم عذر عنها في الوقت الحالي."
+                    : "⚠️ No upcoming meetings currently available to submit an excuse for."}
+                </div>
+              )}
+
               <DialogFooter className="pt-2">
                 <Button
                   type="button"
@@ -1608,7 +1636,12 @@ export default function AttendancePage() {
                 >
                   {isAr ? "إلغاء" : "Cancel"}
                 </Button>
-                <Button type="submit" size="sm" className="bg-primary text-white">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!excuseFormData.meeting_id || eligibleMeetingsForExcuse.length === 0}
+                  className="bg-primary text-white"
+                >
                   {isAr ? "إرسال طلب العذر" : "Submit Excuse"}
                 </Button>
               </DialogFooter>

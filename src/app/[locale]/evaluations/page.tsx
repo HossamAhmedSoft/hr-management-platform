@@ -103,8 +103,12 @@ export default function EvaluationsPage() {
   const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
 
   React.useEffect(() => {
-    if (!selectedMemberId && evalTargetUsers.length > 0) {
-      setSelectedMemberId(evalTargetUsers[0].id);
+    if (evalTargetUsers.length > 0) {
+      if (!selectedMemberId || !evalTargetUsers.some((u) => u.id === selectedMemberId)) {
+        setSelectedMemberId(evalTargetUsers[0].id);
+      }
+    } else {
+      setSelectedMemberId("");
     }
   }, [evalTargetUsers, selectedMemberId]);
 

@@ -99,8 +99,12 @@ export default function IncidentsPage() {
   }, [availableUsers, currentUser, userRole, incidentTeamFilter]);
 
   React.useEffect(() => {
-    if (!targetMemberId && selectableUsersForIncident.length > 0) {
-      setTargetMemberId(selectableUsersForIncident[0].id);
+    if (selectableUsersForIncident.length > 0) {
+      if (!targetMemberId || !selectableUsersForIncident.some((u) => u.id === targetMemberId)) {
+        setTargetMemberId(selectableUsersForIncident[0].id);
+      }
+    } else {
+      setTargetMemberId("");
     }
   }, [selectableUsersForIncident, targetMemberId]);
 

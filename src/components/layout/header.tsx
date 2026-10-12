@@ -19,6 +19,8 @@ import {
   TrendingUp,
   CheckCheck,
   Clock,
+  Users,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -33,6 +35,7 @@ interface HeaderProps {
 export function Header({ onToggleSidebar }: HeaderProps) {
   const {
     currentUser,
+    login,
     locale,
     toggleLocale,
     theme,
@@ -48,6 +51,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   } = useApp();
 
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showPersonaSwitcher, setShowPersonaSwitcher] = useState(false);
   const isAr = locale === "ar";
   const isMember = currentUser?.role === "member";
 
@@ -438,6 +442,99 @@ export function Header({ onToggleSidebar }: HeaderProps) {
               </div>
             </>
           )}
+          </div>
+
+          {/* Quick Persona Switcher (For Evaluation & Role Testing) */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPersonaSwitcher(!showPersonaSwitcher)}
+              className="h-8 px-2 rounded-lg text-xs font-semibold gap-1.5 text-foreground hover:bg-muted border-primary/20 bg-primary/5 hover:bg-primary/10"
+              title={isAr ? "تبديل الحساب السريع لاختبار وتجربة الأدوار المختلفة" : "Quick Persona Switcher"}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
+              <span className="hidden sm:inline text-[11px] font-medium">
+                {isAr ? "تبديل الدور" : "Switch Role"}
+              </span>
+              <ChevronDown className="w-3 h-3 text-muted-foreground hidden sm:inline" />
+            </Button>
+
+            {showPersonaSwitcher && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/20"
+                  onClick={() => setShowPersonaSwitcher(false)}
+                />
+                <div
+                  className={cn(
+                    "absolute top-10 z-50 w-72 sm:w-80 p-3 bg-card rounded-xl shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150",
+                    isAr ? "left-0" : "right-0"
+                  )}
+                >
+                  <div className="pb-2 border-b border-border flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-primary" />
+                      {isAr ? "تجربة المنصة كـ شخصية محددة:" : "Test Platform as Persona:"}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-semibold">
+                      {availableUsers.length} {isAr ? "حساب" : "users"}
+                    </span>
+                  </div>
+
+                  <div className="py-2 space-y-1.5 max-h-72 overflow-y-auto">
+                    {availableUsers.map((u) => {
+                      const isCurrent =
+                        currentUser?.id === u.id ||
+                        (currentUser?.email &&
+                          u.email &&
+                          currentUser.email.toLowerCase() === u.email.toLowerCase());
+                      const uBadge = getRoleBadge(u.role);
+
+                      return (
+                        <button
+                          key={u.id}
+                          onClick={() => {
+                            login(u);
+                            setShowPersonaSwitcher(false);
+                            window.location.reload();
+                          }}
+                          className={cn(
+                            "w-full text-right rtl:text-right ltr:text-left p-2 rounded-lg text-xs flex items-center justify-between transition-colors border block cursor-pointer",
+                            isCurrent
+                              ? "bg-primary/10 border-primary/30 text-primary font-bold shadow-2xs"
+                              : "bg-muted/30 hover:bg-muted border-transparent text-foreground"
+                          )}
+                        >
+                          <div className="min-w-0 pr-2 rtl:pr-0 rtl:pl-2 text-right rtl:text-right ltr:text-left">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-foreground text-xs truncate max-w-[150px]">
+                                {u.full_name}
+                              </span>
+                              <span
+                                className={`text-[9px] font-semibold px-1 py-0.2 rounded border ${uBadge.color}`}
+                              >
+                                {uBadge.label}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                              {u.email} • {u.team_id || "عام"}
+                            </p>
+                          </div>
+                          {isCurrent && <CheckCircle className="w-4 h-4 text-primary shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="pt-2 border-t border-border text-[10px] text-muted-foreground text-center">
+                    {isAr
+                      ? "💡 اضغط على أي شخصية للتبديل الفوري وتجربة صلاحياتها وواجهتها."
+                      : "💡 Click any persona to instantly preview their dashboard and access rights."}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* User Profile Pill & Logout */}

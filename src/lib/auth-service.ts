@@ -221,7 +221,8 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
     cleanPath === "/points" ||
     cleanPath === "/evaluations" ||
     cleanPath === "/appeals" ||
-    cleanPath === "/attendance"
+    cleanPath === "/attendance" ||
+    cleanPath === "/policy"
   ) {
     return true;
   }
@@ -251,7 +252,8 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
     );
   }
 
-  if (cleanPath === "/policy" || cleanPath === "/audit-log") {
+  // Security audit log: Super Admin and HR Admin only
+  if (cleanPath === "/audit-log") {
     return role === "super_admin" || role === "hr_admin";
   }
 

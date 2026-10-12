@@ -68,8 +68,12 @@ export default function FeedbackPage() {
   const [hrPrivateNotes, setHrPrivateNotes] = useState("");
 
   React.useEffect(() => {
-    if (!targetMemberId && selectableUsersForFeedback.length > 0) {
-      setTargetMemberId(selectableUsersForFeedback[0].id);
+    if (selectableUsersForFeedback.length > 0) {
+      if (!targetMemberId || !selectableUsersForFeedback.some((u) => u.id === targetMemberId)) {
+        setTargetMemberId(selectableUsersForFeedback[0].id);
+      }
+    } else {
+      setTargetMemberId("");
     }
   }, [selectableUsersForFeedback, targetMemberId]);
 

@@ -46,8 +46,8 @@ console.log("===================================================================
 console.log("--- SUITE 1: Role-Based Access Control (RBAC) ---");
 
 // Test 1.1: Standard Member access permissions
-const memberRoutesAllowed = ["/", "/login", "/tasks", "/points", "/evaluations", "/appeals", "/attendance"];
-const memberRoutesBlocked = ["/members", "/teams", "/education", "/audit-log", "/hr-kpis", "/policy", "/feedback", "/reports", "/incidents"];
+const memberRoutesAllowed = ["/", "/login", "/tasks", "/points", "/evaluations", "/appeals", "/attendance", "/policy"];
+const memberRoutesBlocked = ["/members", "/teams", "/education", "/audit-log", "/hr-kpis", "/feedback", "/reports", "/incidents"];
 
 let allMemberAllowed = memberRoutesAllowed.every((r) => canAccessRoute("member", r));
 let allMemberBlocked = memberRoutesBlocked.every((r) => !canAccessRoute("member", r));

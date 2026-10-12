@@ -111,15 +111,15 @@ export default function TasksPage() {
     return false;
   };
 
-  // Candidate assignees strictly scoped to selected team
+  // Candidate assignees strictly scoped to selected team (zero fallback to all)
   const candidateAssignees = React.useMemo(() => {
-    const list = availableUsers.filter((u) => isUserInTeam(u, newTeam));
-    return list.length > 0 ? list : availableUsers;
+    if (!newTeam || newTeam === "all") return availableUsers;
+    return availableUsers.filter((u) => isUserInTeam(u, newTeam));
   }, [availableUsers, newTeam]);
 
   const editCandidateAssignees = React.useMemo(() => {
-    const list = availableUsers.filter((u) => isUserInTeam(u, editTeam));
-    return list.length > 0 ? list : availableUsers;
+    if (!editTeam || editTeam === "all") return availableUsers;
+    return availableUsers.filter((u) => isUserInTeam(u, editTeam));
   }, [availableUsers, editTeam]);
 
   useEffect(() => {
@@ -132,10 +132,29 @@ export default function TasksPage() {
     if (!newTeam && teams.length > 0) {
       setNewTeam(teams[0].id);
     }
-    if (!newAssignee && candidateAssignees.length > 0) {
-      setNewAssignee(candidateAssignees[0].id);
+  }, [teams, newTeam]);
+
+  // Auto-sync newAssignee when candidateAssignees change
+  useEffect(() => {
+    if (candidateAssignees.length > 0) {
+      if (!newAssignee || !candidateAssignees.some((u) => u.id === newAssignee)) {
+        setNewAssignee(candidateAssignees[0].id);
+      }
+    } else {
+      setNewAssignee("");
     }
-  }, [teams, newTeam, candidateAssignees, newAssignee]);
+  }, [candidateAssignees, newAssignee]);
+
+  // Auto-sync editAssignee when editCandidateAssignees change
+  useEffect(() => {
+    if (editCandidateAssignees.length > 0) {
+      if (!editAssignee || !editCandidateAssignees.some((u) => u.id === editAssignee)) {
+        setEditAssignee(editCandidateAssignees[0].id);
+      }
+    } else {
+      setEditAssignee("");
+    }
+  }, [editCandidateAssignees, editAssignee]);
 
   // Precise assignment matching helper
   const isTaskAssignedTo = (task: Task, targetUserId?: string) => {
@@ -754,11 +773,17 @@ export default function TasksPage() {
                     onChange={(e) => setEditAssignee(e.target.value)}
                     className="w-full h-9 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:outline-none"
                   >
-                    {editCandidateAssignees.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.role.replace("_", " ")})
+                    {editCandidateAssignees.length === 0 ? (
+                      <option value="" disabled>
+                        {isAr ? "لا يوجد أعضاء مسجلين في هذا الفريق بعد" : "No members registered in this team"}
                       </option>
-                    ))}
+                    ) : (
+                      editCandidateAssignees.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name} ({u.role.replace("_", " ")})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
@@ -961,11 +986,17 @@ export default function TasksPage() {
                     onChange={(e) => setNewAssignee(e.target.value)}
                     className="w-full mt-1 h-9 rounded-lg border border-border bg-background px-3 text-xs"
                   >
-                    {candidateAssignees.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.role.replace("_", " ")})
+                    {candidateAssignees.length === 0 ? (
+                      <option value="" disabled>
+                        {isAr ? "لا يوجد أعضاء مسجلين في هذا الفريق بعد" : "No members registered in this team"}
                       </option>
-                    ))}
+                    ) : (
+                      candidateAssignees.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name} ({u.role.replace("_", " ")})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
