@@ -146,17 +146,58 @@ export default function MembersPage() {
     return isAr ? t.name_ar : t.name;
   };
 
+  // Robust user matching helper to strictly isolate each member's points without cross-mix
+  const isMatchUser = (targetId?: string, comparisonUserId?: string) => {
+    if (!targetId || !comparisonUserId) return false;
+
+    const cleanTarget = targetId.toLowerCase().trim();
+    const cleanComp = comparisonUserId.toLowerCase().trim();
+
+    if (cleanTarget === cleanComp) return true;
+
+    const targetProf = availableUsers.find(
+      (u) => u.id.toLowerCase() === cleanTarget || (u.email && u.email.toLowerCase().trim() === cleanTarget)
+    );
+    const compProf = availableUsers.find(
+      (u) => u.id.toLowerCase() === cleanComp || (u.email && u.email.toLowerCase().trim() === cleanComp)
+    );
+
+    if (targetProf && compProf) {
+      return (
+        targetProf.id.toLowerCase() === compProf.id.toLowerCase() ||
+        (!!targetProf.email &&
+          !!compProf.email &&
+          targetProf.email.toLowerCase().trim() === compProf.email.toLowerCase().trim())
+      );
+    }
+
+    if (targetProf) {
+      return (
+        targetProf.id.toLowerCase() === cleanComp ||
+        (!!targetProf.email && targetProf.email.toLowerCase().trim() === cleanComp)
+      );
+    }
+    if (compProf) {
+      return (
+        compProf.id.toLowerCase() === cleanTarget ||
+        (!!compProf.email && compProf.email.toLowerCase().trim() === cleanTarget)
+      );
+    }
+
+    return false;
+  };
+
   const getMemberNetPoints = (memberId: string) => {
     return pointEvents
-      .filter((p) => p.member_id === memberId && p.status === "approved")
+      .filter((p) => isMatchUser(p.member_id, memberId) && p.status === "approved")
       .reduce((sum, p) => sum + (p.direction === "positive" ? p.value : -Math.abs(p.value)), 0);
   };
 
   const getMemberTasksCount = (memberId: string) => {
     return tasks.filter(
       (t) =>
-        t.created_by === memberId ||
-        t.assignees?.some((a) => a.profile_id === memberId)
+        isMatchUser(t.created_by, memberId) ||
+        t.assignees?.some((a) => isMatchUser(a.profile_id || a.profile?.id, memberId))
     ).length;
   };
 
@@ -702,12 +743,12 @@ export default function MembersPage() {
 
               const memberTasks = tasks.filter(
                 (t) =>
-                  t.created_by === selectedMember.id ||
-                  t.assignees?.some((a) => a.profile_id === selectedMember.id)
+                  isMatchUser(t.created_by, selectedMember.id) ||
+                  t.assignees?.some((a) => isMatchUser(a.profile_id || a.profile?.id, selectedMember.id))
               );
 
-              const memberPoints = pointEvents.filter((p) => p.member_id === selectedMember.id);
-              const memberEvals = evaluations.filter((e) => e.member_id === selectedMember.id);
+              const memberPoints = pointEvents.filter((p) => isMatchUser(p.member_id, selectedMember.id));
+              const memberEvals = evaluations.filter((e) => isMatchUser(e.member_id, selectedMember.id));
               const netPoints = getMemberNetPoints(selectedMember.id);
 
               return (

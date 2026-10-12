@@ -79,20 +79,54 @@ export default function DashboardPage() {
     }
   }, [availableUsers, targetMemberId]);
 
-  // Robust matching helper across IDs and emails
-  const isMatchUser = (targetId?: string) => {
-    if (!targetId || !currentUser) return false;
-    if (targetId === currentUser.id) return true;
-    if (currentUser.email && targetId.toLowerCase() === currentUser.email.toLowerCase()) return true;
-    const targetProf = availableUsers.find((u) => u.id === targetId);
-    if (
-      targetProf?.email &&
-      currentUser.email &&
-      targetProf.email.toLowerCase() === currentUser.email.toLowerCase()
-    ) {
-      return true;
+  // Robust matching helper to strictly isolate each member's points without cross-mix
+  const isMatchUser = (targetId?: string, comparisonUserId?: string) => {
+    const compareWith = comparisonUserId || currentUser?.id;
+    if (!targetId || !compareWith) return false;
+
+    const cleanTarget = targetId.toLowerCase().trim();
+    const cleanComp = compareWith.toLowerCase().trim();
+
+    if (cleanTarget === cleanComp) return true;
+
+    const targetProf = availableUsers.find(
+      (u) => u.id.toLowerCase() === cleanTarget || (u.email && u.email.toLowerCase().trim() === cleanTarget)
+    );
+    const compProf = availableUsers.find(
+      (u) => u.id.toLowerCase() === cleanComp || (u.email && u.email.toLowerCase().trim() === cleanComp)
+    );
+
+    if (targetProf && compProf) {
+      return (
+        targetProf.id.toLowerCase() === compProf.id.toLowerCase() ||
+        (!!targetProf.email &&
+          !!compProf.email &&
+          targetProf.email.toLowerCase().trim() === compProf.email.toLowerCase().trim())
+      );
     }
+
+    if (targetProf) {
+      return (
+        targetProf.id.toLowerCase() === cleanComp ||
+        (!!targetProf.email && targetProf.email.toLowerCase().trim() === cleanComp)
+      );
+    }
+    if (compProf) {
+      return (
+        compProf.id.toLowerCase() === cleanTarget ||
+        (!!compProf.email && compProf.email.toLowerCase().trim() === cleanTarget)
+      );
+    }
+
     return false;
+  };
+
+  const getMemberName = (id: string) => {
+    const clean = id.toLowerCase().trim();
+    const prof = availableUsers.find(
+      (u) => u.id.toLowerCase() === clean || (u.email && u.email.toLowerCase().trim() === clean)
+    );
+    return prof?.full_name || id;
   };
 
   // Helper to determine if a task belongs strictly to current user
@@ -595,7 +629,12 @@ export default function DashboardPage() {
 
                     {/* Member */}
                     <td className="py-3 px-4 font-bold text-foreground whitespace-nowrap">
-                      {evt.member_id}
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {getMemberName(evt.member_id).slice(0, 1)}
+                        </div>
+                        <span className="truncate max-w-[150px]">{getMemberName(evt.member_id)}</span>
+                      </div>
                     </td>
 
                     {/* Explanation */}
@@ -790,7 +829,7 @@ export default function DashboardPage() {
                   className="bg-[#1a73e8] hover:bg-[#1765cc] text-white"
                   onClick={() => {
                     const cat = POLICY_POINT_CATEGORIES.find((c) => c.id === newSelectedCategory);
-                    const targetU = availableUsers.find((u) => u.id === targetMemberId) || currentUser;
+                    const targetU = availableUsers.find((u) => u.id === targetMemberId);
                     if (cat && newExplanation.trim() && currentUser && targetU) {
                       addPointEvent({
                         member_id: targetU.id,
@@ -798,10 +837,10 @@ export default function DashboardPage() {
                         event_date: new Date().toISOString().split("T")[0],
                         category_id: cat.id,
                         direction: cat.direction,
-                        value: cat.default_value,
+                        value: cat.direction === "positive" ? cat.default_value : -Math.abs(cat.default_value),
                         explanation: newExplanation,
                         recorded_by: currentUser.id,
-                        status: "pending_review",
+                        status: canRecordPoints ? "approved" : "pending_review",
                       });
                     }
                     setIsAddPointModalOpen(false);

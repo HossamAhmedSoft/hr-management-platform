@@ -153,20 +153,45 @@ export default function PointsPage() {
     }
   }, [selectableUsers, targetMember]);
 
-  // Robust user matching helper
+  // Robust user matching helper to strictly isolate each member's points without cross-mix
   const isMatchUser = (targetId?: string, comparisonUserId?: string) => {
     const compareWith = comparisonUserId || currentUser?.id;
     if (!targetId || !compareWith) return false;
-    if (targetId === compareWith) return true;
-    const targetProf = availableUsers.find((u) => u.id === targetId);
-    const compProf = availableUsers.find((u) => u.id === compareWith);
-    if (
-      targetProf?.email &&
-      compProf?.email &&
-      targetProf.email.toLowerCase() === compProf.email.toLowerCase()
-    ) {
-      return true;
+
+    const cleanTarget = targetId.toLowerCase().trim();
+    const cleanComp = compareWith.toLowerCase().trim();
+
+    if (cleanTarget === cleanComp) return true;
+
+    const targetProf = availableUsers.find(
+      (u) => u.id.toLowerCase() === cleanTarget || (u.email && u.email.toLowerCase().trim() === cleanTarget)
+    );
+    const compProf = availableUsers.find(
+      (u) => u.id.toLowerCase() === cleanComp || (u.email && u.email.toLowerCase().trim() === cleanComp)
+    );
+
+    if (targetProf && compProf) {
+      return (
+        targetProf.id.toLowerCase() === compProf.id.toLowerCase() ||
+        (!!targetProf.email &&
+          !!compProf.email &&
+          targetProf.email.toLowerCase().trim() === compProf.email.toLowerCase().trim())
+      );
     }
+
+    if (targetProf) {
+      return (
+        targetProf.id.toLowerCase() === cleanComp ||
+        (!!targetProf.email && targetProf.email.toLowerCase().trim() === cleanComp)
+      );
+    }
+    if (compProf) {
+      return (
+        compProf.id.toLowerCase() === cleanTarget ||
+        (!!compProf.email && compProf.email.toLowerCase().trim() === cleanTarget)
+      );
+    }
+
     return false;
   };
 
@@ -205,12 +230,16 @@ export default function PointsPage() {
   });
 
   const getMemberName = (id: string) => {
-    return availableUsers.find((u) => u.id === id)?.full_name || id;
+    const clean = id.toLowerCase().trim();
+    const prof = availableUsers.find(
+      (u) => u.id.toLowerCase() === clean || (u.email && u.email.toLowerCase().trim() === clean)
+    );
+    return prof?.full_name || id;
   };
 
   const getFilteredMemberName = () => {
     if (filterMember === "all") return "";
-    return availableUsers.find((u) => u.id === filterMember)?.full_name || filterMember;
+    return getMemberName(filterMember);
   };
 
   const selectedCatObj = POLICY_POINT_CATEGORIES.find((c) => c.id === selectedCategory);
@@ -248,9 +277,12 @@ export default function PointsPage() {
         ? mapping?.cap_category_id || "cap-task-exec"
         : undefined;
 
+    if (!targetMember) return;
+    const targetProf = availableUsers.find((u) => u.id === targetMember);
+
     addPointEvent({
-      member_id: targetMember || availableUsers[0]?.id || "",
-      team_id: availableUsers.find((u) => u.id === targetMember)?.team_id || teams[0]?.id || "",
+      member_id: targetMember,
+      team_id: targetProf?.team_id || teams[0]?.id || "",
       event_date: eventDate,
       category_id: selectedCatObj.id,
       cap_category_id: resolvedCapId,
@@ -338,7 +370,7 @@ export default function PointsPage() {
   // Per-member calculation helper for the leaderboard view
   const calculateMemberBalance = (memberId: string) => {
     const memEvents = pointEvents.filter(
-      (p) => p.member_id === memberId && p.status === "approved"
+      (p) => isMatchUser(p.member_id, memberId) && p.status === "approved"
     );
     const pos = memEvents
       .filter((p) => p.direction === "positive")
