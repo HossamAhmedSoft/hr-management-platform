@@ -371,6 +371,10 @@ export const internalDB = {
     return getTable<Appeal>("appeals", []);
   },
 
+  setAppeals(appeals: Appeal[]): void {
+    setTable("appeals", appeals);
+  },
+
   createAppeal(appealData: Omit<Appeal, "id" | "created_at" | "updated_at"> & { id?: string; created_at?: string }): Appeal {
     const appeals = this.getAppeals();
     const newAppeal: Appeal = {
@@ -449,6 +453,10 @@ export const internalDB = {
     return getTable<FeedbackSession>("feedback_sessions", []);
   },
 
+  setFeedbackSessions(sessions: FeedbackSession[]): void {
+    setTable("feedback_sessions", sessions);
+  },
+
   createFeedbackSession(
     session: Omit<FeedbackSession, "id" | "created_at" | "updated_at">
   ): FeedbackSession {
@@ -495,6 +503,10 @@ export const internalDB = {
   // ── Audit Logs ─────────────────────────────────────────
   getAuditLogs(): AuditLog[] {
     return getTable<AuditLog>("audit_logs", INITIAL_AUDIT_LOGS);
+  },
+
+  setAuditLogs(logs: AuditLog[]): void {
+    setTable("audit_logs", logs);
   },
 
   createAuditLog(log: AuditLog): AuditLog {

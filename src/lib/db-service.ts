@@ -173,6 +173,7 @@ export const dbService = {
         .order("deadline", { ascending: true });
 
       if (!error && Array.isArray(data)) {
+        const local = internalDB.getTasks();
         const enrichedTasks: Task[] = data.map((d: any) => {
           let assigneesList: TaskAssignee[] = [];
 
@@ -186,7 +187,7 @@ export const dbService = {
           }
 
           if (assigneesList.length === 0) {
-            const cached = internalDB.getTasks().find((ct) => ct.id === d.id);
+            const cached = local.find((ct) => ct.id === d.id);
             if (cached && Array.isArray(cached.assignees)) {
               assigneesList = cached.assignees;
             }
@@ -198,8 +199,15 @@ export const dbService = {
           } as Task;
         });
 
-        internalDB.setTasks(enrichedTasks);
-        return enrichedTasks;
+        const merged = [...enrichedTasks];
+        local.forEach((lt) => {
+          if (!merged.some((m) => m.id === lt.id)) {
+            merged.push(lt);
+          }
+        });
+
+        internalDB.setTasks(merged);
+        return merged;
       }
     } catch (e) {
       console.warn("Supabase tasks query error:", e);
@@ -476,6 +484,7 @@ export const dbService = {
 
   // ── Evaluations ─────────────────────────────────────────
   async getEvaluations(): Promise<Evaluation[]> {
+    const local = internalDB.getEvaluations();
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -484,12 +493,19 @@ export const dbService = {
         .order("created_at", { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        return data as Evaluation[];
+        const merged = [...(data as Evaluation[])];
+        local.forEach((le) => {
+          if (!merged.some((m) => m.id === le.id)) {
+            merged.push(le);
+          }
+        });
+        internalDB.setEvaluations(merged);
+        return merged;
       }
     } catch (e) {
       console.warn("Supabase evaluations error:", e);
     }
-    return internalDB.getEvaluations();
+    return local;
   },
 
   async createEvaluation(evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">): Promise<Evaluation | null> {
@@ -561,6 +577,7 @@ export const dbService = {
 
   // ── Appeals ─────────────────────────────────────────────
   async getAppeals(): Promise<Appeal[]> {
+    const local = internalDB.getAppeals();
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -569,12 +586,19 @@ export const dbService = {
         .order("created_at", { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        return data as Appeal[];
+        const merged = [...(data as Appeal[])];
+        local.forEach((la) => {
+          if (!merged.some((m) => m.id === la.id)) {
+            merged.push(la);
+          }
+        });
+        internalDB.setAppeals(merged);
+        return merged;
       }
     } catch (e) {
       console.warn("Supabase appeals error:", e);
     }
-    return internalDB.getAppeals();
+    return local;
   },
 
   async createAppeal(appeal: Omit<Appeal, "id" | "created_at" | "updated_at">): Promise<Appeal | null> {
@@ -632,6 +656,7 @@ export const dbService = {
 
   // ── Incidents ───────────────────────────────────────────
   async getIncidents(): Promise<Incident[]> {
+    const local = internalDB.getIncidents();
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -640,12 +665,19 @@ export const dbService = {
         .order("created_at", { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        return data as Incident[];
+        const merged = [...(data as Incident[])];
+        local.forEach((li) => {
+          if (!merged.some((m) => m.id === li.id)) {
+            merged.push(li);
+          }
+        });
+        internalDB.setIncidents(merged);
+        return merged;
       }
     } catch (e) {
       console.warn("Supabase incidents error:", e);
     }
-    return internalDB.getIncidents();
+    return local;
   },
 
   async createIncident(
@@ -700,6 +732,7 @@ export const dbService = {
 
   // ── Feedback Sessions ───────────────────────────────────
   async getFeedbackSessions(): Promise<FeedbackSession[]> {
+    const local = internalDB.getFeedbackSessions();
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -708,12 +741,19 @@ export const dbService = {
         .order("created_at", { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        return data as FeedbackSession[];
+        const merged = [...(data as FeedbackSession[])];
+        local.forEach((lf) => {
+          if (!merged.some((m) => m.id === lf.id)) {
+            merged.push(lf);
+          }
+        });
+        internalDB.setFeedbackSessions(merged);
+        return merged;
       }
     } catch (e) {
       console.warn("Supabase feedback error:", e);
     }
-    return internalDB.getFeedbackSessions();
+    return local;
   },
 
   async createFeedbackSession(
@@ -777,6 +817,7 @@ export const dbService = {
 
   // ── Audit Logs ─────────────────────────────────────────
   async getAuditLogs(): Promise<AuditLog[]> {
+    const local = internalDB.getAuditLogs();
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -785,12 +826,19 @@ export const dbService = {
         .order("created_at", { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        return data as AuditLog[];
+        const merged = [...(data as AuditLog[])];
+        local.forEach((la) => {
+          if (!merged.some((m) => m.id === la.id)) {
+            merged.push(la);
+          }
+        });
+        internalDB.setAuditLogs(merged);
+        return merged;
       }
     } catch (e) {
       console.warn("Supabase audit_logs error:", e);
     }
-    return internalDB.getAuditLogs();
+    return local;
   },
 
   async createAuditLog(log: Omit<AuditLog, "id" | "created_at">): Promise<AuditLog> {

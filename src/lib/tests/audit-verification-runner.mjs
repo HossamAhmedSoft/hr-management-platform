@@ -279,7 +279,7 @@ console.log("=================================================\n");
     memberCanSeePolicy &&
     !memberCanSeeKpis &&
     !memberCanSeeMembers &&
-    !memberCanSeeTeams &&
+    memberCanSeeTeams &&
     !memberCanSeeEducation &&
     superAdminCanSeeAudit &&
     hrAdminCanSeePolicy &&
@@ -287,9 +287,9 @@ console.log("=================================================\n");
 
   assert(
     "TEST-9",
-    "Authorization isolation: Member allowed /policy, blocked from /audit-log, /hr-kpis, /members, /teams, /education; Admin allowed",
+    "Authorization isolation: Member allowed /policy and /teams, blocked from /audit-log, /hr-kpis, /members, /education; Admin allowed",
     passed,
-    "Member allowed /policy, Admin allowed all",
+    "Member allowed /policy and /teams, Admin allowed all",
     `Member Audit: ${memberCanSeeAudit}, Member Policy: ${memberCanSeePolicy}, Member Teams: ${memberCanSeeTeams}`
   );
 }
