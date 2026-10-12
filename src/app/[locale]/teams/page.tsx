@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Layers,
   Users,
@@ -27,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { useApp } from "@/lib/app-context";
+import { isUserInTrack } from "@/lib/utils";
 
 interface TrackDefinition {
   id: string;
@@ -41,10 +42,10 @@ interface TrackDefinition {
 }
 
 export default function TeamsPage() {
-  const { availableUsers, tasks, evaluations, pointEvents, locale } = useApp();
+  const { availableUsers, teams, tasks, evaluations, pointEvents, locale } = useApp();
   const isAr = locale === "ar";
 
-  const allTracks: TrackDefinition[] = [
+  const standardTracks: TrackDefinition[] = [
     {
       id: "hr",
       name: "Human Resources",
@@ -157,27 +158,40 @@ export default function TeamsPage() {
     },
   ];
 
-  const [selectedTrackId, setSelectedTrackId] = useState<string>("web");
+  // Dynamic tracks combining standard tracks and any custom teams created in database
+  const tracksList: TrackDefinition[] = useMemo(() => {
+    const list = [...standardTracks];
+    if (teams && Array.isArray(teams)) {
+      for (const tm of teams) {
+        const alreadyCovered = list.some((tr) => isUserInTrack({ team_id: tm.id }, tr.id, teams));
+        if (!alreadyCovered) {
+          list.push({
+            id: tm.id,
+            name: tm.name,
+            nameAr: tm.name_ar || tm.name,
+            type: tm.type === "technical" ? "tech" : "non_tech",
+            icon: tm.type === "technical" ? Code : Briefcase,
+            color: "text-primary",
+            bg: "bg-primary/10 border-primary/20",
+            desc: tm.description || "Active committee in GDG on Campus NCTU.",
+            descAr: tm.description || "لجنة معتمدة في GDG on Campus NCTU.",
+          });
+        }
+      }
+    }
+    return list;
+  }, [teams]);
+
+  const [selectedTrackId, setSelectedTrackId] = useState<string>("hr");
   const [filterType, setFilterType] = useState<"all" | "tech" | "non_tech">("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
 
   // Helper: check if member or entity belongs to selected team / committee
   const isUserInTeam = (u: any, trackId: string) => {
-    if (!trackId) return false;
-    const target = trackId.toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userTeam = (u.team_id || u.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userCommittee = (u.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userTeamName = (u.team?.name || "").toLowerCase().trim();
-
-    if (userTeam === target) return true;
-    if (userCommittee === target) return true;
-    if (userTeam && target && (userTeam.includes(target) || target.includes(userTeam))) return true;
-    if (userCommittee && target && (userCommittee.includes(target) || target.includes(userCommittee))) return true;
-    if (userTeamName && target && (userTeamName.includes(target) || target.includes(userTeamName))) return true;
-    return false;
+    return isUserInTrack(u, trackId, teams);
   };
 
-  const filteredTracks = allTracks.filter((t) => {
+  const filteredTracks = tracksList.filter((t) => {
     const matchesType = filterType === "all" || t.type === filterType;
     const matchesSearch =
       t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -186,15 +200,27 @@ export default function TeamsPage() {
   });
 
   const selectedTrack =
-    allTracks.find((t) => t.id === selectedTrackId) ||
+    tracksList.find((t) => t.id === selectedTrackId) ||
     filteredTracks[0] ||
-    allTracks[0];
+    tracksList[0];
 
   const getTrackStats = (trackId: string) => {
     const trackMembers = availableUsers.filter((u) => isUserInTeam(u, trackId));
-    const lead = trackMembers.find(
-      (u) => u.role === "team_lead" || u.role === "track_lead" || u.role === "hr_admin" || u.role === "super_admin"
-    );
+    
+    // Look for explicit lead_id from database teams table, or fallback to lead/admin role
+    const matchedDbTeam = (teams || []).find((tm) => isUserInTrack({ team_id: tm.id }, trackId, teams));
+    const explicitLead = matchedDbTeam?.lead_id
+      ? availableUsers.find((u) => u.id === matchedDbTeam.lead_id)
+      : null;
+    const lead =
+      explicitLead ||
+      trackMembers.find(
+        (u) =>
+          u.role === "team_lead" ||
+          u.role === "track_lead" ||
+          u.role === "hr_admin" ||
+          u.role === "super_admin"
+      );
 
     const trackTasks = tasks.filter((t) => isUserInTeam({ team_id: t.team_id }, trackId));
     const completedTasks = trackTasks.filter((t) => t.status === "completed");
@@ -204,7 +230,9 @@ export default function TeamsPage() {
         : "—";
 
     const memberIds = trackMembers.map((m) => m.id);
-    const trackPointEvents = pointEvents.filter((p) => memberIds.includes(p.member_id) && p.status === "approved");
+    const trackPointEvents = pointEvents.filter(
+      (p) => memberIds.includes(p.member_id) && p.status === "approved"
+    );
     const netPoints = trackPointEvents.reduce(
       (sum, p) => sum + (p.direction === "positive" ? p.value : -Math.abs(p.value)),
       0
@@ -213,7 +241,7 @@ export default function TeamsPage() {
     return {
       memberCount: trackMembers.length,
       lead,
-      leadName: lead ? lead.full_name : (isAr ? "قيد التعيين" : "Pending Assignment"),
+      leadName: lead ? lead.full_name : isAr ? "قيد التعيين" : "Pending Assignment",
       tasksRatio,
       tasksTotal: trackTasks.length,
       tasksCompleted: completedTasks.length,
@@ -225,6 +253,14 @@ export default function TeamsPage() {
 
   const currentStats = getTrackStats(selectedTrack.id);
 
+  // Overall platform directory stats
+  const totalTracksCount = tracksList.length;
+  const techTracksCount = tracksList.filter((t) => t.type === "tech").length;
+  const nonTechTracksCount = tracksList.filter((t) => t.type === "non_tech").length;
+  const totalAssignedMembers = availableUsers.filter((u) =>
+    tracksList.some((t) => isUserInTeam(u, t.id))
+  ).length;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <PageHeader
@@ -235,6 +271,71 @@ export default function TeamsPage() {
             : "Official organizational matrix spanning Non-Technical committees and Technical tracks, driven directly from the enterprise database."
         }
       />
+
+      {/* Top Directory Summary KPI Bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="p-3.5 rounded-xl bg-card border border-border shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">
+              {isAr ? "إجمالي اللجان والمسارات" : "Total Committees & Tracks"}
+            </span>
+            <Layers className="w-4 h-4 text-primary" />
+          </div>
+          <p className="text-2xl font-black text-foreground mt-1.5 font-mono">
+            {totalTracksCount}
+          </p>
+          <span className="text-[10px] text-muted-foreground mt-0.5 block">
+            {isAr ? "هيكل معتمد رسمياً" : "Official Org Structure"}
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-xl bg-card border border-border shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">
+              {isAr ? "الأعضاء الموزعين" : "Assigned Members"}
+            </span>
+            <Users className="w-4 h-4 text-[#137333] dark:text-[#81c995]" />
+          </div>
+          <p className="text-2xl font-black text-[#137333] dark:text-[#81c995] mt-1.5 font-mono">
+            {totalAssignedMembers}
+          </p>
+          <span className="text-[10px] text-muted-foreground mt-0.5 block">
+            {isAr
+              ? `من إجمالي ${availableUsers.length} عضو مسجل`
+              : `Out of ${availableUsers.length} total members`}
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-xl bg-card border border-border shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">
+              {isAr ? "المسارات التقنية" : "Technical Tracks"}
+            </span>
+            <Code className="w-4 h-4 text-[#1a73e8] dark:text-[#8ab4f8]" />
+          </div>
+          <p className="text-2xl font-black text-[#1a73e8] dark:text-[#8ab4f8] mt-1.5 font-mono">
+            {techTracksCount}
+          </p>
+          <span className="text-[10px] text-muted-foreground mt-0.5 block">
+            {isAr ? "مسارات هندسية وتطبيقية" : "Engineering & Development"}
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-xl bg-card border border-border shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">
+              {isAr ? "اللجان التنفيذية" : "Executive Committees"}
+            </span>
+            <Briefcase className="w-4 h-4 text-[#ea4335] dark:text-[#f28b82]" />
+          </div>
+          <p className="text-2xl font-black text-[#ea4335] dark:text-[#f28b82] mt-1.5 font-mono">
+            {nonTechTracksCount}
+          </p>
+          <span className="text-[10px] text-muted-foreground mt-0.5 block">
+            {isAr ? "عمليات وإدارة وتنظيم" : "Operations & Management"}
+          </span>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Track Selection Column */}
@@ -249,7 +350,7 @@ export default function TeamsPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {isAr ? "الكل" : "All"} ({allTracks.length})
+              {isAr ? "الكل" : "All"} ({tracksList.length})
             </button>
             <button
               onClick={() => setFilterType("tech")}
@@ -259,7 +360,7 @@ export default function TeamsPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {isAr ? "التقنية" : "Tech"} (6)
+              {isAr ? "التقنية" : "Tech"} ({techTracksCount})
             </button>
             <button
               onClick={() => setFilterType("non_tech")}
@@ -269,7 +370,7 @@ export default function TeamsPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {isAr ? "الإدارية" : "Non-Tech"} (4)
+              {isAr ? "الإدارية" : "Non-Tech"} ({nonTechTracksCount})
             </button>
           </div>
 
@@ -315,12 +416,24 @@ export default function TeamsPage() {
                           {isAr ? t.nameAr : t.name}
                         </h4>
                         <span className="text-[10px] text-muted-foreground font-semibold">
-                          {t.type === "tech" ? (isAr ? "مسار تقني" : "Technical") : (isAr ? "لجنة إدارية" : "Non-Tech")}
+                          {t.type === "tech"
+                            ? isAr
+                              ? "مسار تقني"
+                              : "Technical"
+                            : isAr
+                            ? "لجنة إدارية"
+                            : "Non-Tech"}
                         </span>
                       </div>
                     </div>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-muted/60 text-foreground border border-border/60">
-                      {stats.memberCount} {isAr ? "عضو" : "m"}
+                    <span
+                      className={`text-xs font-bold px-2.5 py-1 rounded-full border transition-all ${
+                        stats.memberCount > 0
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-mono shadow-2xs"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      {stats.memberCount} {isAr ? "عضو" : "members"}
                     </span>
                   </div>
                 );
@@ -413,7 +526,7 @@ export default function TeamsPage() {
                     <Users className="w-4 h-4 text-primary" />
                     {isAr ? "أعضاء المسار المسجلين في قاعدة البيانات:" : "Registered Track Members:"}
                   </h4>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[11px] font-bold text-foreground px-2 py-0.5 rounded-md bg-muted/60 border border-border">
                     {currentStats.members.length} {isAr ? "عضو" : "members"}
                   </span>
                 </div>
@@ -421,32 +534,51 @@ export default function TeamsPage() {
                 {currentStats.members.length === 0 ? (
                   <div className="p-8 text-center text-xs text-muted-foreground border border-dashed rounded-xl bg-muted/10">
                     <Users className="w-8 h-8 mx-auto mb-2 opacity-30 text-primary" />
-                    <p className="font-semibold">{isAr ? "لا يوجد أعضاء مخصصين لهذا المسار حالياً" : "No members assigned to this track yet"}</p>
-                    <p className="text-[11px] mt-0.5">{isAr ? "يمكن لمدير النظام أو مسؤول HR تعيين الأعضاء من صفحة دليل الأعضاء." : "Super Admin or HR can assign members from the Members Directory."}</p>
+                    <p className="font-semibold">
+                      {isAr ? "لا يوجد أعضاء مخصصين لهذا المسار حالياً" : "No members assigned to this track yet"}
+                    </p>
+                    <p className="text-[11px] mt-0.5">
+                      {isAr
+                        ? "يمكن لمدير النظام أو مسؤول HR تعيين الأعضاء من صفحة دليل الأعضاء."
+                        : "Super Admin or HR can assign members from the Members Directory."}
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {currentStats.members.map((m) => (
-                      <div
-                        key={m.id}
-                        className="p-3 rounded-xl border border-border bg-card hover:bg-muted/30 transition-all flex items-center justify-between gap-2.5 text-xs shadow-2xs"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Avatar className="w-8 h-8 shrink-0 border border-border">
-                            <AvatarFallback className="text-[11px] bg-primary/10 text-primary font-bold">
-                              {m.full_name.slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="font-bold text-foreground truncate">{m.full_name}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{m.email}</p>
+                    {currentStats.members.map((m) => {
+                      const memberNetPoints = pointEvents
+                        .filter((p) => p.member_id === m.id && p.status === "approved")
+                        .reduce(
+                          (sum, p) => sum + (p.direction === "positive" ? p.value : -Math.abs(p.value)),
+                          0
+                        );
+                      return (
+                        <div
+                          key={m.id}
+                          className="p-3 rounded-xl border border-border bg-card hover:bg-muted/30 transition-all flex items-center justify-between gap-2.5 text-xs shadow-2xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Avatar className="w-8 h-8 shrink-0 border border-border">
+                              <AvatarFallback className="text-[11px] bg-primary/10 text-primary font-bold">
+                                {m.full_name.slice(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="font-bold text-foreground truncate">{m.full_name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{m.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-muted text-foreground border border-border">
+                              {memberNetPoints > 0 ? `+${memberNetPoints}` : memberNetPoints} pts
+                            </span>
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border capitalize bg-primary/10 text-primary border-primary/20">
+                              {m.role.replace("_", " ")}
+                            </span>
                           </div>
                         </div>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded border capitalize shrink-0 bg-muted/50 border-border text-foreground">
-                          {m.role.replace("_", " ")}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

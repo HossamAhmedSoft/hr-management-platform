@@ -1,0 +1,39 @@
+{
+  "name": "GDG on Campus NCTU - HR Platform",
+  "short_name": "GDG NCTU HR",
+  "description": "Enterprise HR & Community Management Platform for Google Developer Groups on Campus NCTU",
+  "start_url": "/ar",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1a73e8",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["productivity", "education", "business"],
+  "shortcuts": [
+    {
+      "name": "دليل اللجان والمسارات",
+      "short_name": "اللجان",
+      "description": "استعراض اللجان والمسارات التقنية",
+      "url": "/ar/teams"
+    },
+    {
+      "name": "دليل الأعضاء",
+      "short_name": "الأعضاء",
+      "description": "إدارة الأعضاء والبيانات",
+      "url": "/ar/members"
+    },
+    {
+      "name": "سجل الحضور والغياب",
+      "short_name": "الحضور",
+      "description": "تسجيل الحضور بالـ QR Code",
+      "url": "/ar/attendance"
+    }
+  ]
+}

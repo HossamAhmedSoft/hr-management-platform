@@ -10,12 +10,35 @@ import {
   TrackEvaluation,
   TrackCertificate,
   TrackFollowUp,
+  FinalGradePolicy,
+  RubricCriterion,
+  StructuredFeedback,
+  TrackSubmissionAttempt,
+  GradeCorrectionLog,
+  ReminderType,
+  ReminderDeliveryChannel,
+  ReminderRule,
+  ReminderExecutionLog,
+  TrackNotificationItem,
+  NotificationPreference,
+  RiskSeverity,
+  RiskTriggerType,
+  RiskRule,
+  RiskIndicatorEvidence,
+  RiskFollowUpCase,
+  CaseActionLog,
 } from "@/types";
 
 const STORAGE_PREFIX = "gdg_nctu_tracks_";
+const inMemoryCache: Record<string, unknown[]> = {};
 
 function getStorage<T>(key: string, fallback: T[]): T[] {
-  if (typeof window === "undefined") return fallback;
+  if (typeof window === "undefined") {
+    if (!inMemoryCache[key]) {
+      inMemoryCache[key] = JSON.parse(JSON.stringify(fallback));
+    }
+    return inMemoryCache[key] as T[];
+  }
   try {
     const raw = localStorage.getItem(`${STORAGE_PREFIX}${key}`);
     if (!raw) {
@@ -29,6 +52,7 @@ function getStorage<T>(key: string, fallback: T[]): T[] {
 }
 
 function setStorage<T>(key: string, data: T[]): void {
+  inMemoryCache[key] = data;
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(`${STORAGE_PREFIX}${key}`, JSON.stringify(data));
@@ -906,6 +930,496 @@ export const INITIAL_FOLLOW_UPS: TrackFollowUp[] = [
   },
 ];
 
+export const INITIAL_SUBMISSION_ATTEMPTS: TrackSubmissionAttempt[] = [
+  {
+    id: "attm_web_01_karim_1",
+    submission_id: "sub_web_01_karim",
+    assignment_id: "asg_web_01",
+    enrollment_id: "enr_karim_web",
+    participant_id: "part_karim_01",
+    attempt_number: 1,
+    submission_url: "https://github.com/karim-m/dev-portfolio-nctu",
+    submitted_at: "2026-02-18T20:15:00Z",
+    applicable_deadline: "2026-02-20T23:59:00Z",
+    is_late: false,
+    late_penalty_applied: 0,
+    status: "accepted",
+    score: 96,
+    feedback: {
+      what_went_well: "Outstanding semantic HTML5 structure, responsive layout across all breakpoints, perfect Lighthouse audit score (98/100).",
+      needs_improvement: "Could add dark-mode CSS variables transition in next iterations.",
+      specific_corrections: "None required. Production-ready quality.",
+      required_changes_for_acceptance: "None.",
+      learning_resources: "https://web.dev/learn/design",
+      suggested_next_steps: "Proceed to React components project.",
+      rubric_scores: { "rubric_code_quality": 38, "rubric_responsiveness": 30, "rubric_accessibility": 28 },
+    },
+    reviewer_id: "lead_web_ahmed",
+    reviewer_name: "Eng. Ahmed Tarek",
+    reviewed_at: "2026-02-21T14:00:00Z",
+    created_at: "2026-02-18T20:15:00Z",
+  },
+  {
+    id: "attm_web_01_youssef_1",
+    submission_id: "sub_web_01_youssef",
+    assignment_id: "asg_web_01",
+    enrollment_id: "enr_youssef_web",
+    participant_id: "part_youssef_05",
+    attempt_number: 1,
+    submission_url: "https://github.com/youssef-i/nctu-web-assignment1-v1",
+    submitted_at: "2026-02-21T10:30:00Z",
+    applicable_deadline: "2026-02-20T23:59:00Z",
+    is_late: true,
+    late_penalty_applied: 10,
+    status: "revision_requested",
+    score: 65,
+    feedback: {
+      what_went_well: "Good color palette and typography choices.",
+      needs_improvement: "Layout breaks on mobile viewport width < 420px. Flexbox container overflows.",
+      specific_corrections: "Add viewport meta tag and CSS flex-wrap: wrap with media queries for max-width 480px.",
+      required_changes_for_acceptance: "Fix mobile responsiveness so no horizontal scroll appears.",
+      learning_resources: "https://css-tricks.com/snippets/css/a-guide-to-flexbox/",
+      suggested_next_steps: "Resubmit new attempt with mobile responsive fix.",
+      rubric_scores: { "rubric_code_quality": 25, "rubric_responsiveness": 15, "rubric_accessibility": 25 },
+    },
+    reviewer_id: "lead_web_ahmed",
+    reviewer_name: "Eng. Ahmed Tarek",
+    reviewed_at: "2026-02-22T16:00:00Z",
+    revision_requested_at: "2026-02-22T16:00:00Z",
+    resubmission_deadline: "2026-03-05T23:59:00Z",
+    resubmission_notes: "Please test with Chrome DevTools Device Mode before resubmitting.",
+    created_at: "2026-02-21T10:30:00Z",
+  },
+  {
+    id: "attm_web_01_youssef_2",
+    submission_id: "sub_web_01_youssef",
+    assignment_id: "asg_web_01",
+    enrollment_id: "enr_youssef_web",
+    participant_id: "part_youssef_05",
+    attempt_number: 2,
+    submission_url: "https://github.com/youssef-i/nctu-web-assignment1-v2",
+    submitted_at: "2026-03-02T18:00:00Z",
+    applicable_deadline: "2026-03-05T23:59:00Z",
+    is_late: false,
+    late_penalty_applied: 0,
+    status: "accepted",
+    score: 84,
+    feedback: {
+      what_went_well: "Mobile layout now works smoothly. Flex wrap fixed horizontal overflow. Excellent progress!",
+      needs_improvement: "Image alt tags can be more descriptive.",
+      specific_corrections: "Resolved.",
+      required_changes_for_acceptance: "All requested revisions verified.",
+      learning_resources: "https://developer.mozilla.org/en-US/docs/Web/Responsive_web_design",
+      suggested_next_steps: "Ready for Project 2.",
+      rubric_scores: { "rubric_code_quality": 30, "rubric_responsiveness": 28, "rubric_accessibility": 26 },
+    },
+    reviewer_id: "lead_web_ahmed",
+    reviewer_name: "Eng. Ahmed Tarek",
+    reviewed_at: "2026-03-03T11:00:00Z",
+    created_at: "2026-03-02T18:00:00Z",
+  },
+  {
+    id: "attm_fl_01_salma_1",
+    submission_id: "sub_fl_01_salma",
+    assignment_id: "asg_flutter_01",
+    enrollment_id: "enr_salma_flutter",
+    participant_id: "part_salma_02",
+    attempt_number: 1,
+    submission_url: "https://github.com/salma-h/flutter-ecommerce-catalog",
+    submitted_at: "2026-02-27T18:00:00Z",
+    applicable_deadline: "2026-02-28T23:59:00Z",
+    is_late: false,
+    status: "accepted",
+    score: 94,
+    feedback: {
+      what_went_well: "Clean architecture, seamless hero animations, zero overflow errors.",
+      needs_improvement: "Consider using Riverpod or Bloc for complex state.",
+      specific_corrections: "None required.",
+      required_changes_for_acceptance: "None.",
+      rubric_scores: { "rubric_code_quality": 38, "rubric_responsiveness": 28, "rubric_architecture": 28 },
+    },
+    reviewer_id: "lead_flutter_omar",
+    reviewer_name: "Eng. Omar Khaled",
+    reviewed_at: "2026-03-01T10:00:00Z",
+    created_at: "2026-02-27T18:00:00Z",
+  },
+];
+
+export const INITIAL_GRADE_CORRECTIONS: GradeCorrectionLog[] = [];
+
+export const INITIAL_REMINDER_RULES: ReminderRule[] = [
+  {
+    id: "rule_asg_72h",
+    name: "Assignment Deadline Approaching (72h)",
+    name_ar: "تذكير مبكر باقتراب موعد تسليم المهمة (72 ساعة)",
+    reminder_type: "upcoming_deadline",
+    trigger_condition: "hours_before_deadline",
+    time_offset_hours: -72,
+    recipient_role: "participant",
+    delivery_channel: "in_app",
+    message_template: "Reminder: Assignment '{title}' is due in 3 days ({deadline}).",
+    message_template_ar: "تذكير: يتبقى 3 أيام على الموعد النهائي لتسليم المهمة '{title}'.",
+    enabled: true,
+    track_id: "all",
+    max_reminders_per_event: 1,
+    frequency_hours: 24,
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "rule_asg_24h",
+    name: "Assignment Deadline Approaching (24h)",
+    name_ar: "تذكير حرج باقتراب موعد تسليم المهمة (24 ساعة)",
+    reminder_type: "upcoming_deadline",
+    trigger_condition: "hours_before_deadline",
+    time_offset_hours: -24,
+    recipient_role: "participant",
+    delivery_channel: "in_app",
+    message_template: "Urgent: Assignment '{title}' is due tomorrow at {deadline}!",
+    message_template_ar: "عاجل: يتبقى 24 ساعة فقط على تسليم المهمة '{title}'!",
+    enabled: true,
+    track_id: "all",
+    max_reminders_per_event: 1,
+    frequency_hours: 24,
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "rule_asg_3h",
+    name: "Assignment Final Countdown (3h)",
+    name_ar: "تنبيه الساعات الأخيرة لموعد التسليم (3 ساعات)",
+    reminder_type: "upcoming_deadline",
+    trigger_condition: "hours_before_deadline",
+    time_offset_hours: -3,
+    recipient_role: "participant",
+    delivery_channel: "in_app",
+    message_template: "Final Notice: Only 3 hours left to submit '{title}'.",
+    message_template_ar: "فرصة أخيرة: يتبقى 3 ساعات فقط لإغلاق باب تسليم '{title}'.",
+    enabled: true,
+    track_id: "all",
+    max_reminders_per_event: 1,
+    frequency_hours: 24,
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "rule_asg_overdue",
+    name: "Assignment Overdue Notice",
+    name_ar: "إشعار تأخر تسليم المهمة عن الموعد النهائي",
+    reminder_type: "overdue_assignment",
+    trigger_condition: "hours_after_deadline",
+    time_offset_hours: 1,
+    recipient_role: "participant",
+    delivery_channel: "in_app",
+    message_template: "Assignment '{title}' is now overdue. Submit as soon as possible or contact your mentor.",
+    message_template_ar: "المهمة '{title}' متأخرة عن الموعد النهائي. يرجى المسارعة بالتسليم لتجنب الخصومات.",
+    enabled: true,
+    track_id: "all",
+    max_reminders_per_event: 2,
+    frequency_hours: 48,
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "rule_sess_24h",
+    name: "Upcoming Session Reminder (24h)",
+    name_ar: "تذكير بموعد الجلسة التقنية القادمة (24 ساعة)",
+    reminder_type: "upcoming_session",
+    trigger_condition: "hours_before_session",
+    time_offset_hours: -24,
+    recipient_role: "participant",
+    delivery_channel: "in_app",
+    message_template: "Upcoming Session: '{title}' is scheduled tomorrow at {time}.",
+    message_template_ar: "تذكير: الجلسة التقنية '{title}' غداً في تمام الساعة {time}.",
+    enabled: true,
+    track_id: "all",
+    max_reminders_per_event: 1,
+    frequency_hours: 24,
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "rule_resubmit_req",
+    name: "Feedback Revision Requested",
+    name_ar: "إشعار طلب تعديل وإعادة تسليم المهمة",
+    reminder_type: "feedback_resubmission_requested",
+    trigger_condition: "immediate",
+    time_offset_hours: 0,
+    recipient_role: "participant",
+    delivery_channel: "in_app",
+    message_template: "Revision requested on '{title}'. Please check reviewer notes and resubmit before {resubmission_deadline}.",
+    message_template_ar: "طلب مراجع المسار تعديلات على تسليمك للمهمة '{title}'. يرجى الاطلاع على الملاحظات وإعادة التسليم قبل {resubmission_deadline}.",
+    enabled: true,
+    track_id: "all",
+    max_reminders_per_event: 1,
+    frequency_hours: 24,
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "rule_resubmit_24h",
+    name: "Resubmission Deadline Approaching (24h)",
+    name_ar: "تذكير باقتراب مهلة إعادة التسليم (24 ساعة)",
+    reminder_type: "resubmission_deadline_approaching",
+    trigger_condition: "hours_before_resubmission_deadline",
+    time_offset_hours: -24,
+    recipient_role: "participant",
+    delivery_channel: "in_app",
+    message_template: "Attention: Resubmission window for '{title}' closes in 24 hours.",
+    message_template_ar: "تنبيه: يتبقى 24 ساعة على انتهاء مهلة إعادة تسليم التعديلات للمهمة '{title}'.",
+    enabled: true,
+    track_id: "all",
+    max_reminders_per_event: 1,
+    frequency_hours: 24,
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "rule_grading_pending",
+    name: "Submission Awaiting Review (48h)",
+    name_ar: "تنبيه للمدرب: تسليم بانتظار المراجعة والتقييم (48 ساعة)",
+    reminder_type: "assignment_awaiting_review",
+    trigger_condition: "hours_after_submission",
+    time_offset_hours: 48,
+    recipient_role: "assigned_instructor",
+    delivery_channel: "in_app",
+    message_template: "Instructor Alert: Submission by {participant_name} for '{title}' is awaiting your evaluation.",
+    message_template_ar: "تنبيه مدرب: تسليم المتدرب {participant_name} للمهمة '{title}' بانتظار التقييم ورصد الدرجة.",
+    enabled: true,
+    track_id: "all",
+    max_reminders_per_event: 2,
+    frequency_hours: 48,
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "rule_risk_due",
+    name: "At-Risk Follow-Up Action Due",
+    name_ar: "تنبيه للمشرف: اقتراب موعد إجراء المتابعة والدعم للطلاب المتعثرين",
+    reminder_type: "at_risk_follow_up_due",
+    trigger_condition: "hours_before_followup_deadline",
+    time_offset_hours: -24,
+    recipient_role: "follow_up_owner",
+    delivery_channel: "in_app",
+    message_template: "Support Case Alert: Follow-up action for {participant_name} is due tomorrow ({deadline}).",
+    message_template_ar: "تنبيه متابعة: موعد جلسة الدعم للمتدرب {participant_name} يحل غداً ({deadline}).",
+    enabled: true,
+    track_id: "all",
+    max_reminders_per_event: 1,
+    frequency_hours: 24,
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+];
+
+export const INITIAL_REMINDER_LOGS: ReminderExecutionLog[] = [
+  {
+    id: "log_rem_01",
+    rule_id: "rule_asg_72h",
+    rule_name: "Assignment Deadline Approaching (72h)",
+    event_id: "asg_web_01",
+    event_type: "assignment",
+    recipient_id: "part_karim_01",
+    recipient_role: "participant",
+    delivery_channel: "in_app",
+    status: "delivered",
+    scheduled_at: "2026-02-17T23:59:00Z",
+    processed_at: "2026-02-17T23:59:05Z",
+    retry_count: 0,
+    idempotency_key: "rule_asg_72h:asg_web_01:part_karim_01:2026-02-17",
+  },
+  {
+    id: "log_rem_02",
+    rule_id: "rule_asg_24h",
+    rule_name: "Assignment Deadline Approaching (24h)",
+    event_id: "asg_web_01",
+    event_type: "assignment",
+    recipient_id: "part_karim_01",
+    recipient_role: "participant",
+    delivery_channel: "in_app",
+    status: "suppressed_completed",
+    scheduled_at: "2026-02-19T23:59:00Z",
+    processed_at: "2026-02-19T23:59:05Z",
+    retry_count: 0,
+    idempotency_key: "rule_asg_24h:asg_web_01:part_karim_01:2026-02-19",
+  },
+];
+
+export const INITIAL_TRACK_NOTIFICATIONS: TrackNotificationItem[] = [
+  {
+    id: "notif_trk_01",
+    recipient_id: "part_youssef_05",
+    recipient_email: "youssef.i@nctu.edu.eg",
+    title: "Revision Feedback Published",
+    title_ar: "تم نشر ملاحظات وتوجيهات المراجعة",
+    message: "Eng. Ahmed Tarek reviewed your submission for 'Project 1' and requested minor mobile layout revisions.",
+    message_ar: "قام المهندس أحمد طارق بمراجعة تسليمك للمشروع الأول وطلب تعديلات بسيطة على تجاوب الموبايل.",
+    category: "feedback",
+    related_track_id: "track_web_2026",
+    related_entity_type: "assignment",
+    related_entity_id: "asg_web_01",
+    link: "/education?tab=assignments&asg=asg_web_01",
+    is_read: false,
+    created_at: "2026-02-22T16:00:00Z",
+  },
+  {
+    id: "notif_trk_02",
+    recipient_id: "lead_web_ahmed",
+    recipient_email: "web.lead@gdgnctu.com",
+    title: "New Resubmission Received",
+    title_ar: "تم استلام محاولة إعادة تسليم جديدة",
+    message: "Youssef Ibrahim submitted Attempt #2 for 'Project 1: Responsive Developer Portfolio'.",
+    message_ar: "قام يوسف إبراهيم بتقديم المحاولة رقم 2 للمشروع الأول بانتظار اعتماد التقييم.",
+    category: "assignments",
+    related_track_id: "track_web_2026",
+    related_entity_type: "submission",
+    related_entity_id: "sub_web_01_youssef",
+    link: "/education?tab=assignments&asg=asg_web_01",
+    is_read: false,
+    created_at: "2026-03-02T18:05:00Z",
+  },
+];
+
+export const INITIAL_RISK_RULES: RiskRule[] = [
+  {
+    id: "risk_rule_att_75",
+    name: "Low Attendance Rate (< 75%)",
+    name_ar: "انخفاض نسبة الحضور التراكمي عن 75%",
+    description: "Triggers when participant attendance rate falls below the 75% certificate threshold.",
+    description_ar: "يتم التفعيل عندما تنخفض نسبة حضور المتدرب عن 75%، وهي الحد الأدنى لاستحقاق الشهادة.",
+    trigger_type: "attendance_threshold",
+    threshold_value: 75,
+    severity: "needs_follow_up",
+    track_id: "all",
+    enabled: true,
+    recommended_action: "Schedule academic check-in to review attendance recovery options.",
+    recommended_action_ar: "التواصل الودي مع المتدرب لبحث أسباب الغياب وتقديم جلسة تعويضية.",
+    version: "1.0",
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "risk_rule_consec_abs",
+    name: "Two Consecutive Unexcused Absences",
+    name_ar: "غياب غير مبرر لجلستين متتاليتين",
+    description: "Flagged when a participant misses 2 consecutive sessions without an approved excuse.",
+    description_ar: "يتم التفعيل عند تسجيل غياب جلستين متتاليتين دون تقديم عذر رسمي معتمد.",
+    trigger_type: "consecutive_absences",
+    threshold_value: 2,
+    severity: "urgent_support",
+    track_id: "all",
+    enabled: true,
+    recommended_action: "Direct phone contact or urgent mentor meeting to resolve blockers.",
+    recommended_action_ar: "إجراء اتصال مباشر وتحديد موعد مع الموجه الأكاديمي لحل المعوقات.",
+    version: "1.0",
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "risk_rule_miss_asg",
+    name: "Two or More Missing Assignments",
+    name_ar: "تراكم مهمتين أو أكثر دون تسليم",
+    description: "Participant has 2 or more active assignments past deadline with no valid submission.",
+    description_ar: "وجود مهمتين تطبيقيتين أو أكثر تجاوزتا الموعد النهائي دون تسليم.",
+    trigger_type: "missing_assignments",
+    threshold_value: 2,
+    severity: "needs_follow_up",
+    track_id: "all",
+    enabled: true,
+    recommended_action: "Offer assignment extension and technical clarification session.",
+    recommended_action_ar: "منح مهلة إضافية وتوضيح متطلبات المهام عبر جلسة توجيه فردية.",
+    version: "1.0",
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "risk_rule_asg_pct_60",
+    name: "Low Assignment Completion Rate (< 60%)",
+    name_ar: "انخفاض معدل إنجاز المهام عن 60%",
+    description: "Participant completed less than 60% of assigned track deliverables.",
+    description_ar: "إنجاز أقل من 60% من إجمالي المهام والمخرجات المطلوبة في المسار.",
+    trigger_type: "assignment_completion_threshold",
+    threshold_value: 60,
+    severity: "monitor",
+    track_id: "all",
+    enabled: true,
+    recommended_action: "Monitor progress and recommend peer study group.",
+    recommended_action_ar: "متابعة التقدم الأسبوعي واقتراح الانضمام لمجموعة دراسية للمسار.",
+    version: "1.0",
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+  {
+    id: "risk_rule_resub_overdue",
+    name: "Resubmission Deadline Overdue",
+    name_ar: "انقضاء مهلة إعادة التسليم والتعديل",
+    description: "A requested revision deadline has passed without a resubmitted attempt.",
+    description_ar: "انقضاء المهلة المحددة لتعديل المهمة دون استلام المحاولة المعدلة.",
+    trigger_type: "pending_resubmission_overdue",
+    threshold_value: 0,
+    severity: "urgent_support",
+    track_id: "all",
+    enabled: true,
+    recommended_action: "Mentor to check in on technical blocker preventing resubmission.",
+    recommended_action_ar: "تواصل الموجه للتعرف على العقبة التقنية التي حالت دون إعادة التسليم.",
+    version: "1.0",
+    created_at: "2026-01-20T10:00:00Z",
+    updated_at: "2026-01-20T10:00:00Z",
+  },
+];
+
+export const INITIAL_RISK_CASES: RiskFollowUpCase[] = [
+  {
+    id: "case_youssef_web_01",
+    participant_id: "part_youssef_05",
+    participant_name: "Youssef Ibrahim",
+    participant_email: "youssef.i@nctu.edu.eg",
+    track_id: "track_web_2026",
+    track_name: "Web Development (Frontend & Next.js)",
+    cohort: "Season 2026 - Cohort 1",
+    risk_level: "needs_follow_up",
+    triggering_indicators: [
+      {
+        rule_id: "risk_rule_att_75",
+        rule_name: "Low Attendance Rate (< 75%)",
+        evidence: "Current attendance is 67% (2 present out of 3 eligible completed sessions, 1 unexcused absence on Session 2)",
+        evidence_ar: "نسبة الحضور الحالية 67% (حضور جلستين من أصل 3 جلسات، مع غياب غير مبرر في الجلسة الثانية)",
+        date: "2026-02-10",
+      },
+    ],
+    date_identified: "2026-02-23T10:00:00Z",
+    assigned_owner_id: "mentor_ta_nour",
+    assigned_owner_name: "Eng. Nour (Mentor)",
+    recommended_action: "Conduct 1-on-1 tutoring on responsive CSS and review upcoming React assignments before deadline.",
+    follow_up_deadline: "2026-03-25",
+    status: "support_plan_active",
+    next_action: "Follow up after Project 2 submission to confirm progress.",
+    created_at: "2026-02-23T10:00:00Z",
+    updated_at: "2026-03-03T11:00:00Z",
+  },
+];
+
+export const INITIAL_CASE_ACTIONS: CaseActionLog[] = [
+  {
+    id: "action_case_01_1",
+    case_id: "case_youssef_web_01",
+    actor_id: "mentor_ta_nour",
+    actor_name: "Eng. Nour (Mentor)",
+    action_type: "supportive_reminder",
+    notes: "Sent supportive message via portal offering technical office hours for responsive CSS.",
+    timestamp: "2026-02-23T12:00:00Z",
+  },
+  {
+    id: "action_case_01_2",
+    case_id: "case_youssef_web_01",
+    actor_id: "mentor_ta_nour",
+    actor_name: "Eng. Nour (Mentor)",
+    action_type: "office_hours",
+    notes: "Conducted 45-min Zoom mentoring session to explain flexbox media queries and DevTools mobile emulator.",
+    timestamp: "2026-02-27T16:30:00Z",
+  },
+];
+
 // ============================================================
 // Tracks Service Implementation & Calculation Engine
 // ============================================================
@@ -1644,7 +2158,6 @@ export const tracksService = {
         const rec = records.find((r) => r.session_id === s.id && r.participant_id === e.participant_id);
         return rec ? rec.status : "pending";
       });
-
       rows.push([p?.full_name || "", p?.email || "", ...sessionStatuses, `${metrics.attendancePercentage}%`]);
     });
 
@@ -1656,38 +2169,1190 @@ export const tracksService = {
     const enrollments = this.getEnrollmentsByTrack(trackId);
     const submissions = this.getSubmissions();
 
-    const header = [
-      "Participant Name",
-      "Email",
-      ...assignments.map((a) => `${a.title} (Max ${a.max_score})`),
-      "Assignment Score (30%)",
-      "Attendance Score (40%)",
-      "Bonus Points",
-      "Final Official Score (100)",
-      "Certificate Status",
-    ];
+    const header = ["Participant Name", "Email", ...assignments.map((a) => `${a.title} (Max ${a.max_score})`), "Official Score (100)", "Certificate"];
     const rows = [header];
 
     enrollments.forEach((e) => {
       const p = e.participant;
       const metrics = this.calculateParticipantMetrics(e.participant_id, trackId);
-      const assignmentScores = assignments.map((a) => {
+      const asgScores = assignments.map((a) => {
         const sub = submissions.find((s) => s.assignment_id === a.id && s.participant_id === e.participant_id);
-        return sub && sub.score !== null ? `${sub.score}` : "N/A";
+        return sub?.score !== null && sub?.score !== undefined ? String(sub.score) : "Pending";
       });
-
       rows.push([
         p?.full_name || "",
         p?.email || "",
-        ...assignmentScores,
-        `${metrics.assignmentScore}`,
-        `${metrics.attendanceScore}`,
-        `${metrics.totalBonus}`,
+        ...asgScores,
         `${metrics.finalOfficialScore}`,
-        metrics.isEligibleForCertificate ? "Eligible (>=75%)" : "In Progress",
+        metrics.isEligibleForCertificate ? "Yes" : "No",
       ]);
     });
 
     return rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // FEATURE 1: SMART REMINDERS & NOTIFICATION ENGINE
+  // ════════════════════════════════════════════════════════════
+
+  getReminderRules(): ReminderRule[] {
+    return getStorage<ReminderRule>("reminder_rules", INITIAL_REMINDER_RULES);
+  },
+
+  getReminderRuleById(id: string): ReminderRule | null {
+    return this.getReminderRules().find((r) => r.id === id) || null;
+  },
+
+  saveReminderRule(
+    rule: Omit<ReminderRule, "id" | "created_at" | "updated_at"> & { id?: string }
+  ): ReminderRule {
+    const list = this.getReminderRules();
+    const now = new Date().toISOString();
+    if (rule.id) {
+      const existingIdx = list.findIndex((r) => r.id === rule.id);
+      if (existingIdx >= 0) {
+        const updated: ReminderRule = {
+          ...list[existingIdx],
+          ...rule,
+          updated_at: now,
+        };
+        list[existingIdx] = updated;
+        setStorage("reminder_rules", list);
+        return updated;
+      }
+    }
+
+    const newRule: ReminderRule = {
+      ...rule,
+      id: rule.id || `rule_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      created_at: now,
+      updated_at: now,
+    };
+    setStorage("reminder_rules", [newRule, ...list]);
+    return newRule;
+  },
+
+  toggleReminderRule(ruleId: string, enabled?: boolean): ReminderRule | null {
+    const list = this.getReminderRules();
+    let updated: ReminderRule | null = null;
+    const next = list.map((r) => {
+      if (r.id === ruleId) {
+        updated = {
+          ...r,
+          enabled: typeof enabled === "boolean" ? enabled : !r.enabled,
+          updated_at: new Date().toISOString(),
+        };
+        return updated;
+      }
+      return r;
+    });
+    setStorage("reminder_rules", next);
+    return updated;
+  },
+
+  getReminderLogs(): ReminderExecutionLog[] {
+    return getStorage<ReminderExecutionLog>("reminder_logs", INITIAL_REMINDER_LOGS);
+  },
+
+  getTrackNotifications(userId?: string): TrackNotificationItem[] {
+    const notifs = getStorage<TrackNotificationItem>("track_notifications", INITIAL_TRACK_NOTIFICATIONS);
+    if (!userId || userId === "all") return notifs;
+    return notifs.filter(
+      (n) => n.recipient_id === userId || (n.recipient_email && n.recipient_email.toLowerCase() === userId.toLowerCase())
+    );
+  },
+
+  markTrackNotificationRead(id: string): boolean {
+    const list = this.getTrackNotifications();
+    const next = list.map((n) => (n.id === id ? { ...n, is_read: true } : n));
+    setStorage("track_notifications", next);
+    return true;
+  },
+
+  markAllTrackNotificationsRead(userId?: string): boolean {
+    const list = this.getTrackNotifications();
+    const next = list.map((n) => {
+      if (!userId || n.recipient_id === userId || n.recipient_email?.toLowerCase() === userId?.toLowerCase()) {
+        return { ...n, is_read: true };
+      }
+      return n;
+    });
+    setStorage("track_notifications", next);
+    return true;
+  },
+
+  /**
+   * Evaluates all active tracks, assignments, sessions, and at-risk cases against active rules.
+   * Enforces idempotent execution, cancellation suppression when submitted/excused, and records logs.
+   */
+  evaluateAndGenerateReminders(nowOverride?: Date): {
+    generatedCount: number;
+    suppressedCount: number;
+    logs: ReminderExecutionLog[];
+  } {
+    const now = nowOverride || new Date();
+    const rules = this.getReminderRules().filter((r) => r.enabled);
+    const assignments = this.getAssignments();
+    const sessions = this.getSessions();
+    const enrollments = this.getEnrollments();
+    const submissions = this.getSubmissions();
+    const attempts = this.getSubmissionAttempts();
+    const followUps = this.getRiskFollowUpCases();
+    const participants = this.getParticipants();
+
+    const existingLogs = this.getReminderLogs();
+    const existingNotifs = this.getTrackNotifications();
+    const newLogs: ReminderExecutionLog[] = [];
+    const newNotifs: TrackNotificationItem[] = [];
+
+    let generatedCount = 0;
+    let suppressedCount = 0;
+
+    for (const rule of rules) {
+      // 1. Upcoming Deadline Reminders (e.g. 72h, 24h, 3h before)
+      if (rule.reminder_type === "upcoming_deadline") {
+        const eligibleAssignments = assignments.filter(
+          (a) => rule.track_id === "all" || a.track_id === rule.track_id
+        );
+
+        for (const asg of eligibleAssignments) {
+          const deadlineTime = new Date(asg.deadline).getTime();
+          const targetTriggerTime = deadlineTime + rule.time_offset_hours * 3600000;
+          // Trigger if current time is within or past targetTriggerTime but before deadline
+          if (now.getTime() >= targetTriggerTime && now.getTime() < deadlineTime) {
+            const trackEnrs = enrollments.filter((e) => e.track_id === asg.track_id && e.status === "active");
+            for (const enr of trackEnrs) {
+              const idempotencyKey = `rem_${rule.id}_${asg.id}_${enr.participant_id}_${rule.time_offset_hours}`;
+              if (existingLogs.some((l) => l.idempotency_key === idempotencyKey)) continue;
+
+              const sub = submissions.find((s) => s.assignment_id === asg.id && s.participant_id === enr.participant_id);
+              // Suppress if already completed/submitted!
+              if (sub && (sub.status === "submitted" || sub.status === "graded" || sub.status === "accepted")) {
+                const log: ReminderExecutionLog = {
+                  id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                  rule_id: rule.id,
+                  rule_name: rule.name,
+                  event_id: asg.id,
+                  event_type: "assignment",
+                  recipient_id: enr.participant_id,
+                  recipient_role: "participant",
+                  delivery_channel: rule.delivery_channel,
+                  status: "suppressed_completed",
+                  scheduled_at: new Date(targetTriggerTime).toISOString(),
+                  processed_at: now.toISOString(),
+                  retry_count: 0,
+                  idempotency_key: idempotencyKey,
+                };
+                newLogs.push(log);
+                suppressedCount++;
+                continue;
+              }
+
+              // Deliver notification
+              const part = participants.find((p) => p.id === enr.participant_id);
+              const notif: TrackNotificationItem = {
+                id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                recipient_id: enr.participant_id,
+                recipient_email: part?.email,
+                title: rule.name,
+                title_ar: rule.name_ar,
+                message: rule.message_template.replace("{title}", asg.title).replace("{deadline}", asg.deadline),
+                message_ar: rule.message_template_ar.replace("{title}", asg.title),
+                category: "assignments",
+                related_track_id: asg.track_id,
+                related_entity_type: "assignment",
+                related_entity_id: asg.id,
+                link: `/education?tab=assignments&asg=${asg.id}`,
+                is_read: false,
+                created_at: now.toISOString(),
+              };
+              newNotifs.push(notif);
+
+              newLogs.push({
+                id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                rule_id: rule.id,
+                rule_name: rule.name,
+                event_id: asg.id,
+                event_type: "assignment",
+                recipient_id: enr.participant_id,
+                recipient_role: "participant",
+                delivery_channel: rule.delivery_channel,
+                status: "sent",
+                scheduled_at: new Date(targetTriggerTime).toISOString(),
+                processed_at: now.toISOString(),
+                retry_count: 0,
+                idempotency_key: idempotencyKey,
+              });
+              generatedCount++;
+            }
+          }
+        }
+      }
+
+      // 2. Overdue Assignment Reminders
+      else if (rule.reminder_type === "overdue_assignment") {
+        const eligibleAssignments = assignments.filter(
+          (a) => rule.track_id === "all" || a.track_id === rule.track_id
+        );
+
+        for (const asg of eligibleAssignments) {
+          const deadlineTime = new Date(asg.deadline).getTime();
+          if (now.getTime() > deadlineTime) {
+            const trackEnrs = enrollments.filter((e) => e.track_id === asg.track_id && e.status === "active");
+            for (const enr of trackEnrs) {
+              const idempotencyKey = `rem_overdue_${asg.id}_${enr.participant_id}`;
+              if (existingLogs.some((l) => l.idempotency_key === idempotencyKey)) continue;
+
+              const sub = submissions.find((s) => s.assignment_id === asg.id && s.participant_id === enr.participant_id);
+              if (sub && (sub.status === "submitted" || sub.status === "graded" || sub.status === "accepted")) {
+                newLogs.push({
+                  id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                  rule_id: rule.id,
+                  rule_name: rule.name,
+                  event_id: asg.id,
+                  event_type: "assignment",
+                  recipient_id: enr.participant_id,
+                  recipient_role: "participant",
+                  delivery_channel: rule.delivery_channel,
+                  status: "suppressed_completed",
+                  scheduled_at: asg.deadline,
+                  processed_at: now.toISOString(),
+                  retry_count: 0,
+                  idempotency_key: idempotencyKey,
+                });
+                suppressedCount++;
+                continue;
+              }
+
+              const part = participants.find((p) => p.id === enr.participant_id);
+              newNotifs.push({
+                id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                recipient_id: enr.participant_id,
+                recipient_email: part?.email,
+                title: rule.name,
+                title_ar: rule.name_ar,
+                message: rule.message_template.replace("{title}", asg.title),
+                message_ar: rule.message_template_ar.replace("{title}", asg.title),
+                category: "assignments",
+                related_track_id: asg.track_id,
+                related_entity_type: "assignment",
+                related_entity_id: asg.id,
+                link: `/education?tab=assignments&asg=${asg.id}`,
+                is_read: false,
+                created_at: now.toISOString(),
+              });
+
+              newLogs.push({
+                id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                rule_id: rule.id,
+                rule_name: rule.name,
+                event_id: asg.id,
+                event_type: "assignment",
+                recipient_id: enr.participant_id,
+                recipient_role: "participant",
+                delivery_channel: rule.delivery_channel,
+                status: "sent",
+                scheduled_at: asg.deadline,
+                processed_at: now.toISOString(),
+                retry_count: 0,
+                idempotency_key: idempotencyKey,
+              });
+              generatedCount++;
+            }
+          }
+        }
+      }
+
+      // 3. Upcoming Session Reminders (e.g. 24h before)
+      else if (rule.reminder_type === "upcoming_session") {
+        const eligibleSessions = sessions.filter(
+          (s) => s.status === "scheduled" && (rule.track_id === "all" || s.track_id === rule.track_id)
+        );
+
+        for (const sess of eligibleSessions) {
+          const sessionDateTime = new Date(`${sess.date}T${sess.start_time}:00`).getTime();
+          const targetTriggerTime = sessionDateTime + rule.time_offset_hours * 3600000;
+          if (now.getTime() >= targetTriggerTime && now.getTime() < sessionDateTime) {
+            const trackEnrs = enrollments.filter((e) => e.track_id === sess.track_id && e.status === "active");
+            for (const enr of trackEnrs) {
+              const idempotencyKey = `rem_sess_${sess.id}_${enr.participant_id}`;
+              if (existingLogs.some((l) => l.idempotency_key === idempotencyKey)) continue;
+
+              const part = participants.find((p) => p.id === enr.participant_id);
+              newNotifs.push({
+                id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                recipient_id: enr.participant_id,
+                recipient_email: part?.email,
+                title: rule.name,
+                title_ar: rule.name_ar,
+                message: rule.message_template.replace("{title}", sess.title).replace("{time}", `${sess.date} ${sess.start_time}`),
+                message_ar: rule.message_template_ar.replace("{title}", sess.title).replace("{time}", `${sess.date} ${sess.start_time}`),
+                category: "sessions",
+                related_track_id: sess.track_id,
+                related_entity_type: "session",
+                related_entity_id: sess.id,
+                link: `/education?tab=sessions&sess=${sess.id}`,
+                is_read: false,
+                created_at: now.toISOString(),
+              });
+
+              newLogs.push({
+                id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                rule_id: rule.id,
+                rule_name: rule.name,
+                event_id: sess.id,
+                event_type: "session",
+                recipient_id: enr.participant_id,
+                recipient_role: "participant",
+                delivery_channel: rule.delivery_channel,
+                status: "sent",
+                scheduled_at: new Date(targetTriggerTime).toISOString(),
+                processed_at: now.toISOString(),
+                retry_count: 0,
+                idempotency_key: idempotencyKey,
+              });
+              generatedCount++;
+            }
+          }
+        }
+      }
+
+      // 4. Resubmission Deadline Approaching
+      else if (rule.reminder_type === "resubmission_deadline_approaching") {
+        const pendingAttempts = attempts.filter((att) => att.status === "revision_requested" && att.resubmission_deadline);
+        for (const att of pendingAttempts) {
+          const resubDeadlineTime = new Date(att.resubmission_deadline!).getTime();
+          const targetTriggerTime = resubDeadlineTime + rule.time_offset_hours * 3600000;
+          if (now.getTime() >= targetTriggerTime && now.getTime() < resubDeadlineTime) {
+            const idempotencyKey = `rem_resub_due_${att.id}`;
+            if (existingLogs.some((l) => l.idempotency_key === idempotencyKey)) continue;
+
+            const asg = assignments.find((a) => a.id === att.assignment_id);
+            const part = participants.find((p) => p.id === att.participant_id);
+
+            newNotifs.push({
+              id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              recipient_id: att.participant_id,
+              recipient_email: part?.email,
+              title: rule.name,
+              title_ar: rule.name_ar,
+              message: rule.message_template.replace("{title}", asg?.title || "Assignment"),
+              message_ar: rule.message_template_ar.replace("{title}", asg?.title || "Assignment"),
+              category: "feedback",
+              related_track_id: asg?.track_id,
+              related_entity_type: "assignment",
+              related_entity_id: att.assignment_id,
+              link: `/education?tab=assignments&asg=${att.assignment_id}`,
+              is_read: false,
+              created_at: now.toISOString(),
+            });
+
+            newLogs.push({
+              id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              rule_id: rule.id,
+              rule_name: rule.name,
+              event_id: att.id,
+              event_type: "submission",
+              recipient_id: att.participant_id,
+              recipient_role: "participant",
+              delivery_channel: rule.delivery_channel,
+              status: "sent",
+              scheduled_at: new Date(targetTriggerTime).toISOString(),
+              processed_at: now.toISOString(),
+              retry_count: 0,
+              idempotency_key: idempotencyKey,
+            });
+            generatedCount++;
+          }
+        }
+      }
+
+      // 5. At-Risk Follow-Up Due
+      else if (rule.reminder_type === "at_risk_follow_up_due") {
+        const openCases = followUps.filter((c) => c.status !== "resolved" && c.status !== "closed");
+        for (const c of openCases) {
+          const deadlineTime = new Date(`${c.follow_up_deadline}T12:00:00Z`).getTime();
+          const targetTriggerTime = deadlineTime + rule.time_offset_hours * 3600000;
+          if (now.getTime() >= targetTriggerTime && now.getTime() <= deadlineTime + 86400000) {
+            const idempotencyKey = `rem_risk_${c.id}_${c.assigned_owner_id}`;
+            if (existingLogs.some((l) => l.idempotency_key === idempotencyKey)) continue;
+
+            newNotifs.push({
+              id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              recipient_id: c.assigned_owner_id,
+              title: rule.name,
+              title_ar: rule.name_ar,
+              message: rule.message_template.replace("{participant_name}", c.participant_name).replace("{deadline}", c.follow_up_deadline),
+              message_ar: rule.message_template_ar.replace("{participant_name}", c.participant_name).replace("{deadline}", c.follow_up_deadline),
+              category: "follow_ups",
+              related_track_id: c.track_id,
+              related_entity_type: "follow_up",
+              related_entity_id: c.id,
+              link: `/education?tab=at_risk&case=${c.id}`,
+              is_read: false,
+              created_at: now.toISOString(),
+            });
+
+            newLogs.push({
+              id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              rule_id: rule.id,
+              rule_name: rule.name,
+              event_id: c.id,
+              event_type: "follow_up",
+              recipient_id: c.assigned_owner_id,
+              recipient_role: "follow_up_owner",
+              delivery_channel: rule.delivery_channel,
+              status: "sent",
+              scheduled_at: new Date(targetTriggerTime).toISOString(),
+              processed_at: now.toISOString(),
+              retry_count: 0,
+              idempotency_key: idempotencyKey,
+            });
+            generatedCount++;
+          }
+        }
+      }
+    }
+
+    if (newNotifs.length > 0) {
+      setStorage("track_notifications", [...newNotifs, ...existingNotifs]);
+    }
+    if (newLogs.length > 0) {
+      setStorage("reminder_logs", [...newLogs, ...existingLogs]);
+    }
+
+    return {
+      generatedCount,
+      suppressedCount,
+      logs: [...newLogs, ...existingLogs],
+    };
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // FEATURE 2: FEEDBACK, RESUBMISSION & IMMUTABLE ATTEMPT HISTORY
+  // ════════════════════════════════════════════════════════════
+
+  getSubmissionAttempts(filter?: {
+    assignmentId?: string;
+    participantId?: string;
+    submissionId?: string;
+  }): TrackSubmissionAttempt[] {
+    const attempts = getStorage<TrackSubmissionAttempt>(
+      "submission_attempts",
+      INITIAL_SUBMISSION_ATTEMPTS
+    );
+    return attempts.filter((att) => {
+      if (filter?.assignmentId && att.assignment_id !== filter.assignmentId) return false;
+      if (filter?.participantId && att.participant_id !== filter.participantId) return false;
+      if (filter?.submissionId && att.submission_id !== filter.submissionId) return false;
+      return true;
+    });
+  },
+
+  getSubmissionAttemptById(id: string): TrackSubmissionAttempt | null {
+    return this.getSubmissionAttempts().find((a) => a.id === id) || null;
+  },
+
+  /**
+   * Submits a new attempt. Preserves all earlier attempts as immutable records.
+   */
+  recordSubmissionAttempt(params: {
+    assignmentId: string;
+    enrollmentId: string;
+    participantId: string;
+    submissionUrl: string;
+    notes?: string;
+  }): { attempt: TrackSubmissionAttempt; submission: TrackSubmission } {
+    const now = new Date();
+    const asg = this.getAssignments().find((a) => a.id === params.assignmentId);
+    const existingAttempts = this.getSubmissionAttempts({
+      assignmentId: params.assignmentId,
+      participantId: params.participantId,
+    }).sort((a, b) => a.attempt_number - b.attempt_number);
+
+    const attemptNumber = existingAttempts.length + 1;
+    const lastAttempt = existingAttempts[existingAttempts.length - 1];
+    const applicableDeadline =
+      attemptNumber > 1 && lastAttempt?.resubmission_deadline
+        ? lastAttempt.resubmission_deadline
+        : asg?.deadline || now.toISOString();
+    const isLate = now.getTime() > new Date(applicableDeadline).getTime();
+
+    // Check max attempts policy
+    if (asg?.max_attempts && attemptNumber > asg.max_attempts) {
+      throw new Error(`Maximum number of allowed attempts (${asg.max_attempts}) reached for this assignment.`);
+    }
+
+    const allSubmissions = this.getSubmissions();
+    let sub = allSubmissions.find(
+      (s) => s.assignment_id === params.assignmentId && s.participant_id === params.participantId
+    );
+
+    const submissionId = sub?.id || `sub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    const newAttempt: TrackSubmissionAttempt = {
+      id: `attm_${params.assignmentId}_${params.participantId}_${attemptNumber}`,
+      submission_id: submissionId,
+      assignment_id: params.assignmentId,
+      enrollment_id: params.enrollmentId,
+      participant_id: params.participantId,
+      attempt_number: attemptNumber,
+      submission_url: params.submissionUrl,
+      submitted_at: now.toISOString(),
+      applicable_deadline: applicableDeadline,
+      is_late: isLate,
+      late_penalty_applied: isLate ? 10 : 0,
+      status: isLate ? "submitted_late" : attemptNumber === 1 ? "submitted" : "resubmitted",
+      score: null,
+      created_at: now.toISOString(),
+    };
+
+    const allAttempts = getStorage<TrackSubmissionAttempt>("submission_attempts", INITIAL_SUBMISSION_ATTEMPTS);
+    setStorage("submission_attempts", [newAttempt, ...allAttempts]);
+
+    // Update parent submission record
+    const updatedSub: TrackSubmission = {
+      id: submissionId,
+      assignment_id: params.assignmentId,
+      enrollment_id: params.enrollmentId,
+      participant_id: params.participantId,
+      submission_url: params.submissionUrl,
+      submitted_at: now.toISOString(),
+      status: isLate ? "submitted_late" : attemptNumber === 1 ? "submitted" : "resubmitted",
+      score: sub?.score ?? null,
+      current_attempt_number: attemptNumber,
+      revision_history: [
+        ...(sub?.revision_history || []),
+        { date: now.toISOString(), url: params.submissionUrl, note: params.notes || `Attempt #${attemptNumber}` },
+      ],
+      created_at: sub?.created_at || now.toISOString(),
+      updated_at: now.toISOString(),
+    };
+
+    const nextSubs = allSubmissions.some((s) => s.id === submissionId)
+      ? allSubmissions.map((s) => (s.id === submissionId ? updatedSub : s))
+      : [updatedSub, ...allSubmissions];
+
+    setStorage("submissions", nextSubs);
+
+    // Create In-App notification for instructor
+    if (asg?.reviewer_id) {
+      const part = this.getParticipants().find((p) => p.id === params.participantId);
+      const existingNotifs = this.getTrackNotifications();
+      const notif: TrackNotificationItem = {
+        id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        recipient_id: asg.reviewer_id,
+        title: attemptNumber === 1 ? "New Assignment Submission" : "New Resubmitted Attempt",
+        title_ar: attemptNumber === 1 ? "تسليم جديد لمهمة تدريبية" : "إعادة تسليم محاولة جديدة",
+        message: `${part?.full_name || "Participant"} submitted Attempt #${attemptNumber} for '${asg.title}'.`,
+        message_ar: `قام المتدرب ${part?.full_name || "متدرب"} بتقديم المحاولة رقم ${attemptNumber} للمهمة '${asg.title}'.`,
+        category: "assignments",
+        related_track_id: asg.track_id,
+        related_entity_type: "submission",
+        related_entity_id: submissionId,
+        link: `/education?tab=assignments&asg=${asg.id}`,
+        is_read: false,
+        created_at: now.toISOString(),
+      };
+      setStorage("track_notifications", [notif, ...existingNotifs]);
+    }
+
+    return { attempt: newAttempt, submission: updatedSub };
+  },
+
+  /**
+   * Reviews an attempt, records structured feedback and either accepts or requests revision.
+   * Calculates official final grade using configured assignment policy.
+   */
+  reviewSubmissionAttempt(params: {
+    attemptId: string;
+    score: number;
+    feedback: StructuredFeedback;
+    reviewerId: string;
+    reviewerName: string;
+    action: "accept" | "request_revision" | "reject";
+    resubmissionDeadline?: string;
+    resubmissionNotes?: string;
+  }): { attempt: TrackSubmissionAttempt; submission: TrackSubmission } {
+    const allAttempts = getStorage<TrackSubmissionAttempt>("submission_attempts", INITIAL_SUBMISSION_ATTEMPTS);
+    const targetIdx = allAttempts.findIndex((a) => a.id === params.attemptId);
+    if (targetIdx < 0) throw new Error("Attempt record not found.");
+
+    const now = new Date().toISOString();
+    const existingAttempt = allAttempts[targetIdx];
+
+    const updatedAttempt: TrackSubmissionAttempt = {
+      ...existingAttempt,
+      score: Math.min(100, Math.max(0, params.score)),
+      feedback: params.feedback,
+      reviewer_id: params.reviewerId,
+      reviewer_name: params.reviewerName,
+      reviewed_at: now,
+      status:
+        params.action === "accept"
+          ? "accepted"
+          : params.action === "request_revision"
+          ? "revision_requested"
+          : "needs_revision",
+      revision_requested_at: params.action === "request_revision" ? now : undefined,
+      resubmission_deadline: params.resubmissionDeadline,
+      resubmission_notes: params.resubmissionNotes,
+    };
+
+    allAttempts[targetIdx] = updatedAttempt;
+    setStorage("submission_attempts", allAttempts);
+
+    // Calculate official final score based on assignment's approved policy
+    const officialCalc = this.calculateOfficialFinalScore(
+      updatedAttempt.assignment_id,
+      updatedAttempt.participant_id
+    );
+
+    // Update parent submission record
+    const allSubmissions = this.getSubmissions();
+    const subIdx = allSubmissions.findIndex((s) => s.id === updatedAttempt.submission_id);
+    const existingSub = allSubmissions[subIdx];
+
+    const updatedSub: TrackSubmission = {
+      ...existingSub,
+      score: officialCalc.finalScore,
+      status: updatedAttempt.status,
+      reviewer_feedback: params.feedback.what_went_well + " — " + params.feedback.needs_improvement,
+      structured_feedback: params.feedback,
+      reviewed_by: params.reviewerName,
+      reviewed_at: now,
+      updated_at: now,
+    };
+
+    if (subIdx >= 0) {
+      allSubmissions[subIdx] = updatedSub;
+      setStorage("submissions", allSubmissions);
+    }
+
+    // Notify participant of published feedback / revision request
+    const asg = this.getAssignments().find((a) => a.id === updatedAttempt.assignment_id);
+    const existingNotifs = this.getTrackNotifications();
+    const notif: TrackNotificationItem = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      recipient_id: updatedAttempt.participant_id,
+      title:
+        params.action === "request_revision"
+          ? "Revision Requested on Assignment"
+          : "Assignment Graded & Feedback Published",
+      title_ar:
+        params.action === "request_revision"
+          ? "طلب مراجعة وتعديل على المهمة"
+          : "تم تصحيح المهمة ونشر الملاحظات",
+      message:
+        params.action === "request_revision"
+          ? `Your submission for '${asg?.title}' requires corrections. Resubmit before ${params.resubmissionDeadline || "the deadline"}.`
+          : `Feedback published for '${asg?.title}'. Official score: ${officialCalc.finalScore} / ${asg?.max_score || 100}.`,
+      message_ar:
+        params.action === "request_revision"
+          ? `طلب مراجع المسار تعديلات على تسليمك للمهمة '${asg?.title}'. يرجى الاطلاع على الملاحظات وإعادة التسليم.`
+          : `تم نشر نتيجة تقييم المهمة '${asg?.title}'. الدرجة الرسمية: ${officialCalc.finalScore} / ${asg?.max_score || 100}.`,
+      category: "feedback",
+      related_track_id: asg?.track_id,
+      related_entity_type: "assignment",
+      related_entity_id: asg?.id,
+      link: `/education?tab=assignments&asg=${asg?.id}`,
+      is_read: false,
+      created_at: now,
+    };
+    setStorage("track_notifications", [notif, ...existingNotifs]);
+
+    return { attempt: updatedAttempt, submission: updatedSub };
+  },
+
+  /**
+   * Calculates official final grade based on approved assignment policy:
+   * 'latest_reviewed', 'highest_approved', or 'instructor_selected'.
+   */
+  calculateOfficialFinalScore(
+    assignmentId: string,
+    participantId: string
+  ): {
+    finalScore: number | null;
+    policy: FinalGradePolicy;
+    selectedAttemptNumber: number;
+  } {
+    const asg = this.getAssignments().find((a) => a.id === assignmentId);
+    const policy: FinalGradePolicy = asg?.final_grade_policy || "highest_approved";
+    const attempts = this.getSubmissionAttempts({ assignmentId, participantId }).filter(
+      (a) => a.score !== null
+    );
+
+    if (attempts.length === 0) {
+      return { finalScore: null, policy, selectedAttemptNumber: 0 };
+    }
+
+    if (policy === "highest_approved") {
+      const highest = attempts.reduce((prev, curr) => ((curr.score || 0) > (prev.score || 0) ? curr : prev));
+      return { finalScore: highest.score, policy, selectedAttemptNumber: highest.attempt_number };
+    }
+
+    if (policy === "latest_reviewed") {
+      const latest = [...attempts].sort((a, b) => b.attempt_number - a.attempt_number)[0];
+      return { finalScore: latest.score, policy, selectedAttemptNumber: latest.attempt_number };
+    }
+
+    // 'instructor_selected' -> accepted attempt or latest
+    const accepted = attempts.find((a) => a.status === "accepted") || attempts[attempts.length - 1];
+    return { finalScore: accepted.score, policy, selectedAttemptNumber: accepted.attempt_number };
+  },
+
+  /**
+   * Post-publication grade correction audit trail.
+   */
+  correctGrade(params: {
+    attemptId: string;
+    newScore: number;
+    newFeedback?: string;
+    correctedBy: string;
+    correctedByName: string;
+    reason: string;
+  }): GradeCorrectionLog {
+    const allAttempts = getStorage<TrackSubmissionAttempt>("submission_attempts", INITIAL_SUBMISSION_ATTEMPTS);
+    const attIdx = allAttempts.findIndex((a) => a.id === params.attemptId);
+    if (attIdx < 0) throw new Error("Attempt record not found.");
+
+    const attempt = allAttempts[attIdx];
+    const previousScore = attempt.score;
+    const now = new Date().toISOString();
+
+    const correctionLog: GradeCorrectionLog = {
+      id: `corr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      attempt_id: params.attemptId,
+      submission_id: attempt.submission_id,
+      assignment_id: attempt.assignment_id,
+      participant_id: attempt.participant_id,
+      previous_score: previousScore,
+      new_score: Math.min(100, Math.max(0, params.newScore)),
+      previous_feedback: attempt.feedback?.what_went_well,
+      new_feedback: params.newFeedback,
+      corrected_by: params.correctedBy,
+      corrected_by_name: params.correctedByName,
+      corrected_at: now,
+      reason: params.reason,
+    };
+
+    const allCorrections = getStorage<GradeCorrectionLog>("grade_corrections", INITIAL_GRADE_CORRECTIONS);
+    setStorage("grade_corrections", [correctionLog, ...allCorrections]);
+
+    // Update attempt
+    allAttempts[attIdx] = {
+      ...attempt,
+      score: correctionLog.new_score,
+      reviewer_feedback: params.newFeedback || attempt.reviewer_feedback,
+    };
+    setStorage("submission_attempts", allAttempts);
+
+    // Recalculate parent submission
+    const officialCalc = this.calculateOfficialFinalScore(attempt.assignment_id, attempt.participant_id);
+    const allSubmissions = this.getSubmissions();
+    const subIdx = allSubmissions.findIndex((s) => s.id === attempt.submission_id);
+    if (subIdx >= 0) {
+      allSubmissions[subIdx] = {
+        ...allSubmissions[subIdx],
+        score: officialCalc.finalScore,
+        updated_at: now,
+      };
+      setStorage("submissions", allSubmissions);
+    }
+
+    return correctionLog;
+  },
+
+  getGradeCorrections(attemptId?: string): GradeCorrectionLog[] {
+    const list = getStorage<GradeCorrectionLog>("grade_corrections", INITIAL_GRADE_CORRECTIONS);
+    if (!attemptId) return list;
+    return list.filter((c) => c.attempt_id === attemptId);
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // FEATURE 3: AT-RISK MONITORING & FOLLOW-UP CASE MANAGEMENT
+  // ════════════════════════════════════════════════════════════
+
+  getRiskRules(): RiskRule[] {
+    return getStorage<RiskRule>("risk_rules", INITIAL_RISK_RULES);
+  },
+
+  getRiskRuleById(id: string): RiskRule | null {
+    return this.getRiskRules().find((r) => r.id === id) || null;
+  },
+
+  saveRiskRule(rule: Omit<RiskRule, "id" | "created_at" | "updated_at"> & { id?: string }): RiskRule {
+    const list = this.getRiskRules();
+    const now = new Date().toISOString();
+    if (rule.id) {
+      const existingIdx = list.findIndex((r) => r.id === rule.id);
+      if (existingIdx >= 0) {
+        const updated: RiskRule = {
+          ...list[existingIdx],
+          ...rule,
+          updated_at: now,
+        };
+        list[existingIdx] = updated;
+        setStorage("risk_rules", list);
+        return updated;
+      }
+    }
+
+    const newRule: RiskRule = {
+      ...rule,
+      id: rule.id || `risk_rule_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      created_at: now,
+      updated_at: now,
+    };
+    setStorage("risk_rules", [newRule, ...list]);
+    return newRule;
+  },
+
+  toggleRiskRule(ruleId: string, enabled?: boolean): RiskRule | null {
+    const list = this.getRiskRules();
+    let updated: RiskRule | null = null;
+    const next = list.map((r) => {
+      if (r.id === ruleId) {
+        updated = {
+          ...r,
+          enabled: typeof enabled === "boolean" ? enabled : !r.enabled,
+          updated_at: new Date().toISOString(),
+        };
+        return updated;
+      }
+      return r;
+    });
+    setStorage("risk_rules", next);
+    return updated;
+  },
+
+  getRiskFollowUpCases(filter?: {
+    trackId?: string;
+    status?: string;
+    riskLevel?: string;
+  }): RiskFollowUpCase[] {
+    const cases = getStorage<RiskFollowUpCase>("risk_cases", INITIAL_RISK_CASES);
+    return cases.filter((c) => {
+      if (filter?.trackId && filter.trackId !== "all" && c.track_id !== filter.trackId) return false;
+      if (filter?.status && filter.status !== "all" && c.status !== filter.status) return false;
+      if (filter?.riskLevel && filter.riskLevel !== "all" && c.risk_level !== filter.riskLevel) return false;
+      return true;
+    });
+  },
+
+  getRiskFollowUpCaseById(id: string): RiskFollowUpCase | null {
+    return this.getRiskFollowUpCases().find((c) => c.id === id) || null;
+  },
+
+  createOrUpdateRiskCase(
+    caseData: Omit<RiskFollowUpCase, "id" | "created_at" | "updated_at"> & { id?: string }
+  ): RiskFollowUpCase {
+    const list = this.getRiskFollowUpCases();
+    const now = new Date().toISOString();
+
+    if (caseData.id) {
+      const idx = list.findIndex((c) => c.id === caseData.id);
+      if (idx >= 0) {
+        const updated: RiskFollowUpCase = {
+          ...list[idx],
+          ...caseData,
+          updated_at: now,
+        };
+        list[idx] = updated;
+        setStorage("risk_cases", list);
+        return updated;
+      }
+    }
+
+    const newCase: RiskFollowUpCase = {
+      ...caseData,
+      id: caseData.id || `case_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      created_at: now,
+      updated_at: now,
+    };
+    setStorage("risk_cases", [newCase, ...list]);
+    return newCase;
+  },
+
+  updateRiskCaseStatus(
+    caseId: string,
+    status: RiskFollowUpCase["status"],
+    nextAction?: string,
+    resolutionNotes?: string
+  ): boolean {
+    const list = this.getRiskFollowUpCases();
+    const now = new Date().toISOString();
+    let updated = false;
+
+    const next = list.map((c) => {
+      if (c.id === caseId) {
+        updated = true;
+        return {
+          ...c,
+          status,
+          next_action: nextAction || c.next_action,
+          resolution_notes: resolutionNotes || c.resolution_notes,
+          resolution_date: status === "resolved" || status === "closed" ? now : c.resolution_date,
+          updated_at: now,
+        };
+      }
+      return c;
+    });
+
+    if (updated) {
+      setStorage("risk_cases", next);
+      // Log action
+      this.addCaseAction(
+        caseId,
+        "current_user",
+        "Staff Member",
+        "status_change",
+        `Case status updated to "${status}". ${resolutionNotes ? `Notes: ${resolutionNotes}` : ""}`
+      );
+    }
+    return updated;
+  },
+
+  addCaseAction(
+    caseIdOrParams: string | (Partial<CaseActionLog> & { case_id: string }),
+    actorId?: string,
+    actorName?: string,
+    actionType?: string,
+    notes?: string
+  ): CaseActionLog {
+    const allActions = getStorage<CaseActionLog>("case_actions", INITIAL_CASE_ACTIONS);
+    const now = new Date().toISOString();
+    let newAction: CaseActionLog;
+
+    if (typeof caseIdOrParams === "object") {
+      newAction = {
+        id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        case_id: caseIdOrParams.case_id,
+        action_type: caseIdOrParams.action_type || "supportive_reminder",
+        description: caseIdOrParams.description || caseIdOrParams.notes || "",
+        notes: caseIdOrParams.notes || caseIdOrParams.description || "",
+        actor_id: caseIdOrParams.performed_by_id || caseIdOrParams.actor_id || "staff",
+        actor_name: caseIdOrParams.performed_by_name || caseIdOrParams.actor_name || "Staff",
+        performed_by_id: caseIdOrParams.performed_by_id || caseIdOrParams.actor_id || "staff",
+        performed_by_name: caseIdOrParams.performed_by_name || caseIdOrParams.actor_name || "Staff",
+        participant_response: caseIdOrParams.participant_response,
+        agreed_next_steps: caseIdOrParams.agreed_next_steps,
+        next_deadline: caseIdOrParams.next_deadline,
+        timestamp: now,
+        created_at: now,
+      };
+    } else {
+      newAction = {
+        id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        case_id: caseIdOrParams,
+        actor_id: actorId || "staff",
+        actor_name: actorName || "Staff",
+        performed_by_id: actorId || "staff",
+        performed_by_name: actorName || "Staff",
+        action_type: actionType || "status_change",
+        description: notes || "",
+        notes: notes || "",
+        timestamp: now,
+        created_at: now,
+      };
+    }
+
+    setStorage("case_actions", [newAction, ...allActions]);
+    return newAction;
+  },
+
+  getCaseActions(caseId?: string): CaseActionLog[] {
+    const list = getStorage<CaseActionLog>("case_actions", INITIAL_CASE_ACTIONS);
+    if (!caseId || caseId === "all") return list;
+    return list.filter((a) => a.case_id === caseId);
+  },
+
+  /**
+   * Transparently evaluates risk indicators for every participant.
+   * Fair adjustments: excludes excused absences, accounts for approved extensions.
+   * Explains exact calculation and dates. Automatically synchronizes with follow-up cases without duplicating.
+   */
+  evaluateAtRiskParticipants(nowOverride?: Date): Array<{
+    participant: Participant;
+    enrollment: TrackEnrollment;
+    track: TechnicalTrack;
+    riskLevel: RiskSeverity;
+    triggeringIndicators: RiskIndicatorEvidence[];
+    metrics: any;
+  }> {
+    const now = nowOverride || new Date();
+    const rules = this.getRiskRules().filter((r) => r.enabled);
+    const enrollments = this.getEnrollments().filter((e) => e.status === "active");
+    const assignments = this.getAssignments();
+    const sessions = this.getSessions();
+    const attendance = this.getAttendanceRecords();
+    const submissions = this.getSubmissions();
+    const attempts = this.getSubmissionAttempts();
+
+    const results: Array<{
+      participant: Participant;
+      enrollment: TrackEnrollment;
+      track: TechnicalTrack;
+      riskLevel: RiskSeverity;
+      triggeringIndicators: RiskIndicatorEvidence[];
+      metrics: any;
+    }> = [];
+
+    for (const enr of enrollments) {
+      if (!enr.participant || !enr.track) continue;
+
+      const metrics = this.calculateParticipantMetrics(enr.participant_id, enr.track_id);
+      const triggeringIndicators: RiskIndicatorEvidence[] = [];
+
+      // Participant session records in this track
+      const pAttRecords = attendance
+        .filter((a) => a.track_id === enr.track_id && a.participant_id === enr.participant_id)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      // Consecutive unexcused absences check
+      let consecutiveAbsences = 0;
+      for (const att of pAttRecords) {
+        if (att.status === "absent") {
+          consecutiveAbsences++;
+        } else if (att.status === "present" || att.status === "late") {
+          break;
+        }
+        // excused sessions do not increment unexcused absence
+      }
+
+      // Missing assignments check (past deadline, no valid submission, taking extension into account)
+      const trackAsgs = assignments.filter((a) => a.track_id === enr.track_id);
+      let missingAsgCount = 0;
+      for (const asg of trackAsgs) {
+        const sub = submissions.find((s) => s.assignment_id === asg.id && s.participant_id === enr.participant_id);
+        const effectiveDeadline = sub?.deadline_extension_date || asg.deadline;
+        const isPastDeadline = now.getTime() > new Date(effectiveDeadline).getTime();
+
+        if (isPastDeadline && (!sub || sub.status === "missing" || (!sub.score && sub.status !== "submitted" && sub.status !== "under_review" && sub.status !== "resubmitted"))) {
+          missingAsgCount++;
+        }
+      }
+
+      // Check pending resubmission deadlines
+      const pAttempts = attempts.filter((att) => att.participant_id === enr.participant_id && att.status === "revision_requested");
+      let overdueResubmissions = 0;
+      for (const att of pAttempts) {
+        if (att.resubmission_deadline && now.getTime() > new Date(att.resubmission_deadline).getTime()) {
+          overdueResubmissions++;
+        }
+      }
+
+      // Evaluate active rules
+      for (const rule of rules) {
+        if (rule.track_id !== "all" && rule.track_id !== enr.track_id) continue;
+
+        if (rule.trigger_type === "attendance_threshold") {
+          if (metrics.eligibleSessionsCount >= 2 && metrics.attendancePercentage < rule.threshold_value) {
+            triggeringIndicators.push({
+              rule_id: rule.id,
+              rule_name: rule.name,
+              evidence: `Attendance is ${metrics.attendancePercentage}% (below ${rule.threshold_value}% requirement; ${metrics.presentCount} attended out of ${metrics.eligibleSessionsCount} completed sessions).`,
+              evidence_ar: `نسبة الحضور الحالية ${metrics.attendancePercentage}% (أقل من الحد الأدنى ${rule.threshold_value}%؛ حضور ${metrics.presentCount} من ${metrics.eligibleSessionsCount} جلسات).`,
+              date: now.toISOString().split("T")[0],
+            });
+          }
+        } else if (rule.trigger_type === "consecutive_absences") {
+          if (consecutiveAbsences >= rule.threshold_value) {
+            triggeringIndicators.push({
+              rule_id: rule.id,
+              rule_name: rule.name,
+              evidence: `${consecutiveAbsences} consecutive unexcused absences recorded.`,
+              evidence_ar: `تم تسجيل غياب غير مبرر لـ ${consecutiveAbsences} جلسات متتالية دون تقديم عذر رسمي.`,
+              date: now.toISOString().split("T")[0],
+            });
+          }
+        } else if (rule.trigger_type === "missing_assignments") {
+          if (missingAsgCount >= rule.threshold_value) {
+            triggeringIndicators.push({
+              rule_id: rule.id,
+              rule_name: rule.name,
+              evidence: `${missingAsgCount} assignments are overdue without submitted deliverables.`,
+              evidence_ar: `يوجد ${missingAsgCount} مهام متأخرة تجاوزت الموعد النهائي دون تسليم.`,
+              date: now.toISOString().split("T")[0],
+            });
+          }
+        } else if (rule.trigger_type === "assignment_completion_threshold") {
+          if (trackAsgs.length >= 2 && metrics.assignmentCompletionRate < rule.threshold_value) {
+            triggeringIndicators.push({
+              rule_id: rule.id,
+              rule_name: rule.name,
+              evidence: `Assignment completion rate is ${metrics.assignmentCompletionRate}% (threshold: ${rule.threshold_value}%).`,
+              evidence_ar: `معدل إنجاز المهام الحالي ${metrics.assignmentCompletionRate}% (أقل من ${rule.threshold_value}%).`,
+              date: now.toISOString().split("T")[0],
+            });
+          }
+        } else if (rule.trigger_type === "pending_resubmission_overdue") {
+          if (overdueResubmissions > rule.threshold_value) {
+            triggeringIndicators.push({
+              rule_id: rule.id,
+              rule_name: rule.name,
+              evidence: `${overdueResubmissions} requested revisions have exceeded their resubmission deadlines.`,
+              evidence_ar: `انقضت المهلة المحددة لتعديل وإعادة تسليم ${overdueResubmissions} مهام.`,
+              date: now.toISOString().split("T")[0],
+            });
+          }
+        }
+      }
+
+      // Determine aggregated risk level
+      let riskLevel: RiskSeverity = "resolved";
+      if (triggeringIndicators.length > 0) {
+        const hasUrgent = rules.some((r) => r.severity === "urgent_support" && triggeringIndicators.some((ti) => ti.rule_id === r.id));
+        const hasNeedsFollowUp = rules.some((r) => r.severity === "needs_follow_up" && triggeringIndicators.some((ti) => ti.rule_id === r.id));
+        if (hasUrgent) {
+          riskLevel = "urgent_support";
+        } else if (hasNeedsFollowUp) {
+          riskLevel = "needs_follow_up";
+        } else {
+          riskLevel = "monitor";
+        }
+      }
+
+      // Sync with follow-up cases (prevent duplicates)
+      if (triggeringIndicators.length > 0) {
+        const existingCases = this.getRiskFollowUpCases();
+        const activeCase = existingCases.find(
+          (c) => c.participant_id === enr.participant_id && c.track_id === enr.track_id && c.status !== "resolved" && c.status !== "closed"
+        );
+
+        if (activeCase) {
+          // Update existing case's indicators and risk level
+          this.createOrUpdateRiskCase({
+            id: activeCase.id,
+            participant_id: enr.participant_id,
+            participant_name: enr.participant.full_name,
+            participant_email: enr.participant.email,
+            track_id: enr.track_id,
+            track_name: enr.track.name,
+            cohort: enr.cohort,
+            risk_level: riskLevel,
+            triggering_indicators: triggeringIndicators,
+            date_identified: activeCase.date_identified,
+            assigned_owner_id: activeCase.assigned_owner_id,
+            assigned_owner_name: activeCase.assigned_owner_name,
+            recommended_action: activeCase.recommended_action,
+            follow_up_deadline: activeCase.follow_up_deadline,
+            status: activeCase.status,
+            next_action: activeCase.next_action,
+          });
+        }
+      }
+
+      results.push({
+        participant: enr.participant,
+        enrollment: enr,
+        track: enr.track,
+        riskLevel,
+        triggeringIndicators,
+        metrics,
+      });
+    }
+
+    return results;
   },
 };

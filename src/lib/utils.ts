@@ -57,6 +57,73 @@ export const SUPABASE_TEAM_UUIDS: Record<string, string> = {
   cyber: "11111111-1111-1111-1111-111111111108",
 };
 
+export const TRACK_KEYWORDS: Record<string, string[]> = {
+  hr: ["hr", "human resources", "موارد بشرية", "الموارد البشرية"],
+  media: ["media", "content", "branding", "إعلام", "محتوى", "الإعلام"],
+  pr: ["pr", "public relations", "marketing", "علاقات عامة", "تسويق", "العلاقات"],
+  ops: ["ops", "operations", "logistics", "عمليات", "لوجستيات", "العمليات"],
+  web: ["web", "ويب", "تطوير الويب"],
+  mobile: ["mobile", "flutter", "android", "ios", "موبايل", "هواتف"],
+  uiux: ["ui", "ux", "design", "تصميم", "واجهات"],
+  ai: ["ai", "data", "machine learning", "ذكاء", "بيانات"],
+  embedded: ["embedded", "iot", "مدمجة", "إنترنت الأشياء"],
+  cyber: ["cyber", "security", "أمن", "سيبران"],
+};
+
+export function isUserInTrack(
+  user: any,
+  trackId?: string,
+  teams?: any[]
+): boolean {
+  if (!trackId || trackId === "all") return true;
+  if (!user) return false;
+
+  const cleanTrack = trackId.toLowerCase().replace("team_", "").replace("team-", "").trim();
+  const userTeam = (user.team_id || user.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+  const userComm = (user.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+  const userTeamName = (user.team?.name || "").toLowerCase().trim();
+
+  // 1. Direct match on ID or committee
+  if (userTeam === cleanTrack || userTeam === trackId.toLowerCase().trim()) return true;
+  if (userComm === cleanTrack || userComm === trackId.toLowerCase().trim()) return true;
+
+  // 2. Direct UUID lookup from known table
+  const mappedUuid = SUPABASE_TEAM_UUIDS[cleanTrack];
+  if (mappedUuid && (user.team_id === mappedUuid || userTeam === mappedUuid.toLowerCase())) return true;
+
+  // Reverse UUID lookup if trackId is a UUID
+  for (const [slug, uuid] of Object.entries(SUPABASE_TEAM_UUIDS)) {
+    if (trackId.toLowerCase().trim() === uuid.toLowerCase().trim()) {
+      if (userTeam === slug || userComm === slug) return true;
+    }
+  }
+
+  // 3. Keywords match on user's committee or team name
+  const keywords = TRACK_KEYWORDS[cleanTrack] || [cleanTrack];
+  if (userComm && keywords.some((k) => userComm.includes(k) || k.includes(userComm))) return true;
+  if (userTeamName && keywords.some((k) => userTeamName.includes(k) || k.includes(userTeamName))) return true;
+
+  // 4. Resolve via teams array
+  if (teams && Array.isArray(teams) && teams.length > 0 && user.team_id) {
+    const userTeamObj = teams.find(
+      (t) => t.id === user.team_id || (t.id && t.id.toLowerCase().trim() === userTeam)
+    );
+    if (userTeamObj) {
+      if (userTeamObj.id === trackId || userTeamObj.id?.toLowerCase().trim() === cleanTrack) return true;
+      const name = (userTeamObj.name || "").toLowerCase();
+      const nameAr = (userTeamObj.name_ar || "").toLowerCase();
+      if (keywords.some((k) => name.includes(k) || nameAr.includes(k))) return true;
+    }
+  }
+
+  // 5. Fallback substring match if non-empty and not a UUID
+  if (userTeam.length > 2 && cleanTrack.length > 2 && !userTeam.includes("-")) {
+    if (userTeam.includes(cleanTrack) || cleanTrack.includes(userTeam)) return true;
+  }
+
+  return false;
+}
+
 export function normalizeTeamUUID(teamId?: string): string {
   if (!teamId) return "11111111-1111-1111-1111-111111111101";
   if (isValidUUID(teamId)) return teamId;

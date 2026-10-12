@@ -91,3 +91,24 @@ CREATE POLICY "Restricted audit log" ON audit_logs FOR SELECT USING (
   auth.uid() IN (SELECT id FROM profiles WHERE role IN ('super_admin', 'hr_admin'))
 );
 ```
+
+---
+
+## 5. Technical Tracks Smart Features Authorization Matrix
+
+### 5.1 Smart Reminders & Notifications
+- **Policy Configuration:** Only `super_admin` and `hr_admin` can create, toggle, or alter reminder rules (`track_reminder_rules`).
+- **Scheduled Background Execution:** The `/api/reminders/process` endpoint is protected by a server-side `CRON_SECRET` bearer token.
+- **In-App Notification Feed:** Participants can only view notifications where `recipient_id = auth.uid()` or recipient email matches. Instructors receive grading alerts; HR receives at-risk follow-up alerts.
+
+### 5.2 Assignment Submissions, Feedback & Attempt History
+- **Participant Workspace:** Participants/attendees can only view their own submission history and submit revisions for assignments where `attempt_number <= max_attempts` and resubmission is permitted.
+- **Instructor Review:** Only assigned `lead_instructor`, `track_lead`, `hr_admin`, and `super_admin` can evaluate attempts, publish structured feedback, and set resubmission deadlines.
+- **Grade Correction Audit:** Post-publication grade changes require documented rationale, recording `corrected_by`, `previous_score`, `new_score`, and `reason` in `track_grade_corrections`.
+- **Privacy Controls:** Private instructor notes and draft feedback remain strictly hidden from participant view until published.
+
+### 5.3 At-Risk Students Monitoring & Follow-Up
+- **Confidentiality & Non-Stigmatization:** At-Risk dashboard, indicator flags, and follow-up cases are strictly inaccessible to ordinary members or peers. They are never rendered on public boards or scorecards.
+- **Access Scope:** Only `track_lead`, `lead_instructor`, `ta_mentor`, `hr_admin`, and `super_admin` can view flags, open follow-up cases, log contact attempts, and update case statuses.
+- **Rule Threshold Configuration:** Only `super_admin` and `hr_admin` can activate or modify numerical risk indicators and evaluation rules.
+

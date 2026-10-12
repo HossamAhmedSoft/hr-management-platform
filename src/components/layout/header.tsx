@@ -30,6 +30,7 @@ import { useApp } from "@/lib/app-context";
 import { Notification } from "@/types";
 import { cn } from "@/lib/utils";
 import { POLICY_POINT_CATEGORIES } from "@/lib/policy-catalog";
+import { tracksService } from "@/lib/tracks-service";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -55,6 +56,9 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
   const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifCategoryFilter, setNotifCategoryFilter] = useState<
+    "all" | "unread" | "assignments" | "sessions" | "feedback" | "follow_ups" | "admin"
+  >("all");
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [commandSearch, setCommandSearch] = useState("");
   const [commandCategory, setCommandCategory] = useState<"all" | "members" | "tracks" | "rules" | "pages">("all");
@@ -152,8 +156,69 @@ export function Header({ onToggleSidebar }: HeaderProps) {
       created_at: t.created_at || new Date().toISOString(),
     }));
 
-  const userNotifications = [...derivedTaskNotifs, ...directNotifications];
+  // Derived deadline alerts for tasks expiring within 48h or overdue
+  const deadlineAlerts = (isMember ? myAssignedTasks : tasks)
+    .filter((t) => t.status !== "completed" && t.status !== "cancelled" && t.deadline)
+    .filter((t) => {
+      const diffHours = (new Date(t.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+      return diffHours > -48 && diffHours <= 48;
+    })
+    .map((t) => {
+      const diffHours = (new Date(t.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+      const isOverdue = diffHours < 0;
+      return {
+        id: `deadline_${t.id}`,
+        user_id: currentUser?.id || "",
+        recipient_email: currentUser?.email,
+        title: isOverdue
+          ? isAr
+            ? "⚠️ موعد تسليم متأخر!"
+            : "⚠️ Overdue Milestone!"
+          : isAr
+          ? "⏰ اقتراب موعد تسليم مهمة"
+          : "⏰ Upcoming Task Deadline",
+        message: isOverdue
+          ? isAr
+            ? `تجاوزت المهمة "${t.title}" موعدها النهائي.`
+            : `Task "${t.title}" is overdue.`
+          : isAr
+          ? `المهمة "${t.title}" تنتهي خلال ${Math.max(1, Math.round(diffHours))} ساعة.`
+          : `Task "${t.title}" is due in ${Math.max(1, Math.round(diffHours))} hours.`,
+        type: "system_alert" as const,
+        link: `/${locale}/tasks`,
+        is_read: readTaskIds.includes(`deadline_${t.id}`),
+        created_at: t.deadline,
+      };
+    });
+
+  // Track Notifications from Technical Tracks system
+  const trackNotificationsList = tracksService.getTrackNotifications(currentUser?.id).map((tn) => ({
+    id: tn.id,
+    user_id: tn.recipient_id,
+    recipient_email: tn.recipient_email,
+    title: isAr ? tn.title_ar : tn.title,
+    message: isAr ? tn.message_ar : tn.message,
+    type: "system_alert" as const,
+    category: tn.category,
+    link: `/${locale}${tn.link}`,
+    is_read: tn.is_read,
+    created_at: tn.created_at,
+    is_track_notif: true,
+  }));
+
+  const userNotifications = [
+    ...trackNotificationsList,
+    ...derivedTaskNotifs.map((n) => ({ ...n, category: "assignments" as const, is_track_notif: false })),
+    ...deadlineAlerts.map((n) => ({ ...n, category: "assignments" as const, is_track_notif: false })),
+    ...directNotifications.map((n) => ({ ...n, category: "admin" as const, is_track_notif: false })),
+  ];
   const unreadCount = userNotifications.filter((n) => !n.is_read).length;
+
+  const filteredNotifications = userNotifications.filter((n) => {
+    if (notifCategoryFilter === "unread") return !n.is_read;
+    if (notifCategoryFilter !== "all") return n.category === notifCategoryFilter;
+    return true;
+  });
 
   const pendingPoints = !isMember
     ? pointEvents.filter((p) => p.status === "pending_review")
@@ -337,6 +402,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                       <button
                         onClick={() => {
                           markAllNotificationsAsRead();
+                          tracksService.markAllTrackNotificationsRead(currentUser?.id);
                           const allIds = myAssignedTasks.map((t) => t.id);
                           const updated = Array.from(new Set([...readTaskIds, ...allIds]));
                           setReadTaskIds(updated);
@@ -352,23 +418,50 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                     )}
                   </div>
 
+                  {/* Notification Category Tabs */}
+                  <div className="flex items-center gap-1 overflow-x-auto py-1.5 scrollbar-none border-b border-border">
+                    {(
+                      [
+                        { id: "all", label: isAr ? "الكل" : "All" },
+                        { id: "unread", label: isAr ? "غير مقروء" : "Unread" },
+                        { id: "assignments", label: isAr ? "المهام" : "Assignments" },
+                        { id: "sessions", label: isAr ? "الجلسات" : "Sessions" },
+                        { id: "feedback", label: isAr ? "الملاحظات" : "Feedback" },
+                        { id: "follow_ups", label: isAr ? "المتابعة" : "Follow-ups" },
+                        { id: "admin", label: isAr ? "الإدارة" : "Admin" },
+                      ] as const
+                    ).map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setNotifCategoryFilter(cat.id)}
+                        className={`text-[10px] px-2 py-0.5 rounded-md whitespace-nowrap transition-colors font-medium cursor-pointer ${
+                          notifCategoryFilter === cat.id
+                            ? "bg-[#1a73e8] text-white shadow-2xs"
+                            : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
                 <div className="py-2 space-y-2 text-xs max-h-80 overflow-y-auto">
-                  {userNotifications.length === 0 && pendingPoints.length === 0 && pendingAppeals.length === 0 ? (
+                  {filteredNotifications.length === 0 && pendingPoints.length === 0 && pendingAppeals.length === 0 ? (
                     <div className="py-8 text-center text-muted-foreground">
                       <CheckCircle className="w-7 h-7 mx-auto mb-1.5 opacity-40 text-emerald-600" />
                       <p className="text-xs font-semibold">
-                        {isAr ? "لا توجد إشعارات جديدة حالياً" : "No new notifications"}
+                        {isAr ? "لا توجد إشعارات مطابقة" : "No matching notifications"}
                       </p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         {isAr
-                          ? "ستظهر هنا أي تكليفات أو نقاط أو تقييمات تصدرها الإدارة."
-                          : "Any new tasks, point adjustments, or evaluations will appear here."}
+                          ? "ستظهر هنا أي تنبيهات تخص التكليفات والمهام ومسارات التدريب."
+                          : "Any alerts for tasks, sessions, and tracks will appear here."}
                       </p>
                     </div>
                   ) : (
                     <>
                       {/* Real User Live Notifications */}
-                      {userNotifications.map((n) => {
+                      {filteredNotifications.map((n) => {
                         const isTask = n.type === "task_assigned" || n.type === "task_deadline";
                         const isReview = n.type === "task_review";
                         const isPoint = n.type === "point_submitted" || n.type === "point_decision";
@@ -379,7 +472,9 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                             key={n.id}
                             href={n.link || `/${locale}`}
                             onClick={() => {
-                              if (n.id.startsWith("derived_task_")) {
+                              if (n.is_track_notif) {
+                                tracksService.markTrackNotificationRead(n.id);
+                              } else if (n.id.startsWith("derived_task_")) {
                                 const taskId = n.id.replace("derived_task_", "");
                                 const updated = Array.from(new Set([...readTaskIds, taskId]));
                                 setReadTaskIds(updated);

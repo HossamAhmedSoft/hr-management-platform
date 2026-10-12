@@ -436,4 +436,61 @@ export const attendanceService = {
 
     return false;
   },
+
+  // ── Record Check-In / Session Attendance ───────────────────
+  recordMeetingAttendance(
+    meetingId: string,
+    records: Array<{
+      member_id: string;
+      member_name?: string;
+      member_email?: string;
+      status: "present" | "attended" | "absent" | "excused";
+      notes?: string;
+    }>
+  ): MeetingAttendanceEvent | null {
+    const meetings = this.getMeetings();
+    const meeting = meetings.find((m) => m.id === meetingId);
+    if (!meeting) return null;
+
+    const currentRecords: MemberAttendanceRecord[] = meeting.records || [];
+    const updatedRecords: MemberAttendanceRecord[] = [...currentRecords];
+
+    for (const rec of records) {
+      const normalizedStatus: "present" | "absent" | "excused" =
+        rec.status === "attended" ? "present" : rec.status;
+      const existingIdx = updatedRecords.findIndex((r) => r.member_id === rec.member_id);
+      if (existingIdx >= 0) {
+        updatedRecords[existingIdx] = {
+          ...updatedRecords[existingIdx],
+          status: normalizedStatus,
+          notes: rec.notes || updatedRecords[existingIdx].notes,
+        };
+      } else {
+        updatedRecords.push({
+          member_id: rec.member_id,
+          member_name: rec.member_name || "Member",
+          member_email: rec.member_email || "",
+          status: normalizedStatus,
+          notes: rec.notes || "حضور مسجل",
+        });
+      }
+    }
+
+    const presentCount = updatedRecords.filter((r) => r.status === "present").length;
+    const excusedCount = updatedRecords.filter((r) => r.status === "excused").length;
+    const absentCount = updatedRecords.filter((r) => r.status === "absent").length;
+
+    const updatedMeeting: MeetingAttendanceEvent = {
+      ...meeting,
+      attendance_taken: true,
+      records: updatedRecords,
+      presentCount,
+      excusedCount,
+      absentCount,
+    };
+
+    const updatedMeetings = meetings.map((m) => (m.id === meetingId ? updatedMeeting : m));
+    setStorage(STORAGE_MEETINGS_KEY, updatedMeetings);
+    return updatedMeeting;
+  },
 };

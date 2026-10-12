@@ -7,6 +7,7 @@ import {
   Plus,
   Clock,
   AlertCircle,
+  AlertTriangle,
   FileText,
   Link as LinkIcon,
   Send,
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { useApp } from "@/lib/app-context";
 import { Task, TaskPriority, TaskStatus, TaskAssignee } from "@/types";
+import { isUserInTrack } from "@/lib/utils";
 
 export default function TasksPage() {
   const router = useRouter();
@@ -98,17 +100,7 @@ export default function TasksPage() {
   // Helper: check if member belongs to selected team / committee
   const isUserInTeam = (u: any, teamId?: string) => {
     if (!teamId || teamId === "all") return true;
-    const target = teamId.toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userTeam = (u.team_id || u.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userCommittee = (u.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userTeamName = (u.team?.name || "").toLowerCase().trim();
-
-    if (userTeam === target) return true;
-    if (userCommittee === target) return true;
-    if (userTeam && target && (userTeam.includes(target) || target.includes(userTeam))) return true;
-    if (userCommittee && target && (userCommittee.includes(target) || target.includes(userCommittee))) return true;
-    if (userTeamName && target && (userTeamName.includes(target) || target.includes(userTeamName))) return true;
-    return false;
+    return isUserInTrack(u, teamId, teams);
   };
 
   // Candidate assignees strictly scoped to selected team (zero fallback to all)
@@ -223,8 +215,32 @@ export default function TasksPage() {
     return true;
   });
 
+  const overdueTasks = visibleTasks.filter(
+    (t) =>
+      t.status !== "completed" &&
+      t.status !== "cancelled" &&
+      t.deadline &&
+      new Date(t.deadline).getTime() < Date.now()
+  );
+  const urgentTasks = visibleTasks.filter((t) => {
+    if (t.status === "completed" || t.status === "cancelled" || !t.deadline) return false;
+    const diff = (new Date(t.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+    return diff >= 0 && diff <= 48;
+  });
+
   const filteredTasks = visibleTasks.filter((t) => {
     if (filterStatus === "all") return true;
+    if (filterStatus === "escalated") {
+      const isPast = t.deadline && new Date(t.deadline).getTime() < Date.now();
+      const diff = t.deadline
+        ? (new Date(t.deadline).getTime() - Date.now()) / (1000 * 60 * 60)
+        : 999;
+      return (
+        t.status !== "completed" &&
+        t.status !== "cancelled" &&
+        (isPast || (diff >= 0 && diff <= 48))
+      );
+    }
     return t.status === filterStatus;
   });
 
@@ -496,12 +512,53 @@ export default function TasksPage() {
         </div>
       )}
 
+      {/* Critical Milestone Escalation Banner */}
+      {(overdueTasks.length > 0 || urgentTasks.length > 0) && (
+        <div className="p-3.5 rounded-2xl bg-[#fce8e6] dark:bg-[#ea4335]/15 border border-[#fad2cf] dark:border-[#ea4335]/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-[#ea4335] shrink-0" />
+            <div>
+              <span className="font-bold text-[#c5221f] dark:text-[#f28b82] block text-xs">
+                {isAr
+                  ? `تنبيه حرج لمتابعة المواعيد: يوجد ${overdueTasks.length} مهام متأخرة و ${urgentTasks.length} مهام تنتهي قريباً!`
+                  : `Milestone Alert: ${overdueTasks.length} overdue tasks and ${urgentTasks.length} tasks due soon!`}
+              </span>
+              <span className="text-[11px] text-muted-foreground mt-0.5 block">
+                {isAr
+                  ? "يرجى من قادة المسارات متابعة الأعضاء المكلفين لضمان التسليم في الوقت المحدد."
+                  : "Team Leads should follow up with assignees to ensure timely delivery."}
+              </span>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setFilterStatus(filterStatus === "escalated" ? "all" : "escalated")}
+            className="h-7 text-xs bg-card border-[#ea4335]/40 text-[#c5221f] dark:text-[#f28b82] hover:bg-[#ea4335]/10 font-bold"
+          >
+            {filterStatus === "escalated"
+              ? isAr
+                ? "عرض كافة المهام"
+                : "Show All"
+              : isAr
+              ? "عرض المهام الحرجة فقط"
+              : "View Critical Only"}
+          </Button>
+        </div>
+      )}
+
       {/* Filter Bar with Member Selector and Status Tabs */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border/80">
         {/* Status Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
           {[
             { key: "all", label: isAr ? "الكل" : "All" },
+            {
+              key: "escalated",
+              label: isAr
+                ? `⚠️ متأخرة وعاجلة (${overdueTasks.length + urgentTasks.length})`
+                : `⚠️ Urgent (${overdueTasks.length + urgentTasks.length})`,
+            },
             { key: "assigned", label: isAr ? "المُعينة" : "Assigned" },
             { key: "in_progress", label: isAr ? "قيد التنفيذ" : "In Progress" },
             { key: "submitted", label: isAr ? "تم التسليم" : "Submitted" },

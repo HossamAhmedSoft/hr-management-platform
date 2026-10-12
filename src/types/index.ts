@@ -769,8 +769,34 @@ export interface TrackAssignment {
   late_policy: string;
   revision_policy: string;
   reviewer_id?: string;
+  final_grade_policy?: FinalGradePolicy;
+  rubric_criteria?: RubricCriterion[];
+  max_attempts?: number;
+  allow_resubmission_after_deadline?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type FinalGradePolicy = "latest_reviewed" | "highest_approved" | "instructor_selected";
+
+export interface RubricCriterion {
+  id: string;
+  title: string;
+  title_ar?: string;
+  max_score: number;
+  description?: string;
+}
+
+export interface StructuredFeedback {
+  what_went_well: string;
+  needs_improvement: string;
+  specific_corrections: string;
+  required_changes_for_acceptance: string;
+  required_changes?: string;
+  learning_resources?: string;
+  suggested_next_steps?: string;
+  next_steps?: string;
+  rubric_scores?: Record<string, number>;
 }
 
 export type TrackSubmissionStatus =
@@ -780,10 +806,55 @@ export type TrackSubmissionStatus =
   | "submitted_late"
   | "under_review"
   | "needs_revision"
+  | "revision_requested"
   | "resubmitted"
   | "graded"
+  | "accepted"
   | "missing"
-  | "excused";
+  | "excused"
+  | "cancelled";
+
+export interface TrackSubmissionAttempt {
+  id: string;
+  submission_id: string;
+  assignment_id: string;
+  enrollment_id: string;
+  participant_id: string;
+  attempt_number: number;
+  submission_url: string;
+  submitted_at: string;
+  applicable_deadline: string;
+  is_late: boolean;
+  late_penalty_applied?: number;
+  status: TrackSubmissionStatus;
+  score: number | null;
+  feedback?: StructuredFeedback;
+  reviewer_id?: string;
+  reviewer_name?: string;
+  reviewer_feedback?: string;
+  reviewed_at?: string;
+  revision_requested_at?: string;
+  resubmission_deadline?: string;
+  resubmission_notes?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface GradeCorrectionLog {
+  id: string;
+  attempt_id: string;
+  submission_id: string;
+  assignment_id: string;
+  participant_id: string;
+  previous_score: number | null;
+  new_score: number;
+  previous_feedback?: string;
+  new_feedback?: string;
+  corrected_by: string;
+  corrected_by_name: string;
+  corrected_at: string;
+  reason: string;
+}
 
 export interface TrackSubmission {
   id: string;
@@ -795,11 +866,13 @@ export interface TrackSubmission {
   status: TrackSubmissionStatus;
   score: number | null; // out of assignment.max_score
   reviewer_feedback?: string;
+  structured_feedback?: StructuredFeedback;
   reviewed_by?: string;
   reviewed_at?: string;
   deadline_extension_date?: string;
   extended_by?: string;
   extension_reason?: string;
+  current_attempt_number?: number;
   revision_history?: Array<{
     date: string;
     url: string;
@@ -892,3 +965,186 @@ export interface TrackFollowUp {
   created_at: string;
   updated_at: string;
 }
+
+// ── Smart Reminders & Notifications Types ─────────────────────
+
+export type ReminderType =
+  | "upcoming_session"
+  | "upcoming_deadline"
+  | "overdue_assignment"
+  | "assignment_awaiting_review"
+  | "feedback_resubmission_requested"
+  | "resubmission_deadline_approaching"
+  | "repeated_absences"
+  | "pending_grading"
+  | "at_risk_follow_up_due"
+  | "general_announcement";
+
+export type ReminderDeliveryChannel = "in_app" | "email" | "webhook";
+
+export interface ReminderRule {
+  id: string;
+  name: string;
+  name_ar: string;
+  reminder_type: ReminderType;
+  trigger_condition: string;
+  time_offset_hours: number; // e.g., -72 for 72h before, +24 for 24h after
+  recipient_role: UserRole | "participant" | "assigned_instructor" | "follow_up_owner";
+  delivery_channel: ReminderDeliveryChannel;
+  message_template: string;
+  message_template_ar: string;
+  enabled: boolean;
+  track_id: string; // 'all' or specific track_id
+  cohort?: string;
+  quiet_hours_start?: string; // e.g., '22:00'
+  quiet_hours_end?: string; // e.g., '08:00'
+  max_reminders_per_event: number;
+  frequency_hours?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReminderExecutionLog {
+  id: string;
+  rule_id: string;
+  rule_name: string;
+  event_id: string;
+  event_type: string;
+  recipient_id: string;
+  recipient_role: string;
+  delivery_channel: ReminderDeliveryChannel;
+  status:
+    | "sent"
+    | "delivered"
+    | "failed"
+    | "suppressed_cancelled"
+    | "suppressed_completed"
+    | "suppressed_duplicate";
+  scheduled_at: string;
+  processed_at: string;
+  failure_reason?: string;
+  retry_count: number;
+  idempotency_key: string;
+}
+
+export interface TrackNotificationItem {
+  id: string;
+  recipient_id: string;
+  recipient_email?: string;
+  title: string;
+  title_ar: string;
+  message: string;
+  message_ar: string;
+  category: "assignments" | "sessions" | "feedback" | "follow_ups" | "admin";
+  related_track_id?: string;
+  related_entity_type?: "assignment" | "session" | "submission" | "follow_up";
+  related_entity_id?: string;
+  link: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface NotificationPreference {
+  id: string;
+  user_id: string;
+  channel_in_app: boolean;
+  channel_email: boolean;
+  quiet_hours_enabled: boolean;
+  categories: {
+    assignments: boolean;
+    sessions: boolean;
+    feedback: boolean;
+    follow_ups: boolean;
+    admin: boolean;
+  };
+}
+
+// ── At-Risk Students Monitoring & Follow-Up Types ─────────────
+
+export type RiskSeverity = "monitor" | "needs_follow_up" | "urgent_support" | "resolved";
+
+export type RiskTriggerType =
+  | "attendance_threshold"
+  | "consecutive_absences"
+  | "missing_assignments"
+  | "assignment_completion_threshold"
+  | "pending_resubmission_overdue"
+  | "multiple_revisions_unresolved";
+
+export interface RiskRule {
+  id: string;
+  name: string;
+  name_ar: string;
+  description: string;
+  description_ar: string;
+  trigger_type: RiskTriggerType;
+  threshold_value: number;
+  target_metric?: string;
+  severity: RiskSeverity;
+  track_id: string; // 'all' or specific track_id
+  cohort?: string;
+  enabled: boolean;
+  recommended_action: string;
+  recommended_action_ar: string;
+  version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RiskIndicatorEvidence {
+  rule_id: string;
+  rule_name: string;
+  evidence: string;
+  evidence_ar: string;
+  date: string;
+}
+
+export interface RiskFollowUpCase {
+  id: string;
+  participant_id: string;
+  participant_name: string;
+  participant_email: string;
+  track_id: string;
+  track_name: string;
+  cohort: string;
+  risk_level: RiskSeverity;
+  triggering_indicators: RiskIndicatorEvidence[];
+  date_identified: string;
+  assigned_owner_id: string;
+  assigned_owner_name: string;
+  recommended_action: string;
+  follow_up_deadline: string;
+  status:
+    | "new"
+    | "assigned"
+    | "contact_attempted"
+    | "awaiting_response"
+    | "awaiting_participant_response"
+    | "support_plan_active"
+    | "monitoring"
+    | "resolved"
+    | "closed";
+  next_action?: string;
+  resolution_notes?: string;
+  resolution_date?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CaseActionLog {
+  id: string;
+  case_id: string;
+  action_type: string;
+  description?: string;
+  notes?: string;
+  actor_id?: string;
+  actor_name?: string;
+  performed_by_id?: string;
+  performed_by_name?: string;
+  participant_response?: string;
+  agreed_next_steps?: string;
+  next_deadline?: string;
+  timestamp?: string;
+  created_at?: string;
+}
+

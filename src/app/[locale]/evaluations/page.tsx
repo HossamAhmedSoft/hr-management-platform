@@ -29,7 +29,7 @@ import {
   POLICY_EVALUATION_CATEGORIES,
   POLICY_EVALUATION_PERIODS,
 } from "@/lib/policy-catalog";
-import { calculateEvaluationScore } from "@/lib/utils";
+import { calculateEvaluationScore, isUserInTrack } from "@/lib/utils";
 import { Evaluation } from "@/types";
 
 export default function EvaluationsPage() {
@@ -58,17 +58,7 @@ export default function EvaluationsPage() {
   // Helper to match user to committee
   const isUserInTeam = (u: any, teamId?: string) => {
     if (!teamId || teamId === "all") return true;
-    const target = teamId.toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userTeam = (u.team_id || u.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userCommittee = (u.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userTeamName = (u.team?.name || "").toLowerCase().trim();
-
-    if (userTeam === target) return true;
-    if (userCommittee === target) return true;
-    if (userTeam && target && (userTeam.includes(target) || target.includes(userTeam))) return true;
-    if (userCommittee && target && (userCommittee.includes(target) || target.includes(userCommittee))) return true;
-    if (userTeamName && target && (userTeamName.includes(target) || target.includes(userTeamName))) return true;
-    return false;
+    return isUserInTrack(u, teamId, teams);
   };
 
   // Target users for evaluation: Team Lead can only evaluate their team, or filtered by selected committee

@@ -28,7 +28,11 @@ import {
   Trash2,
   Target,
   Globe,
+  QrCode,
+  Copy,
+  Sparkles,
 } from "lucide-react";
+import QRCode from "qrcode";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
@@ -149,6 +153,78 @@ export default function AttendancePage() {
 
   // Roster attendance sheet for active meeting
   const [attendanceSheet, setAttendanceSheet] = useState<Record<string, { status: MemberAttendanceStatus; notes: string }>>({});
+
+  // ── Smart QR Code Session Check-in State ─────────────────
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [qrMeeting, setQrMeeting] = useState<MeetingAttendanceEvent | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrCheckInSuccess, setQrCheckInSuccess] = useState(false);
+  const [manualSessionPin, setManualSessionPin] = useState("");
+  const [isManualCheckingIn, setIsManualCheckingIn] = useState(false);
+  const [checkInError, setCheckInError] = useState("");
+  const [copiedPin, setCopiedPin] = useState(false);
+
+  const openQrModal = async (meeting: MeetingAttendanceEvent) => {
+    setQrMeeting(meeting);
+    setCheckInError("");
+    setQrCheckInSuccess(false);
+    setManualSessionPin("");
+    setCopiedPin(false);
+    try {
+      const pinDigits = meeting.id.replace(/\D/g, "").slice(-4) || "2026";
+      const fullPin = `GDG-${pinDigits}`;
+      const payload = JSON.stringify({
+        sessionId: meeting.id,
+        title: meeting.title,
+        date: meeting.date,
+        pin: fullPin,
+        portal: "https://gdghr.vercel.app/ar/attendance",
+      });
+      const url = await QRCode.toDataURL(payload, {
+        width: 320,
+        margin: 2,
+        color: {
+          dark: "#1a73e8",
+          light: "#ffffff",
+        },
+      });
+      setQrDataUrl(url);
+    } catch (err) {
+      console.error("QR Code Generation failed:", err);
+    }
+    setIsQrModalOpen(true);
+  };
+
+  const handleManualCheckIn = async () => {
+    if (!qrMeeting || !currentUser) return;
+    setIsManualCheckingIn(true);
+    setCheckInError("");
+    try {
+      const pinDigits = qrMeeting.id.replace(/\D/g, "").slice(-4) || "2026";
+      const expectedFull = `GDG-${pinDigits}`.toUpperCase();
+      const entered = manualSessionPin.trim().toUpperCase();
+
+      if (entered !== expectedFull && entered !== pinDigits) {
+        setCheckInError(isAr ? "رمز الجلسة غير صحيح، يرجى كتابة الرمز المعروض على الشاشة بدقة" : "Invalid PIN code entered");
+        setIsManualCheckingIn(false);
+        return;
+      }
+
+      await attendanceService.recordMeetingAttendance(qrMeeting.id, [
+        {
+          member_id: currentUser.id,
+          status: "attended",
+          notes: "حضور مؤكد عبر رمز الاستجابة السريعة QR",
+        },
+      ]);
+      setQrCheckInSuccess(true);
+      reloadData();
+    } catch (e: any) {
+      setCheckInError(e?.message || (isAr ? "حدث خطأ أثناء رصد الحضور" : "Failed to record check-in"));
+    } finally {
+      setIsManualCheckingIn(false);
+    }
+  };
 
   // ── Load Data ────────────────────────────────────────────
   const reloadData = () => {
@@ -1102,6 +1178,18 @@ export default function AttendancePage() {
                         </Button>
                       )}
 
+                      {/* Smart QR Attendance Trigger */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openQrModal(ev)}
+                        className="h-8 gap-1.5 text-xs text-[#1a73e8] dark:text-[#8ab4f8] border-[#1a73e8]/30 hover:bg-[#1a73e8]/10 rounded-lg shadow-2xs"
+                        title={isAr ? "تسجيل الحضور الذكي برمز QR" : "Smart QR Attendance"}
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        <span>{isAr ? "رمز الحضور QR" : "Session QR"}</span>
+                      </Button>
+
                       {/* Admin: Actions (Edit, Delete, Take attendance) */}
                       {isAdminOrLead && (
                         <div className="flex items-center gap-1.5 ml-auto">
@@ -1990,6 +2078,129 @@ export default function AttendancePage() {
                 </Button>
               </DialogFooter>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Smart QR Attendance Dialog */}
+      {isQrModalOpen && qrMeeting && (
+        <Dialog open={isQrModalOpen} onOpenChange={setIsQrModalOpen}>
+          <DialogContent className="max-w-md text-center">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center justify-center gap-2 text-foreground">
+                <QrCode className="w-5 h-5 text-primary" />
+                {isAr ? "رمز الحضور الذكي للجلسة" : "Session Smart QR Attendance"}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="p-2.5 rounded-xl bg-muted/30 border border-border text-xs">
+                <h4 className="font-bold text-foreground text-sm">{qrMeeting.title}</h4>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {new Date(qrMeeting.date).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+
+              {/* QR Image Display */}
+              {qrDataUrl && (
+                <div className="p-4 bg-white rounded-2xl border-2 border-primary/20 shadow-sm inline-block mx-auto">
+                  <img
+                    src={qrDataUrl}
+                    alt="Session QR Code"
+                    className="w-52 h-52 object-contain mx-auto"
+                  />
+                  <p className="text-[10px] text-muted-foreground font-mono mt-1 text-center">
+                    GDG on Campus NCTU Verified QR
+                  </p>
+                </div>
+              )}
+
+              {/* PIN Code Box */}
+              <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between gap-2 max-w-xs mx-auto">
+                <div className="text-right rtl:text-right ltr:text-left">
+                  <span className="text-[10px] text-muted-foreground block font-semibold">
+                    {isAr ? "رمز التحقق السريع للجلسة (PIN):" : "Session Quick PIN:"}
+                  </span>
+                  <span className="text-base font-black text-primary font-mono tracking-wider">
+                    {`GDG-${qrMeeting.id.replace(/\D/g, "").slice(-4) || "2026"}`}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    const pin = `GDG-${qrMeeting.id.replace(/\D/g, "").slice(-4) || "2026"}`;
+                    navigator.clipboard.writeText(pin);
+                    setCopiedPin(true);
+                    setTimeout(() => setCopiedPin(false), 2000);
+                  }}
+                  className="h-8 px-2.5 text-xs gap-1 text-primary hover:bg-primary/10"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{copiedPin ? (isAr ? "تم النسخ" : "Copied") : (isAr ? "نسخ" : "Copy")}</span>
+                </Button>
+              </div>
+
+              {/* Member Self Check-in Form */}
+              {currentUser && (
+                <div className="pt-2 border-t border-border text-xs">
+                  {qrCheckInSuccess ? (
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-bold flex items-center justify-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                      <span>{isAr ? "تم تسجيل حضورك بنجاح في هذا الاجتماع!" : "Attendance successfully confirmed!"}</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-w-xs mx-auto">
+                      <p className="text-[11px] text-muted-foreground font-medium">
+                        {isAr ? "يمكنك أيضاً تسجيل حضورك مباشرة بإدخال الرمز:" : "Or enter the PIN code directly to check-in:"}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="GDG-XXXX"
+                          value={manualSessionPin}
+                          onChange={(e) => setManualSessionPin(e.target.value)}
+                          className="h-8 text-xs font-mono uppercase text-center"
+                        />
+                        <Button
+                          size="sm"
+                          disabled={!manualSessionPin.trim() || isManualCheckingIn}
+                          onClick={handleManualCheckIn}
+                          className="h-8 px-3 text-xs bg-primary text-white hover:bg-primary/90 shrink-0 font-bold"
+                        >
+                          {isManualCheckingIn
+                            ? (isAr ? "جارِ التحقق..." : "Verifying...")
+                            : (isAr ? "تسجيل الحضور" : "Check-in")}
+                        </Button>
+                      </div>
+                      {checkInError && (
+                        <p className="text-[11px] text-rose-600 font-semibold text-center mt-1">
+                          {checkInError}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="pt-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsQrModalOpen(false)}
+                className="w-full"
+              >
+                {isAr ? "إغلاق" : "Close"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}

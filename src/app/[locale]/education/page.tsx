@@ -33,6 +33,8 @@ import {
   Printer,
   UserCheck,
   CheckSquare,
+  Bell,
+  History,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,9 @@ import {
   TrackCertificate,
   TrackFollowUp,
 } from "@/types";
+import { AssignmentAttemptsManager } from "@/components/education/assignment-attempts-manager";
+import { AtRiskDashboard } from "@/components/education/at-risk-dashboard";
+import { SmartRemindersPanel } from "@/components/education/smart-reminders-panel";
 
 export default function EducationPage() {
   const { locale, currentUser, logUserAction } = useApp();
@@ -108,6 +113,7 @@ export default function EducationPage() {
     | "assignments"
     | "bonus"
     | "at_risk"
+    | "reminders"
     | "certificates"
     | "exports"
   >("overview");
@@ -133,6 +139,11 @@ export default function EducationPage() {
   const [inspectedParticipantTrackId, setInspectedParticipantTrackId] = useState<string>("");
   const [isCertificatePreviewOpen, setIsCertificatePreviewOpen] = useState(false);
   const [activeCertificateToView, setActiveCertificateToView] = useState<TrackCertificate | null>(null);
+
+  // Attempts History & Feedback Modal
+  const [activeSubmissionForAttempts, setActiveSubmissionForAttempts] = useState<TrackSubmission | null>(null);
+  const [activeAssignmentForAttempts, setActiveAssignmentForAttempts] = useState<TrackAssignment | null>(null);
+  const [isAttemptsManagerOpen, setIsAttemptsManagerOpen] = useState(false);
 
   // Form State Buffers
   const [trackFormData, setTrackFormData] = useState({
@@ -892,6 +903,7 @@ export default function EducationPage() {
             { id: "assignments", label: isAr ? "المهام والتصحيح" : "Assignments & Grading", icon: FileCheck },
             { id: "bonus", label: isAr ? "نقاط التميز" : "Track Bonus", icon: Star },
             { id: "at_risk", label: isAr ? "المتابعة والدعم" : "At-Risk Support", icon: AlertTriangle },
+            { id: "reminders", label: isAr ? "التنبيهات الذكية" : "Smart Reminders", icon: Bell },
             { id: "certificates", label: isAr ? "الشهادات والاعتماد" : "Certificates", icon: Award },
             { id: "exports", label: isAr ? "التقارير والتصدير" : "Reports & Exports", icon: Download },
           ].map((tab) => {
@@ -1488,6 +1500,9 @@ export default function EducationPage() {
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#1a73e8]/10 text-[#1a73e8]">
                               Max {asg.max_score} pts
                             </span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#34a853]/10 text-[#34a853]">
+                              Policy: {asg.final_grade_policy || "highest_approved"}
+                            </span>
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">{asg.description}</p>
                         </div>
@@ -1528,10 +1543,12 @@ export default function EducationPage() {
                                       </span>
                                       <Badge
                                         variant={
-                                          sub.status === "graded"
+                                          sub.status === "graded" || sub.status === "accepted"
                                             ? "success"
-                                            : sub.status === "submitted_late"
+                                            : sub.status === "revision_requested"
                                             ? "warning"
+                                            : sub.status === "submitted_late"
+                                            ? "danger"
                                             : "outline"
                                         }
                                         className="text-[10px]"
@@ -1556,6 +1573,21 @@ export default function EducationPage() {
                                         {sub.score} / {asg.max_score}
                                       </span>
                                     )}
+
+                                    {/* Attempt History & Review Workflow Button */}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setActiveAssignmentForAttempts(asg);
+                                        setActiveSubmissionForAttempts(sub);
+                                        setIsAttemptsManagerOpen(true);
+                                      }}
+                                      className="h-7 text-[10px] font-bold text-[#1a73e8] border-[#1a73e8]/30 gap-1"
+                                    >
+                                      <History className="w-3 h-3" />
+                                      {isAr ? "سجل المحاولات والملاحظات" : "Attempts & History"}
+                                    </Button>
 
                                     {(isHRorAdmin || isInstructor) && (
                                       <div className="flex items-center gap-1.5">
@@ -1582,7 +1614,7 @@ export default function EducationPage() {
                                           }}
                                           className="h-7 text-[10px] font-bold bg-[#1a73e8] text-white"
                                         >
-                                          {sub.status === "graded"
+                                          {sub.status === "graded" || sub.status === "accepted"
                                             ? isAr
                                               ? "تعديل الدرجة"
                                               : "Edit Grade"
@@ -1759,81 +1791,24 @@ export default function EducationPage() {
       {/* TAB 7: AT-RISK PARTICIPANTS & ACADEMIC SUPPORT             */}
       {/* ────────────────────────────────────────────────────────── */}
       {activeTab === "at_risk" && (
-        <Card className="border-border/80">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-[#ea4335]" />
-                <span>{isAr ? "المتابعة والدعم الأكاديمي للمتعثرين" : "At-Risk Support & Early Intervention"}</span>
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isAr
-                  ? "كشف تلقائي للمتدربين المعرضين لعدم استيفاء الشروط (حضور < 75%، غياب متكرر، تسليمات متأخرة) مع خطة متابعة."
-                  : "Early indicators trigger support sessions and mentoring follow-up, never punitive dismissal."}
-              </CardDescription>
-            </div>
-            {isHRorAdmin && (
-              <Button
-                size="sm"
-                onClick={() => setIsFollowUpModalOpen(true)}
-                className="gap-1.5 text-xs font-bold bg-[#ea4335] text-white"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                {isAr ? "خطة متابعة جديدة" : "New Support Plan"}
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {followUps.map((fu) => {
-                const part = participants.find((p) => p.id === fu.participant_id);
-                const trk = tracks.find((t) => t.id === fu.track_id);
-                return (
-                  <div
-                    key={fu.id}
-                    className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3"
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-foreground">
-                            {part?.full_name}
-                          </span>
-                          <Badge variant="outline" className="text-[10px]">
-                            {isAr ? trk?.name_ar || trk?.name : trk?.name}
-                          </Badge>
-                          <Badge variant="warning" className="text-[10px]">
-                            {fu.status}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {fu.action_plan}
-                        </p>
-                      </div>
+        <AtRiskDashboard
+          isAr={isAr}
+          canManage={isHRorAdmin || isInstructor}
+          currentUser={currentUser}
+          selectedTrackId={selectedTrackId}
+          onRefresh={reloadData}
+        />
+      )}
 
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-semibold">{isAr ? "المسؤول:" : "Assigned:"}</span>{" "}
-                        <span className="text-foreground font-bold">{fu.responsible_person_name}</span>
-                        <span className="mx-2">•</span>
-                        <span className="font-semibold">{isAr ? "الموعد:" : "Due:"}</span>{" "}
-                        <span className="text-[#ea4335] font-bold">{fu.due_date}</span>
-                      </div>
-                    </div>
-
-                    {fu.outcome && (
-                      <div className="p-2.5 rounded-lg bg-card border border-border/60 text-xs">
-                        <span className="font-bold text-foreground block mb-0.5">
-                          {isAr ? "النتيجة والتقرير:" : "Outcome & Resolution:"}
-                        </span>
-                        <p className="text-muted-foreground">{fu.outcome}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+      {/* ────────────────────────────────────────────────────────── */}
+      {/* TAB 8: SMART REMINDERS & NOTIFICATION POLICIES             */}
+      {/* ────────────────────────────────────────────────────────── */}
+      {activeTab === "reminders" && (
+        <SmartRemindersPanel
+          isAr={isAr}
+          canManage={isHRorAdmin || isInstructor}
+          onRefresh={reloadData}
+        />
       )}
 
       {/* ────────────────────────────────────────────────────────── */}
@@ -3133,6 +3108,24 @@ export default function EducationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Assignment Attempts & Review History Modal */}
+      {activeAssignmentForAttempts && activeSubmissionForAttempts && (
+        <AssignmentAttemptsManager
+          assignment={activeAssignmentForAttempts}
+          submission={activeSubmissionForAttempts}
+          participantName={
+            participants.find((p) => p.id === activeSubmissionForAttempts.participant_id)?.full_name ||
+            "Participant"
+          }
+          isAr={isAr}
+          canReview={isHRorAdmin || isInstructor}
+          currentUser={currentUser}
+          onRefresh={reloadData}
+          isOpen={isAttemptsManagerOpen}
+          onClose={() => setIsAttemptsManagerOpen(false)}
+        />
+      )}
     </div>
   );
 }

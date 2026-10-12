@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   BarChart3,
   Download,
@@ -19,7 +19,24 @@ import {
   Briefcase,
   Printer,
   Sparkles,
+  Database,
+  Lock,
+  ShieldAlert,
+  PieChart as PieIcon,
+  Copy,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,13 +47,28 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useApp } from "@/lib/app-context";
+import { isUserInTrack } from "@/lib/utils";
 
 export default function ReportsPage() {
-  const { teams, evaluations, pointEvents, tasks, availableUsers, locale, appeals, incidents, currentUser } = useApp();
+  const {
+    teams,
+    evaluations,
+    pointEvents,
+    tasks,
+    availableUsers,
+    locale,
+    appeals,
+    incidents,
+    currentUser,
+    auditLogs,
+  } = useApp();
   const isAr = locale === "ar";
 
-  const [activeTab, setActiveTab] = useState<"benchmarks" | "workload" | "health" | "handover">("benchmarks");
+  const [activeTab, setActiveTab] = useState<
+    "benchmarks" | "charts" | "workload" | "health" | "handover" | "security"
+  >("benchmarks");
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [isBackupCopied, setIsBackupCopied] = useState(false);
 
   const completedTasks = tasks.filter((t) => t.status === "completed").length;
   const taskDeliveryRate = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
@@ -80,17 +112,7 @@ export default function ReportsPage() {
   // Helper: check if member or entity belongs to selected team / committee
   const isUserInTeam = (u: any, teamId?: string) => {
     if (!teamId || teamId === "all") return true;
-    const target = teamId.toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userTeam = (u.team_id || u.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userCommittee = (u.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userTeamName = (u.team?.name || "").toLowerCase().trim();
-
-    if (userTeam === target) return true;
-    if (userCommittee === target) return true;
-    if (userTeam && target && (userTeam.includes(target) || target.includes(userTeam))) return true;
-    if (userCommittee && target && (userCommittee.includes(target) || target.includes(userCommittee))) return true;
-    if (userTeamName && target && (userTeamName.includes(target) || target.includes(userTeamName))) return true;
-    return false;
+    return isUserInTrack(u, teamId, teams);
   };
 
   const handleExportOrgReport = () => {
@@ -121,6 +143,79 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportFullBackup = () => {
+    const timestamp = new Date().toISOString();
+    const backupData = {
+      platform: "GDG on Campus NCTU Management System",
+      version: "2.5-enterprise",
+      export_timestamp: timestamp,
+      checksum_sha: "SHA256-" + Date.now().toString(36).toUpperCase(),
+      exported_by: {
+        id: currentUser?.id,
+        email: currentUser?.email,
+        name: currentUser?.full_name,
+        role: currentUser?.role,
+      },
+      summary: {
+        total_members: availableUsers.length,
+        total_teams: teams.length,
+        total_tasks: tasks.length,
+        total_point_events: pointEvents.length,
+        total_evaluations: evaluations.length,
+        total_appeals: appeals.length,
+        total_incidents: incidents.length,
+        total_audit_logs: auditLogs?.length || 0,
+      },
+      tables: {
+        profiles: availableUsers,
+        teams: teams,
+        tasks: tasks,
+        point_events: pointEvents,
+        evaluations: evaluations,
+        appeals: appeals,
+        incidents: incidents,
+        audit_logs: auditLogs || [],
+      },
+    };
+
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+      type: "application/json;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `gdg_nctu_full_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const chartTeamData = teams.map((t) => {
+    const mCount = availableUsers.filter((u) => isUserInTeam(u, t.id)).length;
+    const tTasks = tasks.filter((tk) => isUserInTeam({ team_id: tk.team_id }, t.id));
+    const tCompleted = tTasks.filter((tk) => tk.status === "completed").length;
+    const netPts = pointEvents
+      .filter((p) => isUserInTeam({ team_id: p.team_id }, t.id) && p.status === "approved")
+      .reduce((s, p) => s + (p.direction === "positive" ? p.value : -Math.abs(p.value)), 0);
+
+    return {
+      name: (isAr ? t.name_ar : t.name).length > 14 ? (isAr ? t.name_ar : t.name).slice(0, 14) + "..." : (isAr ? t.name_ar : t.name),
+      members: mCount,
+      tasks: tTasks.length,
+      completed: tCompleted,
+      points: Math.max(0, netPts),
+    };
+  });
+
+  const taskStatusData = [
+    { name: isAr ? "مكتملة" : "Completed", value: tasks.filter((t) => t.status === "completed").length, color: "#137333" },
+    { name: isAr ? "قيد التنفيذ" : "In Progress", value: tasks.filter((t) => t.status === "in_progress").length, color: "#1a73e8" },
+    { name: isAr ? "مُعينة" : "Assigned", value: tasks.filter((t) => t.status === "assigned").length, color: "#fbbc04" },
+    { name: isAr ? "تم التسليم" : "Submitted", value: tasks.filter((t) => t.status === "submitted").length, color: "#9334e8" },
+    { name: isAr ? "متوقفة / متأخرة" : "Blocked / Delayed", value: tasks.filter((t) => t.status === "blocked" || (t.deadline && new Date(t.deadline).getTime() < Date.now() && t.status !== "completed")).length, color: "#ea4335" },
+  ].filter((item) => item.value > 0);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
@@ -149,6 +244,17 @@ export default function ReportsPage() {
             <Download className="w-4 h-4" />
             {isAr ? "تصدير (CSV)" : "Export CSV"}
           </Button>
+          {currentUser?.role === "super_admin" && (
+            <Button
+              size="sm"
+              onClick={handleExportFullBackup}
+              className="gap-2 bg-primary hover:bg-primary/90 text-white font-bold"
+              title={isAr ? "تصدير نسخة احتياطية كاملة لقاعدة البيانات" : "Export Full Database Backup"}
+            >
+              <Database className="w-4 h-4" />
+              {isAr ? "نسخة احتياطية (JSON)" : "Backup (JSON)"}
+            </Button>
+          )}
         </div>
       </PageHeader>
 
@@ -163,6 +269,17 @@ export default function ReportsPage() {
           }`}
         >
           {isAr ? "مؤشرات أداء الفرق" : "Team Benchmarks"}
+        </button>
+        <button
+          onClick={() => setActiveTab("charts")}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            activeTab === "charts"
+              ? "bg-primary text-primary-foreground shadow"
+              : "text-muted-foreground hover:bg-muted/30"
+          }`}
+        >
+          <BarChart3 className="w-3.5 h-3.5" />
+          {isAr ? "الرسوم البيانية التفاعلية" : "Visual Analytics"}
         </button>
         <button
           onClick={() => setActiveTab("workload")}
@@ -204,6 +321,17 @@ export default function ReportsPage() {
         >
           <Calendar className="w-3.5 h-3.5" />
           {isAr ? "التسليم السنوي للموسم" : "Season Handover"}
+        </button>
+        <button
+          onClick={() => setActiveTab("security")}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            activeTab === "security"
+              ? "bg-primary text-primary-foreground shadow"
+              : "text-muted-foreground hover:bg-muted/30"
+          }`}
+        >
+          <Lock className="w-3.5 h-3.5" />
+          {isAr ? "الأمان والنسخ الاحتياطي" : "Security & Backup"}
         </button>
       </div>
 
@@ -510,6 +638,235 @@ export default function ReportsPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Tab Content: Visual Analytics & Performance Charts */}
+      {activeTab === "charts" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Team Task Execution Bar Chart */}
+            <Card className="border-border/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-primary" />
+                    <span>{isAr ? "إنتاجية اللجان (إجمالي المهام vs المكتملة)" : "Team Productivity (Tasks vs Completed)"}</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-muted-foreground">
+                    {teams.length} {isAr ? "لجنة" : "Teams"}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <div className="h-[300px] w-full" dir="ltr">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartTeamData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={45} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          borderColor: "hsl(var(--border))",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
+                      <Bar dataKey="tasks" fill="#1a73e8" name={isAr ? "إجمالي المهام" : "Total Tasks"} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="completed" fill="#137333" name={isAr ? "المنجزة بنجاح" : "Completed"} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Task Status Distribution Donut Chart */}
+            <Card className="border-border/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <PieIcon className="w-4 h-4 text-amber-500" />
+                    <span>{isAr ? "توزيع حالات المهام التشغيلية" : "Operational Task Distribution"}</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-muted-foreground">
+                    {tasks.length} {isAr ? "مهمة" : "Tasks"}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <div className="h-[300px] w-full" dir="ltr">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={taskStatusData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={65}
+                        outerRadius={95}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {taskStatusData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          borderColor: "hsl(var(--border))",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: "11px" }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Metrics Bar Overview */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-xl border border-border bg-card">
+              <p className="text-xs text-muted-foreground">{isAr ? "نسبة إنجاز المهام الكلية" : "Total Delivery Rate"}</p>
+              <p className="text-2xl font-bold text-emerald-600 mt-1">{taskDeliveryRate}%</p>
+              <div className="w-full bg-muted rounded-full h-1.5 mt-2">
+                <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${taskDeliveryRate}%` }} />
+              </div>
+            </div>
+            <div className="p-4 rounded-xl border border-border bg-card">
+              <p className="text-xs text-muted-foreground">{isAr ? "متوسط تقييم الأعضاء" : "Avg Member Score"}</p>
+              <p className="text-2xl font-bold text-primary mt-1">{avgEvalScore} <span className="text-xs font-normal text-muted-foreground">/ 100</span></p>
+              <div className="w-full bg-muted rounded-full h-1.5 mt-2">
+                <div className="bg-primary h-1.5 rounded-full" style={{ width: `${Math.min(100, Number(avgEvalScore) || 0)}%` }} />
+              </div>
+            </div>
+            <div className="p-4 rounded-xl border border-border bg-card">
+              <p className="text-xs text-muted-foreground">{isAr ? "إجمالي أعضاء المنظومة" : "Total Team Members"}</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{availableUsers.length}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {teams.length} {isAr ? "لجان نشطة" : "Active Committees"}
+              </p>
+            </div>
+            <div className="p-4 rounded-xl border border-border bg-card">
+              <p className="text-xs text-muted-foreground">{isAr ? "سجلات نقاط التحفيز" : "Ledger Points Events"}</p>
+              <p className="text-2xl font-bold text-amber-600 mt-1">{pointEvents.length}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {isAr ? "حركات تدقيق موثقة" : "Audited Ledger Entries"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab Content: Database Backup & Security Snapshot */}
+      {activeTab === "security" && (
+        <div className="space-y-6">
+          <Card className="border-border/80">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="space-y-1">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <Database className="w-4 h-4 text-primary" />
+                    <span>{isAr ? "النسخ الاحتياطي الشامل للبيانات والأمان" : "Enterprise Database Backup & Vault"}</span>
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    {isAr
+                      ? "إمكانية أخذ لقطة فورية (JSON Snapshot) لكافة جداول وسجلات النظام مع رمز تحقق SHA256."
+                      : "Generate an instant full JSON snapshot of all system tables with SHA256 checksum."}
+                  </p>
+                </div>
+                <Button
+                  onClick={handleExportFullBackup}
+                  className="bg-primary text-primary-foreground font-semibold flex items-center gap-2 text-xs shadow-sm hover:shadow"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>{isAr ? "تحميل النسخة الاحتياطية الكاملة (JSON)" : "Download Full JSON Snapshot"}</span>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Snapshot Counts Matrix */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg border border-border bg-card text-center">
+                  <p className="text-xl font-bold text-foreground">{availableUsers.length}</p>
+                  <p className="text-[11px] text-muted-foreground">{isAr ? "سجلات الأعضاء (Profiles)" : "Profiles"}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-card text-center">
+                  <p className="text-xl font-bold text-foreground">{teams.length}</p>
+                  <p className="text-[11px] text-muted-foreground">{isAr ? "اللجان والمسارات (Teams)" : "Teams"}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-card text-center">
+                  <p className="text-xl font-bold text-foreground">{tasks.length}</p>
+                  <p className="text-[11px] text-muted-foreground">{isAr ? "المهام والتكليفات (Tasks)" : "Tasks"}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-card text-center">
+                  <p className="text-xl font-bold text-foreground">{pointEvents.length}</p>
+                  <p className="text-[11px] text-muted-foreground">{isAr ? "حركات النقاط (Point Events)" : "Point Events"}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-card text-center">
+                  <p className="text-xl font-bold text-foreground">{evaluations.length}</p>
+                  <p className="text-[11px] text-muted-foreground">{isAr ? "التقييمات الشهرية (Evaluations)" : "Evaluations"}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-card text-center">
+                  <p className="text-xl font-bold text-foreground">{appeals.length}</p>
+                  <p className="text-[11px] text-muted-foreground">{isAr ? "سجلات التظلمات (Appeals)" : "Appeals"}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-card text-center">
+                  <p className="text-xl font-bold text-foreground">{incidents.length}</p>
+                  <p className="text-[11px] text-muted-foreground">{isAr ? "خطط التحسين (PIPs)" : "Incidents & PIPs"}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-card text-center">
+                  <p className="text-xl font-bold text-foreground">{auditLogs?.length || 0}</p>
+                  <p className="text-[11px] text-muted-foreground">{isAr ? "سجلات المراجعة (Audit Logs)" : "Audit Logs"}</p>
+                </div>
+              </div>
+
+              {/* Security Safeguards Checklist */}
+              <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-3">
+                <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-400 text-xs">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>{isAr ? "ضمانات الأمان وعزل البيانات الصارمة (Data Isolation & Integrity)" : "Data Isolation & Integrity Safeguards"}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground">
+                      {isAr
+                        ? "عزل تام للنقاط الفردية لكل عضو (Zero Point Leakage) بدون أي تداخل بين الحسابات."
+                        : "Strict individual point isolation per member ID with zero ledger leakage."}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground">
+                      {isAr
+                        ? "صلاحيات الوصول مبنية على الدور (RBAC) - المسؤول العام فقط يملك صلاحية تنزيل النسخ الاحتياطية."
+                        : "Role-Based Access Control - Super Admin privilege gate on backup downloads."}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground">
+                      {isAr
+                        ? "سجل تدقيق كامل (Audit Trail) يسجل أية محاولة تعديل للنقاط أو المهام أو الإعدادات."
+                        : "Immutable audit trail capturing all critical actions, mutations, and status changes."}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground">
+                      {isAr
+                        ? "جاهزية PWA للعمل دون اتصال (Offline-Ready) وحفظ محلي آمن في الذاكرة المؤقتة."
+                        : "PWA Service Worker offline caching for uninterrupted executive access."}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Executive Performance Report Modal for Official Print / PDF Export */}

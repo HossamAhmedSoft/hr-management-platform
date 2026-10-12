@@ -39,7 +39,7 @@ import {
   POLICY_POINT_CAP_CATEGORIES,
   OFFICIAL_POINT_TO_CAP_MAPPINGS,
 } from "@/lib/policy-catalog";
-import { getPointClassification, isDuplicateDeduction } from "@/lib/utils";
+import { getPointClassification, isDuplicateDeduction, isUserInTrack } from "@/lib/utils";
 import { PointEvent } from "@/types";
 
 export default function PointsPage() {
@@ -105,17 +105,7 @@ export default function PointsPage() {
   // Helper to match user to committee
   const isUserInTeam = (u: any, teamId?: string) => {
     if (!teamId || teamId === "all") return true;
-    const target = teamId.toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userTeam = (u.team_id || u.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userCommittee = (u.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
-    const userTeamName = (u.team?.name || "").toLowerCase().trim();
-
-    if (userTeam === target) return true;
-    if (userCommittee === target) return true;
-    if (userTeam && target && (userTeam.includes(target) || target.includes(userTeam))) return true;
-    if (userCommittee && target && (userCommittee.includes(target) || target.includes(userCommittee))) return true;
-    if (userTeamName && target && (userTeamName.includes(target) || target.includes(userTeamName))) return true;
-    return false;
+    return isUserInTrack(u, teamId, teams);
   };
 
   // Selectable users for team lead vs admins, filtered by pointTeamFilter
