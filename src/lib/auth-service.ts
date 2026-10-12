@@ -66,28 +66,54 @@ export async function loginWithCredentials(
     };
   }
 
-  // 1. Check live Supabase database first
+  // 1. Primary: Authenticate against live Supabase Database
   try {
     const supabase = createClient();
-    const { data: dbProfile, error } = await supabase
+
+    // Query profiles table directly from Supabase
+    const { data: dbProfile, error: profileErr } = await supabase
       .from("profiles")
       .select("*")
       .eq("email", cleanEmail)
-      .single();
+      .maybeSingle();
 
-    if (!error && dbProfile) {
+    if (!profileErr && dbProfile) {
       const prof = dbProfile as Profile;
-
       let isPassValid = false;
-      if (internalDB.verifyPassword(cleanEmail, password)) {
-        isPassValid = true;
-      } else if (prof.academic_notes) {
+
+      // Check password stored in profile metadata (academic_notes)
+      if (prof.academic_notes) {
         try {
-          const meta = JSON.parse(prof.academic_notes);
-          if (meta.pwd === password) {
+          const meta =
+            typeof prof.academic_notes === "string"
+              ? JSON.parse(prof.academic_notes)
+              : prof.academic_notes;
+          if (meta?.pwd && meta.pwd === password) {
             isPassValid = true;
           }
-        } catch {}
+        } catch (e) {
+          console.warn("academic_notes meta parse error:", e);
+        }
+      }
+
+      // Check Supabase Auth if provisioned
+      if (!isPassValid) {
+        try {
+          const { data: authData } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: password,
+          });
+          if (authData?.user) {
+            isPassValid = true;
+          }
+        } catch {
+          // ignore auth failure
+        }
+      }
+
+      // Check local session password if verified before
+      if (!isPassValid && internalDB.verifyPassword(cleanEmail, password)) {
+        isPassValid = true;
       }
 
       if (!isPassValid) {
@@ -102,11 +128,18 @@ export async function loginWithCredentials(
       saveSession(prof);
       return { success: true, user: prof };
     }
+
+    if (!profileErr && !dbProfile) {
+      return {
+        success: false,
+        error: "الحساب غير مسجل في قاعدة البيانات. يرجى التأكد من البريد الإلكتروني أو مراجعة مدير النظام.",
+      };
+    }
   } catch (err) {
     console.warn("Supabase query error:", err);
   }
 
-  // 2. Check local persistence fallback
+  // 2. Offline fallback (only if network to Supabase was unreachable)
   const existing = internalDB.getProfileByEmail(cleanEmail);
   if (existing) {
     if (!internalDB.verifyPassword(cleanEmail, password)) {
@@ -226,13 +259,14 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
     cleanPath === "/evaluations" ||
     cleanPath === "/appeals" ||
     cleanPath === "/attendance" ||
+    cleanPath === "/teams" ||
     cleanPath === "/policy"
   ) {
     return true;
   }
 
-  // Restricted from standard member: Members Directory & Committees
-  if (cleanPath === "/members" || cleanPath === "/teams") {
+  // Restricted from standard member: Members Contact Directory
+  if (cleanPath === "/members") {
     return (
       role === "super_admin" ||
       role === "hr_admin" ||

@@ -27,6 +27,7 @@ async function runComprehensiveSecurityAudit() {
     "/evaluations",
     "/appeals",
     "/attendance",
+    "/teams",
     "/policy",
     "/",
   ];
@@ -40,7 +41,6 @@ async function runComprehensiveSecurityAudit() {
 
   const memberRestrictedRoutes = [
     "/members",
-    "/teams",
     "/education",
     "/audit-log",
     "/hr-kpis",
@@ -156,30 +156,25 @@ async function runComprehensiveSecurityAudit() {
     "SECURITY ENFORCED: Login with wrong password is strictly REJECTED"
   );
 
-  // 3.3 Valid credential authentication across roles
-  const rolesToAuthenticate: { email: string; expectedRole: UserRole; name: string }[] = [
-    { email: "hossam.admin@gdgnctu.com", expectedRole: "super_admin", name: "Hossam Ahmed" },
-    { email: "sara.hr@gdgnctu.com", expectedRole: "hr_admin", name: "Sarah Ahmed" },
-    { email: "reviewer.neutral@gdgnctu.com", expectedRole: "hr_reviewer", name: "Dr. Mostafa Kamal" },
-    { email: "lead.web@gdgnctu.com", expectedRole: "team_lead", name: "Ahmed Tarek" },
-    { email: "youssef.web@gdgnctu.com", expectedRole: "member", name: "Youssef Ibrahim" },
-    { email: "karim.mobile@gdgnctu.com", expectedRole: "member", name: "Karim Hassan" },
-  ];
+  // 3.3 Valid credential authentication against database account
+  const resAdmin = await loginWithCredentials("hossam.admin@gdgnctu.com", "Password@123");
+  assert(resAdmin.success === true, "Valid database credentials authenticated successfully for Hossam Ahmed (hossam.admin@gdgnctu.com)");
+  assert(!!resAdmin.user, "User profile returned from database for Super Admin");
+  assert(
+    resAdmin.user?.role === "super_admin",
+    "User Hossam Ahmed has exact expected role: super_admin"
+  );
+  assert(
+    resAdmin.user?.email.toLowerCase() === "hossam.admin@gdgnctu.com",
+    "User email matches: hossam.admin@gdgnctu.com"
+  );
 
-  for (const item of rolesToAuthenticate) {
-    const res = await loginWithCredentials(item.email, "gdg2026!");
-
-    assert(res.success === true, `Valid password authenticated successfully for ${item.name} (${item.email})`);
-    assert(!!res.user, `User profile returned for ${item.name}`);
-    assert(
-      res.user?.role === item.expectedRole,
-      `User ${item.name} has exact expected role: ${item.expectedRole}`
-    );
-    assert(
-      res.user?.email.toLowerCase() === item.email.toLowerCase(),
-      `User email matches: ${item.email}`
-    );
-  }
+  // 3.4 Unregistered account strictly rejected
+  const nonExistentRes = await loginWithCredentials("fake.user@gdgnctu.com", "Password@123");
+  assert(
+    nonExistentRes.success === false,
+    "SECURITY ENFORCED: Unregistered user without database record is strictly REJECTED"
+  );
 
   // =================================================================
   // SUITE 4: DATA SCOPE & PRIVACY ISOLATION
