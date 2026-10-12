@@ -22,6 +22,7 @@ export interface Profile {
   avatar_url?: string;
   role: UserRole;
   team_id?: string;
+  committee?: string;
   status: MemberStatus;
   join_date: string;
   phone?: string;

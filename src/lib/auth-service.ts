@@ -52,12 +52,19 @@ export function clearSession(): void {
   }
 }
 
-// ── Pure Database Authentication (Zero Demo Fallbacks) ──
+// ── Pure Enterprise Database Authentication ──
 export async function loginWithCredentials(
   email: string,
-  password?: string
+  password: string
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
+
+  if (!password || !password.trim()) {
+    return {
+      success: false,
+      error: "كلمة المرور مطلوبة لإتمام تسجيل الدخول.",
+    };
+  }
 
   // 1. Check live Supabase database first
   try {
@@ -71,30 +78,27 @@ export async function loginWithCredentials(
     if (!error && dbProfile) {
       const prof = dbProfile as Profile;
 
-      // Validate password if supplied
-      if (password) {
-        let isPassValid = false;
-        if (internalDB.verifyPassword(cleanEmail, password)) {
-          isPassValid = true;
-        } else if (prof.academic_notes) {
-          try {
-            const meta = JSON.parse(prof.academic_notes);
-            if (meta.pwd === password) {
-              isPassValid = true;
-            }
-          } catch {}
-        }
+      let isPassValid = false;
+      if (internalDB.verifyPassword(cleanEmail, password)) {
+        isPassValid = true;
+      } else if (prof.academic_notes) {
+        try {
+          const meta = JSON.parse(prof.academic_notes);
+          if (meta.pwd === password) {
+            isPassValid = true;
+          }
+        } catch {}
+      }
 
-        if (!isPassValid) {
-          return {
-            success: false,
-            error: "كلمة المرور غير صحيحة. يرجى التأكد من البيانات المدخلة.",
-          };
-        }
+      if (!isPassValid) {
+        return {
+          success: false,
+          error: "كلمة المرور غير صحيحة. يرجى التأكد من البيانات المدخلة.",
+        };
       }
 
       internalDB.createProfile(prof);
-      if (password) internalDB.setPassword(cleanEmail, password);
+      internalDB.setPassword(cleanEmail, password);
       saveSession(prof);
       return { success: true, user: prof };
     }
@@ -105,7 +109,7 @@ export async function loginWithCredentials(
   // 2. Check local persistence fallback
   const existing = internalDB.getProfileByEmail(cleanEmail);
   if (existing) {
-    if (password && !internalDB.verifyPassword(cleanEmail, password)) {
+    if (!internalDB.verifyPassword(cleanEmail, password)) {
       return {
         success: false,
         error: "كلمة المرور غير صحيحة. يرجى التأكد من البيانات المدخلة.",

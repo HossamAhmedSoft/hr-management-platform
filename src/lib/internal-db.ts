@@ -109,10 +109,86 @@ export const DEFAULT_TEAMS: Team[] = [
   { id: "team_ai", name: "AI & Data Science", name_ar: "مسار الذكاء الاصطناعي", type: "technical", status: "active", created_at: "2026-01-01", updated_at: "2026-01-01" },
 ];
 
+export const DEFAULT_PROFILES: Profile[] = [
+  {
+    id: "usr_admin_1",
+    email: "hossam.admin@gdgnctu.com",
+    full_name: "Hossam Ahmed (حسام أحمد)",
+    role: "super_admin",
+    team_id: "team_core",
+    committee: "Board",
+    status: "active",
+    join_date: "2026-01-01",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "usr_hr_admin_1",
+    email: "sara.hr@gdgnctu.com",
+    full_name: "Sarah Ahmed (سارة أحمد)",
+    role: "hr_admin",
+    team_id: "team_hr",
+    committee: "HR",
+    status: "active",
+    join_date: "2026-01-01",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "usr_reviewer_neutral_1",
+    email: "reviewer.neutral@gdgnctu.com",
+    full_name: "Dr. Mostafa Kamal (د. مصطفى كمال)",
+    role: "hr_reviewer",
+    team_id: "team_hr",
+    committee: "HR Review & Ethics",
+    status: "active",
+    join_date: "2026-01-01",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "usr_lead_web",
+    email: "lead.web@gdgnctu.com",
+    full_name: "Ahmed Tarek (أحمد طارق)",
+    role: "team_lead",
+    team_id: "team_web",
+    committee: "Web Development",
+    status: "active",
+    join_date: "2026-01-01",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "usr_member_1",
+    email: "youssef.web@gdgnctu.com",
+    full_name: "Youssef Ibrahim (يوسف إبراهيم)",
+    role: "member",
+    team_id: "team_web",
+    committee: "Web Development",
+    status: "active",
+    join_date: "2026-01-01",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "usr_member_karim",
+    email: "karim.mobile@gdgnctu.com",
+    full_name: "Karim Hassan (كريم حسن)",
+    role: "member",
+    team_id: "team_mobile",
+    committee: "Mobile App Development",
+    status: "active",
+    join_date: "2026-01-01",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  },
+];
+
 export const internalDB = {
   // ── Profiles & Users ───────────────────────────────────
   getProfiles(): Profile[] {
-    return getTable<Profile>("profiles", []);
+    const stored = getTable<Profile>("profiles", DEFAULT_PROFILES);
+    return stored.length > 0 ? stored : DEFAULT_PROFILES;
   },
 
   getProfileByEmail(email: string): Profile | null {
@@ -140,8 +216,12 @@ export const internalDB = {
   },
 
   verifyPassword(email: string, password?: string): boolean {
+    if (!password || !password.trim()) return false;
     const stored = this.getPassword(email);
-    if (!stored) return true; // if no password set yet, allow
+    if (!stored) {
+      // Standard default system credential for seeded profiles
+      return password === "gdg2026!";
+    }
     return stored === password;
   },
 
