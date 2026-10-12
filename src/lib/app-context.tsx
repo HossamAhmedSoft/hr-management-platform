@@ -56,6 +56,13 @@ interface AppContextType {
   approvePointEvent: (id: string, rationale?: string) => void;
   rejectPointEvent: (id: string, rationale?: string) => void;
   submitAppeal: (appeal: Omit<Appeal, "id" | "created_at" | "updated_at">) => void;
+  updateAppeal: (id: string, updates: Partial<Appeal>) => Promise<boolean>;
+  resolveAppeal: (
+    appealId: string,
+    decision: "approved" | "rejected",
+    rationale?: string,
+    compensatoryPoints?: number
+  ) => Promise<boolean>;
   addEvaluation: (evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">) => void;
   updateEvaluation: (id: string, updates: Partial<Evaluation>) => Promise<boolean>;
   deleteEvaluation: (id: string) => Promise<boolean>;
@@ -405,13 +412,36 @@ export function AppProvider({
       if (newStatus === "completed" && targetTask.assignees) {
         for (const assignee of targetTask.assignees) {
           if (assignee.profile_id) {
+            // Reward +3 points for task milestone on-time completion if not already awarded
+            const alreadyAwarded = pointEvents.some(
+              (p) =>
+                p.member_id === assignee.profile_id &&
+                p.explanation?.includes(targetTask.title) &&
+                p.direction === "positive"
+            );
+            if (!alreadyAwarded) {
+              await addPointEvent({
+                member_id: assignee.profile_id,
+                team_id: targetTask.team_id || "team_general",
+                event_date: new Date().toISOString().split("T")[0],
+                category_id: "task_milestone_ontime",
+                direction: "positive",
+                value: 3,
+                explanation: locale === "ar"
+                  ? `مكافأة إنجاز مهمة عمل بنجاح: "${targetTask.title}" (+3 نقاط وفق اللائحة)`
+                  : `Milestone completion reward: "${targetTask.title}" (+3 pts under policy)`,
+                recorded_by: currentUser?.id || "admin",
+                status: "approved",
+              });
+            }
+
             await addNotification({
               user_id: assignee.profile_id,
-              title: locale === "ar" ? "تم اعتماد إنجاز المهمة بنجاح" : "Task Completed & Approved",
+              title: locale === "ar" ? "تم اعتماد إنجاز المهمة ومنح نقاط التميز" : "Task Completed & Points Awarded",
               message:
                 locale === "ar"
-                  ? `تمت مراجعة واعتماد مخرجات المهمة: "${targetTask.title}" بنجاح.`
-                  : `Your deliverable for task: "${targetTask.title}" has been reviewed and approved.`,
+                  ? `تمت مراجعة واعتماد مخرجات المهمة: "${targetTask.title}" بنجاح وإضافة +3 نقاط لرصيدك.`
+                  : `Your deliverable for task: "${targetTask.title}" was approved (+3 points awarded).`,
               type: "task_review",
               link: `/${locale}/tasks`,
               is_read: false,
@@ -591,6 +621,88 @@ export function AppProvider({
         },
       });
     }
+  };
+
+  const updateAppeal = async (id: string, updates: Partial<Appeal>): Promise<boolean> => {
+    const success = await dbService.updateAppeal(id, updates);
+    if (success) {
+      setAppeals((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, ...updates, updated_at: new Date().toISOString() } : a))
+      );
+    }
+    return success;
+  };
+
+  const resolveAppeal = async (
+    appealId: string,
+    decision: "approved" | "rejected",
+    rationale?: string,
+    compensatoryPoints?: number
+  ): Promise<boolean> => {
+    const targetAppeal = appeals.find((a) => a.id === appealId);
+    if (!targetAppeal) return false;
+
+    const newStatus = decision === "approved" ? "resolved" : "rejected";
+    const updates: Partial<Appeal> = {
+      status: newStatus as any,
+      decision_rationale: rationale || (decision === "approved" ? "تم قبول التظلم واعتماد القرار البديل" : "تم رفض التظلم لعدم استيفاء الشروط"),
+      neutral_reviewer_id: currentUser?.id || "reviewer",
+      resolved_at: new Date().toISOString(),
+    };
+
+    const success = await updateAppeal(appealId, updates);
+    if (success) {
+      // 1. If approved and compensatory points specified or positive reversal requested
+      if (decision === "approved" && compensatoryPoints && compensatoryPoints > 0) {
+        await addPointEvent({
+          member_id: targetAppeal.member_id,
+          team_id: "team_general",
+          event_date: new Date().toISOString().split("T")[0],
+          category_id: "appeal_compensation",
+          direction: "positive",
+          value: compensatoryPoints,
+          explanation: locale === "ar"
+            ? `تسوية وتصحيح قرار بعد قبول التظلم الرسمي رقم #${targetAppeal.id.slice(0, 8)} (+${compensatoryPoints} نقاط تعويضية)`
+            : `Appeal settlement and correction: #${targetAppeal.id.slice(0, 8)} (+${compensatoryPoints} compensatory pts)`,
+          recorded_by: currentUser?.id || "admin",
+          status: "approved",
+        });
+      }
+
+      // 2. Comprehensive Audit Trail
+      await addAuditLog({
+        actor_id: currentUser?.id || "reviewer",
+        actor_name: currentUser?.full_name,
+        action: decision === "approved" ? "APPEAL_APPROVED" : "APPEAL_REJECTED",
+        entity_type: "appeal",
+        entity_id: appealId,
+        reason: `قرار ${decision === "approved" ? "قبول" : "رفض"} التظلم الرسمي للعضو: ${rationale || "المراجعة المحايدة"}`,
+        details: `Appeal ${decision}. Target: ${targetAppeal.entity_type}, Compensatory points: ${compensatoryPoints || 0}.`,
+        after_value: { appeal_id: appealId, status: newStatus, decision, rationale },
+      });
+
+      // 3. Dispatch Notification to the appealing member
+      const member = availableUsers.find((u) => u.id === targetAppeal.member_id);
+      await addNotification({
+        user_id: targetAppeal.member_id,
+        recipient_email: member?.email,
+        title: locale === "ar"
+          ? (decision === "approved" ? "تم قبول تظلمك رسميًا وتصحيح القرار" : "قرار بشأن التظلم المقدم منك")
+          : (decision === "approved" ? "Appeal Approved & Settled" : "Appeal Determination Notice"),
+        message: locale === "ar"
+          ? (decision === "approved"
+              ? `أصدرت لجنة المراجعة المحايدة قرارًا بقبول تظلمك (${rationale || "تمت الموافقة"}).`
+              : `تمت مراجعة تظلمك وتقرر رفضه للأسباب التالية: ${rationale || "عدم استيفاء اللائحة"}.`)
+          : (decision === "approved"
+              ? `Neutral review approved your appeal: ${rationale || "Accepted"}.`
+              : `Your appeal was reviewed and rejected: ${rationale || "Did not meet criteria"}.`),
+        type: "point_decision",
+        link: `/${locale}/appeals`,
+        is_read: false,
+      });
+    }
+
+    return success;
   };
 
   const addEvaluation = async (evalData: Omit<Evaluation, "id" | "created_at" | "updated_at">) => {
@@ -928,6 +1040,8 @@ export function AppProvider({
         approvePointEvent,
         rejectPointEvent,
         submitAppeal,
+        updateAppeal,
+        resolveAppeal,
         addEvaluation,
         updateEvaluation,
         deleteEvaluation,

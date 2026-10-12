@@ -108,11 +108,27 @@ export default function MembersPage() {
   const [deletingMember, setDeletingMember] = useState<Profile | null>(null);
   const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
 
+  // Helper: check if member belongs to selected team / committee
+  const isUserInTeam = (u: any, teamId?: string) => {
+    if (!teamId || teamId === "all") return true;
+    const target = teamId.toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userTeam = (u.team_id || u.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userCommittee = (u.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userTeamName = (u.team?.name || "").toLowerCase().trim();
+
+    if (userTeam === target) return true;
+    if (userCommittee === target) return true;
+    if (userTeam && target && (userTeam.includes(target) || target.includes(userTeam))) return true;
+    if (userCommittee && target && (userCommittee.includes(target) || target.includes(userCommittee))) return true;
+    if (userTeamName && target && (userTeamName.includes(target) || target.includes(userTeamName))) return true;
+    return false;
+  };
+
   const filteredMembers = availableUsers.filter((m) => {
     const matchesSearch =
       m.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       m.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTeam = selectedTeam === "all" || m.team_id === selectedTeam;
+    const matchesTeam = isUserInTeam(m, selectedTeam);
     return matchesSearch && matchesTeam;
   });
 

@@ -68,6 +68,22 @@ export default function ReportsPage() {
 
   const overloadedMembers = memberWorkload.filter((w) => w.isOverloaded);
 
+  // Helper: check if member or entity belongs to selected team / committee
+  const isUserInTeam = (u: any, teamId?: string) => {
+    if (!teamId || teamId === "all") return true;
+    const target = teamId.toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userTeam = (u.team_id || u.team?.id || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userCommittee = (u.committee || "").toLowerCase().replace("team_", "").replace("team-", "").trim();
+    const userTeamName = (u.team?.name || "").toLowerCase().trim();
+
+    if (userTeam === target) return true;
+    if (userCommittee === target) return true;
+    if (userTeam && target && (userTeam.includes(target) || target.includes(userTeam))) return true;
+    if (userCommittee && target && (userCommittee.includes(target) || target.includes(userCommittee))) return true;
+    if (userTeamName && target && (userTeamName.includes(target) || target.includes(userTeamName))) return true;
+    return false;
+  };
+
   const handleExportOrgReport = () => {
     const csvContent =
       "Report,GDG NCTU Executive Performance Report\n" +
@@ -77,8 +93,8 @@ export default function ReportsPage() {
       "Team,Members,TaskCompletionRate,AvgEvaluationScore\n" +
       teams
         .map((t) => {
-          const mCount = availableUsers.filter((u) => u.team_id === t.id).length;
-          const tTasks = tasks.filter((tk) => tk.team_id === t.id);
+          const mCount = availableUsers.filter((u) => isUserInTeam(u, t.id)).length;
+          const tTasks = tasks.filter((tk) => isUserInTeam({ team_id: tk.team_id }, t.id));
           const tCompleted = tTasks.filter((tk) => tk.status === "completed").length;
           const rate = tTasks.length > 0 ? `${Math.round((tCompleted / tTasks.length) * 100)}%` : "0%";
           return `"${t.name}",${mCount},${rate},${avgEvalScore}`;
@@ -257,8 +273,8 @@ export default function ReportsPage() {
                     </tr>
                   ) : (
                     teams.map((t) => {
-                      const mCount = availableUsers.filter((u) => u.team_id === t.id).length;
-                      const tTasks = tasks.filter((tk) => tk.team_id === t.id);
+                      const mCount = availableUsers.filter((u) => isUserInTeam(u, t.id)).length;
+                      const tTasks = tasks.filter((tk) => isUserInTeam({ team_id: tk.team_id }, t.id));
                       const tDone = tTasks.filter((tk) => tk.status === "completed").length;
                       const rate = tTasks.length > 0 ? `${Math.round((tDone / tTasks.length) * 100)}%` : "—";
                       return (

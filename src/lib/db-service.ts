@@ -602,6 +602,34 @@ export const dbService = {
     return internalDB.createAppeal(appeal);
   },
 
+  async updateAppeal(id: string, updates: Partial<Appeal>): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("appeals")
+        .update(updates)
+        .eq("id", id);
+
+      if (!error) {
+        internalDB.updateAppeal(id, updates);
+        return true;
+      }
+    } catch (e) {
+      console.warn("Supabase updateAppeal error:", e);
+    }
+    return !!internalDB.updateAppeal(id, updates);
+  },
+
+  async deleteAppeal(id: string): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      await supabase.from("appeals").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Supabase deleteAppeal error:", e);
+    }
+    return internalDB.deleteAppeal(id);
+  },
+
   // ── Incidents ───────────────────────────────────────────
   async getIncidents(): Promise<Incident[]> {
     try {

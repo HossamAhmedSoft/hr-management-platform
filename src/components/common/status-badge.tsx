@@ -37,6 +37,7 @@ export function StatusBadge({
     switch (norm) {
       case "approved":
       case "completed":
+      case "resolved":
       case "active":
       case "positive":
         return {

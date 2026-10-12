@@ -345,7 +345,9 @@ export type AppealStatus =
   | "upheld"
   | "partially_upheld"
   | "overturned"
-  | "closed";
+  | "closed"
+  | "resolved"
+  | "rejected";
 
 export interface Appeal {
   id: string;
@@ -370,6 +372,7 @@ export interface Appeal {
   decision?: string;
   decision_rationale?: string;
   original_decision_preserved?: boolean;
+  resolved_at?: string;
   created_at: string;
   updated_at: string;
 }
