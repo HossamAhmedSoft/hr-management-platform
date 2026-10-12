@@ -109,7 +109,43 @@ export const dbService = {
   },
 
   async setPassword(email: string, password: string): Promise<void> {
-    internalDB.setPassword(email, password);
+    const cleanEmail = email.toLowerCase().trim();
+    internalDB.setPassword(cleanEmail, password);
+
+    try {
+      const supabase = createClient();
+      const { data: remoteProf, error: findErr } = await supabase
+        .from("profiles")
+        .select("id, academic_notes")
+        .ilike("email", cleanEmail)
+        .maybeSingle();
+
+      if (!findErr && remoteProf) {
+        let meta: Record<string, any> = {};
+        try {
+          if (remoteProf.academic_notes) {
+            meta =
+              typeof remoteProf.academic_notes === "string"
+                ? JSON.parse(remoteProf.academic_notes)
+                : remoteProf.academic_notes;
+          }
+        } catch {
+          meta = {};
+        }
+        meta.pwd = password;
+        meta.updated_at = new Date().toISOString();
+
+        await supabase
+          .from("profiles")
+          .update({
+            academic_notes: JSON.stringify(meta),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", remoteProf.id);
+      }
+    } catch (e) {
+      console.warn("Supabase setPassword error:", e);
+    }
   },
 
   async getPassword(email: string): Promise<string | null> {

@@ -197,3 +197,45 @@ body {
     font-size: 16px; /* Prevents auto-zoom on iOS inputs */
   }
 }
+
+/* Official Print & PDF Export Styling */
+@media print {
+  header,
+  aside,
+  .no-print,
+  button,
+  .no-print * {
+    display: none !important;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 10pt !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-modal-container {
+    position: static !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .print-page-break {
+    page-break-before: always;
+  }
+
+  * {
+    color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

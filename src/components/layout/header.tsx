@@ -18,12 +18,18 @@ import {
   TrendingUp,
   CheckCheck,
   Clock,
+  Layers,
+  ArrowRight,
+  Command,
+  X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useApp } from "@/lib/app-context";
 import { Notification } from "@/types";
 import { cn } from "@/lib/utils";
+import { POLICY_POINT_CATEGORIES } from "@/lib/policy-catalog";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -47,9 +53,26 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     logout,
   } = useApp();
 
+  const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
+  const [commandSearch, setCommandSearch] = useState("");
+  const [commandCategory, setCommandCategory] = useState<"all" | "members" | "tracks" | "rules" | "pages">("all");
   const isAr = locale === "ar";
   const isMember = currentUser?.role === "member";
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsCommandOpen((prev) => !prev);
+      } else if (e.key === "Escape") {
+        setIsCommandOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const [readTaskIds, setReadTaskIds] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
@@ -211,22 +234,37 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
         {/* Center: Google Workspace Global Search Bar */}
         <div className="hidden lg:flex items-center flex-1 max-w-md mx-8">
-          <div className="relative w-full">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder={
-                isAr
-                  ? "البحث في الأعضاء، المهام، القواعد، أو النقاط... (Ctrl + K)"
-                  : "Search members, tasks, rules, or point ledger... (Ctrl + K)"
-              }
-              className="w-full h-9 pl-9 pr-4 text-xs rounded-lg bg-[#f1f3f4] dark:bg-[#303134] border border-transparent focus:border-[#1a73e8] focus:bg-background text-foreground placeholder:text-muted-foreground outline-none transition-all"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsCommandOpen(true)}
+            className="w-full h-9 pl-9 pr-3 rtl:pl-3 rtl:pr-9 text-xs rounded-lg bg-[#f1f3f4] dark:bg-[#303134] border border-transparent hover:border-[#1a73e8]/40 focus:border-[#1a73e8] focus:bg-background text-foreground text-left rtl:text-right transition-all flex items-center justify-between group cursor-pointer relative"
+          >
+            <div className="flex items-center gap-2 text-muted-foreground group-hover:text-foreground truncate">
+              <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-2.5 text-muted-foreground" />
+              <span className="truncate">
+                {isAr
+                  ? "البحث السريع في الأعضاء، القواعد، والمهام..."
+                  : "Search members, rules, tasks..."}
+              </span>
+            </div>
+            <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-muted-foreground bg-card rounded border border-border shrink-0 shadow-2xs">
+              Ctrl K
+            </kbd>
+          </button>
         </div>
 
         {/* Right: Controls & User Profile */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Mobile Search Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsCommandOpen(true)}
+            className="h-8 w-8 rounded-lg hover:bg-muted lg:hidden"
+            title={isAr ? "بحث (Ctrl+K)" : "Search (Ctrl+K)"}
+          >
+            <Search className="w-4 h-4 text-muted-foreground" />
+          </Button>
           {/* Language Switcher */}
           <Button
             variant="ghost"
@@ -476,6 +514,268 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           </div>
         </div>
       </div>
+
+      {/* 3. Global Spotlight Command Palette Dialog (Ctrl + K) */}
+      {isCommandOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div
+            className="fixed inset-0"
+            onClick={() => setIsCommandOpen(false)}
+          />
+          <div className="relative w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-150">
+            {/* Top Search Input */}
+            <div className="flex items-center px-4 py-3 border-b border-border gap-3 bg-muted/20">
+              <Search className="w-5 h-5 text-primary shrink-0" />
+              <input
+                autoFocus
+                type="text"
+                value={commandSearch}
+                onChange={(e) => setCommandSearch(e.target.value)}
+                placeholder={
+                  isAr
+                    ? "ابحث عن عضو، مهمة، قاعدة نقاط، أو مسار... (Esc للإغلاق)"
+                    : "Search members, tasks, point rules, or tracks... (Esc to close)"
+                }
+                className="w-full text-sm bg-transparent text-foreground placeholder:text-muted-foreground outline-none font-medium"
+              />
+              {commandSearch && (
+                <button
+                  onClick={() => setCommandSearch("")}
+                  className="p-1 text-muted-foreground hover:text-foreground rounded"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground bg-card border border-border rounded shadow-2xs">
+                ESC
+              </kbd>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-1.5 px-4 py-2 border-b border-border bg-muted/10 overflow-x-auto no-scrollbar text-xs">
+              {(
+                [
+                  { id: "all", label: isAr ? "الكل" : "All" },
+                  { id: "members", label: isAr ? "الأعضاء" : "Members" },
+                  { id: "tracks", label: isAr ? "اللجان والمسارات" : "Tracks" },
+                  { id: "rules", label: isAr ? "قواعد النقاط" : "Policy Rules" },
+                  { id: "pages", label: isAr ? "الصفحات" : "Pages" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setCommandCategory(tab.id)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-lg font-semibold transition-colors shrink-0",
+                    commandCategory === tab.id
+                      ? "bg-primary text-white"
+                      : "text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Results Body */}
+            <div className="overflow-y-auto p-3 space-y-4 text-xs divide-y divide-border/40 max-h-[60vh]">
+              {/* Pages Section */}
+              {(commandCategory === "all" || commandCategory === "pages") && (
+                <div className="space-y-1.5 pt-2 first:pt-0">
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2">
+                    {isAr ? "صفحات المنظومة" : "System Navigation"}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {[
+                      { title: isAr ? "لوحة القيادة" : "Dashboard Overview", href: `/${locale}` },
+                      { title: isAr ? "دليل الأعضاء" : "Members Directory", href: `/${locale}/members` },
+                      { title: isAr ? "اللجان والمسارات" : "Tracks & Committees", href: `/${locale}/teams` },
+                      { title: isAr ? "المهام والتسليمات" : "Tasks & Milestones", href: `/${locale}/tasks` },
+                      { title: isAr ? "سجل النقاط واللوائح" : "Points Ledger & Rules", href: `/${locale}/points` },
+                      { title: isAr ? "التقييم الشهري (100 درجة)" : "Monthly Evaluations", href: `/${locale}/evaluations` },
+                      { title: isAr ? "المتابعة وخطط التحسين" : "Feedback & PIP", href: `/${locale}/feedback` },
+                      { title: isAr ? "سلم التصعيد والمخالفات" : "Escalation Ladder", href: `/${locale}/incidents` },
+                      { title: isAr ? "التظلمات الرسمية" : "Appeals & Disputes", href: `/${locale}/appeals` },
+                      { title: isAr ? "المسارات التقنية والأكاديمية" : "Technical Tracks & Academy", href: `/${locale}/education` },
+                      { title: isAr ? "الحضور والاجتماعات" : "Attendance Logs", href: `/${locale}/attendance` },
+                      { title: isAr ? "التقارير والتحليلات" : "Reports & Exports", href: `/${locale}/reports` },
+                      { title: isAr ? "مؤشرات كفاءة HR" : "HR Team KPIs", href: `/${locale}/hr-kpis` },
+                      { title: isAr ? "السياسات والتقويم" : "Policy & Settings", href: `/${locale}/policy` },
+                      { title: isAr ? "سجل التدقيق الأمني" : "Security Audit Log", href: `/${locale}/audit-log` },
+                    ]
+                      .filter((p) => !commandSearch || p.title.toLowerCase().includes(commandSearch.toLowerCase()))
+                      .slice(0, commandSearch ? 6 : 4)
+                      .map((p, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            router.push(p.href);
+                            setIsCommandOpen(false);
+                          }}
+                          className="p-2.5 rounded-xl hover:bg-muted cursor-pointer transition-colors flex items-center justify-between border border-border/50"
+                        >
+                          <span className="font-semibold text-foreground">{p.title}</span>
+                          <ArrowRight className="w-3.5 h-3.5 text-muted-foreground rtl:rotate-180" />
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Members Section */}
+              {(commandCategory === "all" || commandCategory === "members") && (
+                <div className="space-y-1.5 pt-3">
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2">
+                    {isAr ? "دليل الأعضاء" : "Members"}
+                  </p>
+                  <div className="space-y-1">
+                    {availableUsers
+                      .filter(
+                        (u) =>
+                          !commandSearch ||
+                          u.full_name.toLowerCase().includes(commandSearch.toLowerCase()) ||
+                          u.email.toLowerCase().includes(commandSearch.toLowerCase()) ||
+                          u.role.toLowerCase().includes(commandSearch.toLowerCase())
+                      )
+                      .slice(0, 5)
+                      .map((u) => (
+                        <div
+                          key={u.id}
+                          onClick={() => {
+                            router.push(`/${locale}/members`);
+                            setIsCommandOpen(false);
+                          }}
+                          className="p-2.5 rounded-xl hover:bg-muted cursor-pointer transition-colors flex items-center justify-between border border-border/50"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Avatar className="w-7 h-7 text-xs">
+                              <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                                {u.full_name.slice(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="font-bold text-foreground truncate">{u.full_name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 rounded border border-border bg-card shrink-0 font-semibold capitalize">
+                            {u.role.replace("_", " ")}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tracks Section */}
+              {(commandCategory === "all" || commandCategory === "tracks") && (
+                <div className="space-y-1.5 pt-3">
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2">
+                    {isAr ? "اللجان والمسارات التقنية" : "Tracks & Committees"}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {[
+                      { id: "web", name: "Web Development Track", nameAr: "مسار تطوير الويب", type: "tech" },
+                      { id: "mobile", name: "Mobile App Track", nameAr: "مسار تطبيقات الموبايل", type: "tech" },
+                      { id: "uiux", name: "UI/UX Design Track", nameAr: "مسار تصميم واجهات المستخدم", type: "tech" },
+                      { id: "ai", name: "AI & Data Science Track", nameAr: "مسار الذكاء الاصطناعي وعلم البيانات", type: "tech" },
+                      { id: "embedded", name: "Embedded Systems & IoT", nameAr: "الأنظمة المدمجة وإنترنت الأشياء", type: "tech" },
+                      { id: "cyber", name: "Cyber Security Track", nameAr: "مسار الأمن السيبراني", type: "tech" },
+                      { id: "hr", name: "Human Resources", nameAr: "الموارد البشرية", type: "non_tech" },
+                      { id: "media", name: "Media & Content", nameAr: "الإعلام والمحتوى", type: "non_tech" },
+                      { id: "pr", name: "Public Relations & Marketing", nameAr: "العلاقات العامة والتسويق", type: "non_tech" },
+                      { id: "ops", name: "Operations & Logistics", nameAr: "العمليات واللوجستيات", type: "non_tech" },
+                    ]
+                      .filter(
+                        (t) =>
+                          !commandSearch ||
+                          t.name.toLowerCase().includes(commandSearch.toLowerCase()) ||
+                          t.nameAr.includes(commandSearch)
+                      )
+                      .slice(0, 6)
+                      .map((t) => (
+                        <div
+                          key={t.id}
+                          onClick={() => {
+                            router.push(`/${locale}/teams`);
+                            setIsCommandOpen(false);
+                          }}
+                          className="p-2.5 rounded-xl hover:bg-muted cursor-pointer transition-colors flex items-center justify-between border border-border/50"
+                        >
+                          <div>
+                            <p className="font-bold text-foreground">{isAr ? t.nameAr : t.name}</p>
+                            <span className="text-[10px] text-muted-foreground">
+                              {t.type === "tech" ? (isAr ? "مسار تقني" : "Technical") : (isAr ? "لجنة إدارية" : "Non-Tech")}
+                            </span>
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 text-muted-foreground rtl:rotate-180" />
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Policy Rules & Points Categories */}
+              {(commandCategory === "all" || commandCategory === "rules") && (
+                <div className="space-y-1.5 pt-3">
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2">
+                    {isAr ? "قواعد النقاط المعتمدة في اللائحة" : "Official Policy Point Rules"}
+                  </p>
+                  <div className="space-y-1">
+                    {POLICY_POINT_CATEGORIES.filter(
+                      (r) =>
+                        !commandSearch ||
+                        r.name.toLowerCase().includes(commandSearch.toLowerCase()) ||
+                        r.name_ar.includes(commandSearch) ||
+                        r.description.toLowerCase().includes(commandSearch.toLowerCase()) ||
+                        String(r.default_value).includes(commandSearch)
+                    )
+                      .slice(0, 5)
+                      .map((r) => {
+                        const isPos = r.direction === "positive";
+                        return (
+                          <div
+                            key={r.id}
+                            onClick={() => {
+                              router.push(`/${locale}/points`);
+                              setIsCommandOpen(false);
+                            }}
+                            className="p-2.5 rounded-xl hover:bg-muted cursor-pointer transition-colors flex items-center justify-between border border-border/50 gap-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-bold text-foreground truncate">
+                                {isAr ? r.name_ar : r.name}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {isAr ? r.description_ar : r.description}
+                              </p>
+                            </div>
+                            <span
+                              className={cn(
+                                "text-xs font-black px-2 py-0.5 rounded-full shrink-0 font-mono",
+                                isPos
+                                  ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                                  : "bg-red-500/10 text-red-600 border border-red-500/20"
+                              )}
+                            >
+                              {isPos ? `+${r.default_value}` : `${r.default_value}`} pts
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-2 border-t border-border bg-muted/20 flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>{isAr ? "منظومة الحوكمة الرقمية — GDG on Campus NCTU" : "GDG NCTU Governance Platform"}</span>
+              <span className="hidden sm:inline">{isAr ? "اضغط Esc للإغلاق أو انقر بالخارج" : "Press Esc to dismiss"}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

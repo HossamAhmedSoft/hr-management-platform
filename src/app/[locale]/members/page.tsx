@@ -26,6 +26,11 @@ import {
   ExternalLink,
   GraduationCap,
   FileText,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
+  RefreshCw,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -81,10 +86,12 @@ export default function MembersPage() {
   const [addAccountError, setAddAccountError] = useState("");
   const [isSubmittingAccount, setIsSubmittingAccount] = useState(false);
 
-  // Super Admin Password Reset State
+  // Password Reset State
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [passwordTargetMember, setPasswordTargetMember] = useState<Profile | null>(null);
   const [targetNewPassword, setTargetNewPassword] = useState("");
+  const [showPasswordText, setShowPasswordText] = useState(true);
+  const [copiedPassword, setCopiedPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
@@ -99,6 +106,7 @@ export default function MembersPage() {
   const [editPhone, setEditPhone] = useState("");
   const [editStatus, setEditStatus] = useState<MemberStatus>("active");
   const [editBio, setEditBio] = useState("");
+  const [editPassword, setEditPassword] = useState("");
   const [editSuccess, setEditSuccess] = useState(false);
   const [editError, setEditError] = useState("");
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
@@ -223,6 +231,7 @@ export default function MembersPage() {
     setEditPhone(member.phone || "");
     setEditStatus((member.status as any) || "active");
     setEditBio(member.bio || "");
+    setEditPassword("");
     setEditSuccess(false);
     setEditError("");
     setIsEditModalOpen(true);
@@ -235,6 +244,17 @@ export default function MembersPage() {
     setIsSubmittingEdit(true);
     setEditError("");
     setEditSuccess(false);
+
+    if (editPassword.trim()) {
+      if (editPassword.trim().length < 6) {
+        setEditError(
+          isAr ? "يجب ألا تقل كلمة السر عن 6 أحرف" : "Password must be at least 6 characters"
+        );
+        setIsSubmittingEdit(false);
+        return;
+      }
+      await resetMemberPassword(editingMember.email, editPassword.trim());
+    }
 
     const success = await updateProfile(editingMember.id, {
       full_name: editFullName.trim(),
@@ -277,13 +297,36 @@ export default function MembersPage() {
     setTargetNewPassword("gdg2026!");
     setPasswordSuccess(false);
     setPasswordError("");
+    setCopiedPassword(false);
+    setShowPasswordText(true);
     setIsPasswordModalOpen(true);
+  };
+
+  // Generate random strong password
+  const generateStrongPassword = () => {
+    const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*";
+    let pwd = "GDG";
+    for (let i = 0; i < 7; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setTargetNewPassword(pwd);
   };
 
   // Submit Password Change
   const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passwordTargetMember || !targetNewPassword.trim()) return;
+    if (!passwordTargetMember) return;
+    const cleanPw = targetNewPassword.trim();
+    if (!cleanPw) {
+      setPasswordError(isAr ? "يرجى كتابة كلمة السر الجديدة" : "Please enter a new password");
+      return;
+    }
+    if (cleanPw.length < 6) {
+      setPasswordError(
+        isAr ? "يجب ألا تقل كلمة السر عن 6 أحرف" : "Password must be at least 6 characters"
+      );
+      return;
+    }
     setIsSubmittingPassword(true);
     setPasswordError("");
     setPasswordSuccess(false);
@@ -291,21 +334,22 @@ export default function MembersPage() {
     try {
       const success = await resetMemberPassword(
         passwordTargetMember.email,
-        targetNewPassword.trim()
+        cleanPw
       );
       if (success) {
         setPasswordSuccess(true);
         setTimeout(() => {
           setIsPasswordModalOpen(false);
           setPasswordSuccess(false);
-        }, 1200);
+        }, 1500);
       } else {
         setPasswordError(isAr ? "تعذر تغيير كلمة السر" : "Failed to reset password");
       }
     } catch {
       setPasswordError(isAr ? "حدث خطأ أثناء حفظ كلمة السر" : "Error resetting password");
+    } finally {
+      setIsSubmittingPassword(false);
     }
-    setIsSubmittingPassword(false);
   };
 
   // Open Delete Modal
@@ -537,14 +581,14 @@ export default function MembersPage() {
                       </Button>
                     )}
 
-                    {/* Super Admin: Change Password button */}
-                    {isSuperAdmin && (
+                    {/* Admin: Change Password button */}
+                    {canManageMembers && (
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={(e) => openPasswordModal(member, e)}
                         className="h-7 w-7 p-0 hover:bg-amber-500/10 text-amber-600"
-                        title={isAr ? "تغيير كلمة السر (Super Admin)" : "Reset Password"}
+                        title={isAr ? "تغيير كلمة السر" : "Reset Password"}
                       >
                         <Key className="w-3.5 h-3.5" />
                       </Button>
@@ -622,7 +666,7 @@ export default function MembersPage() {
                     </Button>
                   )}
 
-                  {isSuperAdmin && (
+                  {canManageMembers && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -907,7 +951,7 @@ export default function MembersPage() {
         </Dialog>
       )}
 
-      {/* Super Admin: Reset Member Password Modal */}
+      {/* Reset Member Password Modal */}
       {isPasswordModalOpen && passwordTargetMember && (
         <Dialog
           open={isPasswordModalOpen}
@@ -929,7 +973,7 @@ export default function MembersPage() {
                 <span>
                   {isAr
                     ? "تم تحديث كلمة السر بنجاح! يمكن للعضو استخدام كلمة السر الجديدة فوراً."
-                    : "Password updated successfully!"}
+                    : "Password updated successfully! Member can sign in with the new password immediately."}
                 </span>
               </div>
             )}
@@ -946,30 +990,79 @@ export default function MembersPage() {
                 <p className="text-muted-foreground text-[11px]">
                   {isAr ? "البريد الإلكتروني المعتمد:" : "Account Email:"}
                 </p>
-                <p className="font-bold text-foreground text-xs mt-0.5">
+                <p className="font-bold text-foreground text-xs mt-0.5 font-mono">
                   {passwordTargetMember.email}
                 </p>
               </div>
 
               <div>
-                <label className="font-semibold text-foreground block mb-1">
-                  {isAr ? "كلمة السر الجديدة:" : "New Password:"}
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-foreground">
+                    {isAr ? "كلمة السر الجديدة:" : "New Password:"}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={generateStrongPassword}
+                      className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>{isAr ? "توليد كلمة عشوائية" : "Generate Strong"}</span>
+                    </button>
+                    {targetNewPassword && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(targetNewPassword);
+                          setCopiedPassword(true);
+                          setTimeout(() => setCopiedPassword(false), 2000);
+                        }}
+                        className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                      >
+                        {copiedPassword ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-500" />
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                              {isAr ? "تم النسخ!" : "Copied!"}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>{isAr ? "نسخ" : "Copy"}</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div className="relative">
                   <Key className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
                   <Input
-                    type="text"
+                    type={showPasswordText ? "text" : "password"}
                     required
                     value={targetNewPassword}
                     onChange={(e) => setTargetNewPassword(e.target.value)}
                     placeholder="Enter new password"
-                    className="pl-9 h-9 rounded-lg bg-background text-xs font-mono"
+                    className="pl-9 pr-9 h-9 rounded-lg bg-background text-xs font-mono"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordText(!showPasswordText)}
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPasswordText ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
                   {isAr
-                    ? "بصفتك سوبر أدمن، يتم اعتماد وتغيير كلمة السر فورياً."
-                    : "As Super Admin, password is reset immediately in secure internal engine."}
+                    ? "يتم تشفير وتحديث كلمة السر مباشرة في قاعدة البيانات المركزية ومزامنتها لتمكين العضو من تسجيل الدخول فوراً عبر أي جهاز."
+                    : "Password is encrypted and synchronized directly to the central database, enabling immediate login across all devices."}
                 </p>
               </div>
 
@@ -990,11 +1083,11 @@ export default function MembersPage() {
                 >
                   {isSubmittingPassword
                     ? isAr
-                      ? "جارِ الحفظ..."
+                      ? "جارِ الحفظ والربط..."
                       : "Saving..."
                     : isAr
-                    ? "تأكيد كلمة السر"
-                    : "Update Password"}
+                    ? "تأكيد وتفعيل كلمة السر"
+                    : "Update & Enforce Password"}
                 </Button>
               </div>
             </form>
@@ -1130,6 +1223,28 @@ export default function MembersPage() {
                   />
                 </div>
               </div>
+
+              {canManageMembers && (
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    {isAr ? "تعيين كلمة سر جديدة (اختياري):" : "Set New Password (Optional):"}
+                  </label>
+                  <div className="relative">
+                    <Key className="w-3.5 h-3.5 absolute left-3 top-2.5 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      placeholder={
+                        isAr
+                          ? "اتركه فارغاً للإبقاء على كلمة السر الحالية"
+                          : "Leave empty to keep existing password"
+                      }
+                      className="pl-9 h-9 rounded-lg bg-background text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="font-semibold text-foreground block mb-1">

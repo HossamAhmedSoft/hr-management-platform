@@ -17,17 +17,26 @@ import {
   ArrowRight,
   ShieldCheck,
   Briefcase,
+  Printer,
+  Sparkles,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useApp } from "@/lib/app-context";
 
 export default function ReportsPage() {
-  const { teams, evaluations, pointEvents, tasks, availableUsers, locale, appeals, incidents } = useApp();
+  const { teams, evaluations, pointEvents, tasks, availableUsers, locale, appeals, incidents, currentUser } = useApp();
   const isAr = locale === "ar";
 
   const [activeTab, setActiveTab] = useState<"benchmarks" | "workload" | "health" | "handover">("benchmarks");
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
   const completedTasks = tasks.filter((t) => t.status === "completed").length;
   const taskDeliveryRate = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
@@ -122,14 +131,25 @@ export default function ReportsPage() {
             : "Aggregated performance intelligence across teams, member workload distribution, data quality audit, and season handover."
         }
       >
-        <Button
-          size="sm"
-          onClick={handleExportOrgReport}
-          className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-        >
-          <Download className="w-4 h-4" />
-          {isAr ? "تصدير التقرير التنفيذي (CSV)" : "Export Executive Report"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsPdfModalOpen(true)}
+            className="gap-2 border-border text-foreground hover:bg-muted font-bold"
+          >
+            <Printer className="w-4 h-4 text-[#1a73e8]" />
+            {isAr ? "طباعة وتصدير PDF معتمد" : "Print / PDF Official Report"}
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleExportOrgReport}
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+          >
+            <Download className="w-4 h-4" />
+            {isAr ? "تصدير (CSV)" : "Export CSV"}
+          </Button>
+        </div>
       </PageHeader>
 
       {/* Tab Selector */}
@@ -490,6 +510,232 @@ export default function ReportsPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Executive Performance Report Modal for Official Print / PDF Export */}
+      {isPdfModalOpen && (
+        <Dialog open={isPdfModalOpen} onOpenChange={setIsPdfModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto print-modal-container bg-card p-6 border-border">
+            <div className="space-y-6">
+              {/* Google 4-Color Accent Strip */}
+              <div className="google-accent-strip rounded-full overflow-hidden">
+                <div className="seg-blue" />
+                <div className="seg-red" />
+                <div className="seg-yellow" />
+                <div className="seg-green" />
+              </div>
+
+              {/* Official Report Header */}
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black tracking-widest text-[#1a73e8] uppercase">
+                      GDG on Campus
+                    </span>
+                    <span className="text-xs text-muted-foreground">•</span>
+                    <span className="text-xs font-bold text-foreground">
+                      New Cairo Technological University (NCTU)
+                    </span>
+                  </div>
+                  <h2 className="text-lg font-black text-foreground mt-1">
+                    {isAr
+                      ? "التقرير التنفيذي لحوكمة الأداء والعمليات — تقييم شامل"
+                      : "Executive Performance & Operations Audit Report"}
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isAr
+                      ? "وثيقة رسمية مستخرجة آلياً من قاعدة بيانات المنظومة وفقاً للائحة المعتمدة"
+                      : "Official document generated from enterprise platform under ratified governance policy"}
+                  </p>
+                </div>
+
+                <div className="text-right rtl:text-left text-xs space-y-1 bg-muted/30 p-3 rounded-xl border border-border/60 font-mono">
+                  <p className="font-bold text-foreground">
+                    REF: <span className="text-primary font-bold">GDG-NCTU-AUD-2026</span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    DATE: {new Date().toLocaleDateString("en-GB")} {new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    ISSUER: {currentUser?.full_name || "Super Admin"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Executive Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+                <div className="p-3.5 rounded-xl bg-muted/30 border border-border">
+                  <span className="text-2xl font-black text-foreground block font-mono">
+                    {availableUsers.length}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5 block font-semibold">
+                    {isAr ? "إجمالي الأعضاء الفعليين" : "Active Members"}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 block font-mono">
+                    {taskDeliveryRate}%
+                  </span>
+                  <span className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-0.5 block font-semibold">
+                    {isAr ? "نسبة إنجاز المهام" : "Milestones Delivered"}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20">
+                  <span className="text-2xl font-black text-primary block font-mono">
+                    {avgEvalScore} / 100
+                  </span>
+                  <span className="text-[11px] text-primary/80 mt-0.5 block font-semibold">
+                    {isAr ? "متوسط التقييم الشهري" : "Avg Evaluation Score"}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                  <span className="text-2xl font-black text-amber-600 dark:text-amber-400 block font-mono">
+                    {pointEvents.filter((p) => p.status === "approved").reduce((s, p) => s + (p.direction === "positive" ? p.value : -Math.abs(p.value)), 0)}
+                  </span>
+                  <span className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5 block font-semibold">
+                    {isAr ? "صافي نقاط التميز" : "Net Points Balance"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Committees & Tracks Performance Table */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  {isAr ? "مصفوفة أداء اللجان والمسارات التقنية:" : "Tracks & Committees Performance Matrix:"}
+                </h3>
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <table className="w-full text-xs text-left rtl:text-right">
+                    <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border">
+                      <tr>
+                        <th className="p-2.5">{isAr ? "اللجنة / المسار" : "Track / Committee"}</th>
+                        <th className="p-2.5 text-center">{isAr ? "عدد الأعضاء" : "Members"}</th>
+                        <th className="p-2.5 text-center">{isAr ? "تسليم المهام" : "Task Delivery"}</th>
+                        <th className="p-2.5 text-center">{isAr ? "رصيد النقاط" : "Net Points"}</th>
+                        <th className="p-2.5 text-center">{isAr ? "الحالة التشغيلية" : "Operational Status"}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {teams.map((t) => {
+                        const mCount = availableUsers.filter((u) => isUserInTeam(u, t.id)).length;
+                        const tTasks = tasks.filter((tk) => isUserInTeam({ team_id: tk.team_id }, t.id));
+                        const tCompleted = tTasks.filter((tk) => tk.status === "completed").length;
+                        const rate = tTasks.length > 0 ? `${Math.round((tCompleted / tTasks.length) * 100)}%` : "—";
+                        const netPts = pointEvents
+                          .filter((p) => isUserInTeam({ team_id: p.team_id }, t.id) && p.status === "approved")
+                          .reduce((s, p) => s + (p.direction === "positive" ? p.value : -Math.abs(p.value)), 0);
+
+                        return (
+                          <tr key={t.id} className="hover:bg-muted/20">
+                            <td className="p-2.5 font-bold text-foreground">
+                              {isAr ? t.name_ar : t.name}
+                            </td>
+                            <td className="p-2.5 text-center font-mono">{mCount}</td>
+                            <td className="p-2.5 text-center font-mono font-bold text-emerald-600">{rate}</td>
+                            <td className="p-2.5 text-center font-mono font-bold text-primary">
+                              {netPts > 0 ? `+${netPts}` : netPts}
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                {isAr ? "نشط ومنضبط" : "Optimal"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Escalation, PIP & Appeals Breakdown */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div className="p-3.5 rounded-xl border border-border bg-muted/10 space-y-2">
+                  <h4 className="font-bold text-foreground flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    <span>{isAr ? "سجل حالات التصعيد والمخالفات:" : "Progressive Escalation Ladder:"}</span>
+                  </h4>
+                  <div className="space-y-1 text-[11px] text-muted-foreground">
+                    <p className="flex justify-between">
+                      <span>{isAr ? "المستوى 1: إخطار ودي (Friendly Notice)" : "Level 1: Friendly Notice"}:</span>
+                      <strong className="text-foreground font-mono">{incidents.filter((i) => i.level === 1 || (i as any).level === "level_1").length}</strong>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>{isAr ? "المستوى 2: خطة تحسين (PIP Support)" : "Level 2: PIP Support"}:</span>
+                      <strong className="text-foreground font-mono">{incidents.filter((i) => i.level === 2 || (i as any).level === "level_2").length}</strong>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>{isAr ? "المستوى 3: مراجعة القيادة (Team Review)" : "Level 3: Team Review"}:</span>
+                      <strong className="text-foreground font-mono">{incidents.filter((i) => i.level === 3 || (i as any).level === "level_3").length}</strong>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>{isAr ? "المستوى 4: تصعيد الإدارة (Leadership Escalation)" : "Level 4: Leadership"}:</span>
+                      <strong className="text-foreground font-mono">{incidents.filter((i) => i.level === 4 || (i as any).level === "level_4").length}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl border border-border bg-muted/10 space-y-2">
+                  <h4 className="font-bold text-foreground flex items-center gap-1.5">
+                    <Scale className="w-4 h-4 text-primary" />
+                    <span>{isAr ? "حالة التظلمات الرسمية (7 أيام عمل):" : "Appeals & Grievances (7 Days):"}</span>
+                  </h4>
+                  <div className="space-y-1 text-[11px] text-muted-foreground">
+                    <p className="flex justify-between">
+                      <span>{isAr ? "إجمالي التظلمات المقدمة" : "Total Appeals Lodged"}:</span>
+                      <strong className="text-foreground font-mono">{appeals.length}</strong>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>{isAr ? "قيد المراجعة المحايدة" : "Under Neutral Review"}:</span>
+                      <strong className="text-amber-600 font-mono font-bold">
+                        {appeals.filter((a) => a.status === "under_review" || a.status === "submitted").length}
+                      </strong>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>{isAr ? "تم الفصل والبت فيها" : "Resolved & Closed"}:</span>
+                      <strong className="text-emerald-600 font-mono font-bold">
+                        {appeals.filter((a) => a.status === "resolved" || a.status === "rejected" || a.status === "closed").length}
+                      </strong>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Official Digital Seal & Certification Footer */}
+              <div className="pt-3 border-t border-border flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span className="font-semibold text-foreground">
+                    {isAr
+                      ? "معتمد رسمياً وفق لائحة نادي مطوري غوغل — جامعة القاهرة التكنولوجية الجديدة (GDG NCTU)"
+                      : "Formally Ratified & Certified under GDG on Campus NCTU Governance Standards"}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 no-print">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsPdfModalOpen(false)}
+                    className="text-xs"
+                  >
+                    {isAr ? "إغلاق" : "Close"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => window.print()}
+                    className="gap-2 bg-[#1a73e8] hover:bg-[#1765cc] text-white font-bold text-xs"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    {isAr ? "طباعة / حفظ كـ PDF" : "Print / Save as PDF"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

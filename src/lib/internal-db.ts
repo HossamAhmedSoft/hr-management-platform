@@ -136,21 +136,70 @@ export const internalDB = {
 
   // ── Password Management ────────────────────────────────
   setPassword(email: string, password: string): void {
+    const cleanEmail = email.toLowerCase().trim();
     const passwords = getTable<Record<string, string>>("passwords", [{}])[0] || {};
-    passwords[email.toLowerCase().trim()] = password;
+    passwords[cleanEmail] = password;
     setTable("passwords", [passwords]);
+
+    // Also synchronize profile academic_notes in internalDB
+    const profiles = this.getProfiles();
+    const prof = profiles.find((p) => p.email.toLowerCase().trim() === cleanEmail);
+    if (prof) {
+      let meta: Record<string, any> = {};
+      try {
+        if (prof.academic_notes) {
+          meta =
+            typeof prof.academic_notes === "string"
+              ? JSON.parse(prof.academic_notes)
+              : prof.academic_notes;
+        }
+      } catch {
+        meta = {};
+      }
+      meta.pwd = password;
+      meta.updated_at = new Date().toISOString();
+      const updatedNotes = JSON.stringify(meta);
+      this.updateProfile(prof.id, { academic_notes: updatedNotes });
+    }
   },
 
   getPassword(email: string): string | null {
+    const cleanEmail = email.toLowerCase().trim();
     const passwords = getTable<Record<string, string>>("passwords", [{}])[0] || {};
-    return passwords[email.toLowerCase().trim()] || null;
+    if (passwords[cleanEmail]) return passwords[cleanEmail];
+
+    // Fallback: Check academic_notes inside profile
+    const prof = this.getProfileByEmail(cleanEmail);
+    if (prof?.academic_notes) {
+      try {
+        const meta =
+          typeof prof.academic_notes === "string"
+            ? JSON.parse(prof.academic_notes)
+            : prof.academic_notes;
+        if (meta?.pwd) return meta.pwd;
+      } catch {}
+    }
+    return null;
   },
 
   verifyPassword(email: string, password?: string): boolean {
     if (!password || !password.trim()) return false;
-    const stored = this.getPassword(email);
-    if (!stored) return false;
-    return stored === password;
+    const cleanEmail = email.toLowerCase().trim();
+    const stored = this.getPassword(cleanEmail);
+    if (stored && stored === password) return true;
+
+    // Direct check of academic_notes
+    const prof = this.getProfileByEmail(cleanEmail);
+    if (prof?.academic_notes) {
+      try {
+        const meta =
+          typeof prof.academic_notes === "string"
+            ? JSON.parse(prof.academic_notes)
+            : prof.academic_notes;
+        if (meta?.pwd && meta.pwd === password) return true;
+      } catch {}
+    }
+    return false;
   },
 
   updateProfile(id: string, updates: Partial<Profile>): Profile | null {

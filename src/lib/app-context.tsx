@@ -933,15 +933,44 @@ export function AppProvider({
   };
 
   const resetMemberPassword = async (email: string, newPassword: string): Promise<boolean> => {
-    await dbService.setPassword(email, newPassword);
+    const cleanEmail = email.trim().toLowerCase();
+    await dbService.setPassword(cleanEmail, newPassword);
+
+    // Update active availableUsers in React context
+    setAvailableUsers((prev) =>
+      prev.map((user) => {
+        if (user.email.toLowerCase().trim() === cleanEmail) {
+          let meta: Record<string, any> = {};
+          try {
+            if (user.academic_notes) {
+              meta =
+                typeof user.academic_notes === "string"
+                  ? JSON.parse(user.academic_notes)
+                  : user.academic_notes;
+            }
+          } catch {
+            meta = {};
+          }
+          meta.pwd = newPassword;
+          meta.updated_at = new Date().toISOString();
+          return {
+            ...user,
+            academic_notes: JSON.stringify(meta),
+            updated_at: new Date().toISOString(),
+          };
+        }
+        return user;
+      })
+    );
+
     await addAuditLog({
-      actor_id: currentUser?.id || "super_admin",
-      actor_name: currentUser?.full_name,
+      actor_id: currentUser?.id || "admin",
+      actor_name: currentUser?.full_name || "Admin",
       action: "MEMBER_PASSWORD_RESET",
       entity_type: "security",
-      entity_id: email,
-      reason: `إعادة تعيين كلمة السر للعضو (${email}) بواسطة السوبر أدمن`,
-      details: `Password reset successfully enforced.`,
+      entity_id: cleanEmail,
+      reason: `إعادة تعيين كلمة السر للعضو (${cleanEmail})`,
+      details: `Password reset successfully enforced across database and internal engine.`,
     });
     return true;
   };
