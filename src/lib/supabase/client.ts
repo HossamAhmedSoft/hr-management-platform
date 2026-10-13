@@ -9,7 +9,7 @@ export const SUPABASE_ANON_KEY =
 
 // Polyfill minimal WebSocket interface when running in server-side/Node test environments
 if (typeof window === "undefined" && typeof globalThis.WebSocket === "undefined") {
-  (globalThis as any).WebSocket = class DummyWebSocket {
+  (globalThis as unknown as { WebSocket: unknown }).WebSocket = class DummyWebSocket {
     static CONNECTING = 0;
     static OPEN = 1;
     static CLOSING = 2;
@@ -23,7 +23,12 @@ if (typeof window === "undefined" && typeof globalThis.WebSocket === "undefined"
   };
 }
 
+let clientInstance: ReturnType<typeof createBrowserClient> | null = null;
+
 export function createClient() {
-  return createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  if (!clientInstance) {
+    clientInstance = createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return clientInstance;
 }
 

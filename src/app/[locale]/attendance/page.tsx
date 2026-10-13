@@ -133,14 +133,14 @@ export default function AttendancePage() {
   const [activeRosterUsers, setActiveRosterUsers] = useState<Profile[]>([]);
 
   // ── Form Buffers ─────────────────────────────────────────
-  const [newMeetingData, setNewMeetingData] = useState({
+  const [newMeetingData, setNewMeetingData] = useState(() => ({
     title: "",
     date: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 16),
     location: "Main Campus Auditorium / Google Meet",
     type: "General Assembly",
     target_team_id: "all",
     target_team_name: "اجتماع عام - لجميع اللجان والأعضاء",
-  });
+  }));
 
   const [excuseFormData, setExcuseFormData] = useState({
     meeting_id: "",

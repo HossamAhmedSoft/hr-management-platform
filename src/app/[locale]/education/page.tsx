@@ -92,17 +92,17 @@ export default function EducationPage() {
   const isAttendee = userRole === "attendee";
 
   // ── State Collections ────────────────────────────────────
-  const [tracks, setTracks] = useState<TechnicalTrack[]>([]);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [enrollments, setEnrollments] = useState<TrackEnrollment[]>([]);
-  const [sessions, setSessions] = useState<TrackSession[]>([]);
-  const [attendance, setAttendance] = useState<TrackAttendanceRecord[]>([]);
-  const [assignments, setAssignments] = useState<TrackAssignment[]>([]);
-  const [submissions, setSubmissions] = useState<TrackSubmission[]>([]);
-  const [bonuses, setBonuses] = useState<TrackBonus[]>([]);
-  const [evaluations, setEvaluations] = useState<TrackEvaluation[]>([]);
-  const [certificates, setCertificates] = useState<TrackCertificate[]>([]);
-  const [followUps, setFollowUps] = useState<TrackFollowUp[]>([]);
+  const [tracks, setTracks] = useState<TechnicalTrack[]>(() => tracksService.getTracks());
+  const [participants, setParticipants] = useState<Participant[]>(() => tracksService.getParticipants());
+  const [enrollments, setEnrollments] = useState<TrackEnrollment[]>(() => tracksService.getEnrollments());
+  const [sessions, setSessions] = useState<TrackSession[]>(() => tracksService.getSessions());
+  const [attendance, setAttendance] = useState<TrackAttendanceRecord[]>(() => tracksService.getAttendanceRecords());
+  const [assignments, setAssignments] = useState<TrackAssignment[]>(() => tracksService.getAssignments());
+  const [submissions, setSubmissions] = useState<TrackSubmission[]>(() => tracksService.getSubmissions());
+  const [bonuses, setBonuses] = useState<TrackBonus[]>(() => tracksService.getBonusRecords());
+  const [evaluations, setEvaluations] = useState<TrackEvaluation[]>(() => tracksService.getEvaluations());
+  const [certificates, setCertificates] = useState<TrackCertificate[]>(() => tracksService.getCertificates());
+  const [followUps, setFollowUps] = useState<TrackFollowUp[]>(() => tracksService.getFollowUps());
 
   // ── UI Filters & Active Tabs ─────────────────────────────
   const [activeTab, setActiveTab] = useState<
@@ -249,10 +249,6 @@ export default function EducationPage() {
     setCertificates(tracksService.getCertificates());
     setFollowUps(tracksService.getFollowUps());
   };
-
-  useEffect(() => {
-    reloadData();
-  }, []);
 
   // ── Filtered Collections ──────────────────────────────────
   const activeTracksList = useMemo(() => {

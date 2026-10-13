@@ -116,37 +116,43 @@ export default function TasksPage() {
 
   useEffect(() => {
     if (memberParam) {
-      setFilterMember(memberParam);
+      setFilterMember((prev) => (prev !== memberParam ? memberParam : prev));
     }
   }, [memberParam]);
 
   useEffect(() => {
-    if (!newTeam && teams.length > 0) {
-      setNewTeam(teams[0].id);
+    if (teams.length > 0) {
+      setNewTeam((prev) => (!prev ? teams[0].id : prev));
     }
-  }, [teams, newTeam]);
+  }, [teams]);
 
   // Auto-sync newAssignee when candidateAssignees change
   useEffect(() => {
     if (candidateAssignees.length > 0) {
-      if (!newAssignee || !candidateAssignees.some((u) => u.id === newAssignee)) {
-        setNewAssignee(candidateAssignees[0].id);
-      }
+      setNewAssignee((prev) => {
+        if (!prev || !candidateAssignees.some((u) => u.id === prev)) {
+          return candidateAssignees[0].id;
+        }
+        return prev;
+      });
     } else {
-      setNewAssignee("");
+      setNewAssignee((prev) => (prev ? "" : prev));
     }
-  }, [candidateAssignees, newAssignee]);
+  }, [candidateAssignees]);
 
   // Auto-sync editAssignee when editCandidateAssignees change
   useEffect(() => {
     if (editCandidateAssignees.length > 0) {
-      if (!editAssignee || !editCandidateAssignees.some((u) => u.id === editAssignee)) {
-        setEditAssignee(editCandidateAssignees[0].id);
-      }
+      setEditAssignee((prev) => {
+        if (!prev || !editCandidateAssignees.some((u) => u.id === prev)) {
+          return editCandidateAssignees[0].id;
+        }
+        return prev;
+      });
     } else {
-      setEditAssignee("");
+      setEditAssignee((prev) => (prev ? "" : prev));
     }
-  }, [editCandidateAssignees, editAssignee]);
+  }, [editCandidateAssignees]);
 
   // Precise assignment matching helper
   const isTaskAssignedTo = (task: Task, targetUserId?: string) => {

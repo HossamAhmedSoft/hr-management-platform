@@ -157,14 +157,15 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     }));
 
   // Derived deadline alerts for tasks expiring within 48h or overdue
+  const currentTime = React.useMemo(() => Date.now(), []);
   const deadlineAlerts = (isMember ? myAssignedTasks : tasks)
     .filter((t) => t.status !== "completed" && t.status !== "cancelled" && t.deadline)
     .filter((t) => {
-      const diffHours = (new Date(t.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+      const diffHours = (new Date(t.deadline).getTime() - currentTime) / (1000 * 60 * 60);
       return diffHours > -48 && diffHours <= 48;
     })
     .map((t) => {
-      const diffHours = (new Date(t.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+      const diffHours = (new Date(t.deadline).getTime() - currentTime) / (1000 * 60 * 60);
       const isOverdue = diffHours < 0;
       return {
         id: `deadline_${t.id}`,
@@ -326,6 +327,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             size="icon"
             onClick={() => setIsCommandOpen(true)}
             className="h-8 w-8 rounded-lg hover:bg-muted lg:hidden"
+            aria-label={isAr ? "البحث السريع (Ctrl+K)" : "Quick Search (Ctrl+K)"}
             title={isAr ? "بحث (Ctrl+K)" : "Search (Ctrl+K)"}
           >
             <Search className="w-4 h-4 text-muted-foreground" />
@@ -336,6 +338,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             size="sm"
             onClick={toggleLocale}
             className="h-8 px-1.5 sm:px-2 rounded-lg text-xs font-semibold gap-1 text-foreground hover:bg-muted"
+            aria-label={locale === "en" ? "تغيير اللغة إلى العربية" : "Switch language to English"}
             title="Switch Language"
           >
             <Globe className="w-3.5 h-3.5 text-muted-foreground" />
@@ -348,6 +351,15 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             size="icon"
             onClick={toggleTheme}
             className="h-8 w-8 rounded-lg hover:bg-muted"
+            aria-label={
+              theme === "light"
+                ? isAr
+                  ? "التبديل إلى الوضع الداكن"
+                  : "Switch to dark mode"
+                : isAr
+                ? "التبديل إلى الوضع الفاتح"
+                : "Switch to light mode"
+            }
             title="Toggle Dark/Light"
           >
             {theme === "light" ? (
@@ -364,6 +376,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
               size="icon"
               onClick={() => setShowNotifications(!showNotifications)}
               className="h-8 w-8 rounded-lg relative hover:bg-muted"
+              aria-label={isAr ? "عرض مركز الإشعارات" : "View notifications center"}
               title="Notifications"
             >
               <Bell className="w-4 h-4 text-muted-foreground" />

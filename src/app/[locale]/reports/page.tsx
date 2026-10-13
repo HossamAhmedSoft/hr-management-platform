@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   BarChart3,
   Download,
@@ -208,12 +208,13 @@ export default function ReportsPage() {
     };
   });
 
+  const currentTime = useMemo(() => Date.now(), []);
   const taskStatusData = [
     { name: isAr ? "مكتملة" : "Completed", value: tasks.filter((t) => t.status === "completed").length, color: "#137333" },
     { name: isAr ? "قيد التنفيذ" : "In Progress", value: tasks.filter((t) => t.status === "in_progress").length, color: "#1a73e8" },
     { name: isAr ? "مُعينة" : "Assigned", value: tasks.filter((t) => t.status === "assigned").length, color: "#fbbc04" },
     { name: isAr ? "تم التسليم" : "Submitted", value: tasks.filter((t) => t.status === "submitted").length, color: "#9334e8" },
-    { name: isAr ? "متوقفة / متأخرة" : "Blocked / Delayed", value: tasks.filter((t) => t.status === "blocked" || (t.deadline && new Date(t.deadline).getTime() < Date.now() && t.status !== "completed")).length, color: "#ea4335" },
+    { name: isAr ? "متوقفة / متأخرة" : "Blocked / Delayed", value: tasks.filter((t) => t.status === "blocked" || (t.deadline && new Date(t.deadline).getTime() < currentTime && t.status !== "completed")).length, color: "#ea4335" },
   ].filter((item) => item.value > 0);
 
   return (

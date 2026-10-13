@@ -23,6 +23,7 @@ import {
   canAccessRoute,
 } from "@/lib/auth-service";
 import { dbService } from "@/lib/db-service";
+import { internalDB } from "@/lib/internal-db";
 
 interface AppContextType {
   currentUser: Profile | null;
@@ -111,36 +112,27 @@ export function AppProvider({
   });
 
   const [locale, setLocale] = useState<"en" | "ar">(initialLocale);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  const [availableUsers, setAvailableUsers] = useState<Profile[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [pointEvents, setPointEvents] = useState<PointEvent[]>([]);
-  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
-  const [appeals, setAppeals] = useState<Appeal[]>([]);
-  const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [feedbackSessions, setFeedbackSessions] = useState<FeedbackSession[]>([]);
-  const [educationalTracks] = useState<EducationalTrack[]>([]);
-  const [attendees] = useState<Attendee[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const unreadNotificationsCount = notifications.filter((n) => !n.is_read).length;
-
-  // Load saved theme on client mount
-  useEffect(() => {
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("gdg_theme");
-      if (saved === "dark" || saved === "light") {
-        setTheme(saved);
-        if (saved === "dark") {
-          document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
-        }
-      }
+      if (saved === "dark" || saved === "light") return saved;
     }
-  }, []);
+    return "light";
+  });
+
+  const [availableUsers, setAvailableUsers] = useState<Profile[]>(() => internalDB.getProfiles());
+  const [teams, setTeams] = useState<Team[]>(() => internalDB.getTeams());
+  const [tasks, setTasks] = useState<Task[]>(() => internalDB.getTasks());
+  const [pointEvents, setPointEvents] = useState<PointEvent[]>(() => internalDB.getPointEvents());
+  const [evaluations, setEvaluations] = useState<Evaluation[]>(() => internalDB.getEvaluations());
+  const [appeals, setAppeals] = useState<Appeal[]>(() => internalDB.getAppeals());
+  const [incidents, setIncidents] = useState<Incident[]>(() => internalDB.getIncidents());
+  const [feedbackSessions, setFeedbackSessions] = useState<FeedbackSession[]>(() => internalDB.getFeedbackSessions());
+  const [educationalTracks] = useState<EducationalTrack[]>([]);
+  const [attendees] = useState<Attendee[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => internalDB.getAuditLogs());
+  const [notifications, setNotifications] = useState<Notification[]>(() => internalDB.getNotifications());
+  const unreadNotificationsCount = notifications.filter((n) => !n.is_read).length;
 
   // Sync theme with HTML class
   useEffect(() => {
@@ -162,6 +154,16 @@ export function AppProvider({
     let isMounted = true;
     async function syncDatabase() {
       try {
+        if (!isAuthenticated) {
+          const liveProfiles = await dbService.getProfiles();
+          if (isMounted && liveProfiles) {
+            React.startTransition(() => {
+              setAvailableUsers(liveProfiles);
+            });
+          }
+          return;
+        }
+
         const [
           liveProfiles,
           liveTeams,
@@ -187,16 +189,18 @@ export function AppProvider({
         ]);
 
         if (!isMounted) return;
-        if (liveProfiles) setAvailableUsers(liveProfiles);
-        if (liveTeams) setTeams(liveTeams);
-        if (liveTasks) setTasks(liveTasks);
-        if (livePoints) setPointEvents(livePoints);
-        if (liveEvaluations) setEvaluations(liveEvaluations);
-        if (liveAppeals) setAppeals(liveAppeals);
-        if (liveIncidents) setIncidents(liveIncidents);
-        if (liveFeedback) setFeedbackSessions(liveFeedback);
-        if (liveAuditLogs) setAuditLogs(liveAuditLogs);
-        if (liveNotifications) setNotifications(liveNotifications);
+        React.startTransition(() => {
+          if (liveProfiles) setAvailableUsers(liveProfiles);
+          if (liveTeams) setTeams(liveTeams);
+          if (liveTasks) setTasks(liveTasks);
+          if (livePoints) setPointEvents(livePoints);
+          if (liveEvaluations) setEvaluations(liveEvaluations);
+          if (liveAppeals) setAppeals(liveAppeals);
+          if (liveIncidents) setIncidents(liveIncidents);
+          if (liveFeedback) setFeedbackSessions(liveFeedback);
+          if (liveAuditLogs) setAuditLogs(liveAuditLogs);
+          if (liveNotifications) setNotifications(liveNotifications);
+        });
       } catch (err) {
         console.warn("Error loading live database:", err);
       }
@@ -205,7 +209,7 @@ export function AppProvider({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAuthenticated]);
 
   // Live notification refresh on user change
   useEffect(() => {

@@ -129,19 +129,22 @@ export default function PointsPage() {
 
   useEffect(() => {
     if (memberParam) {
-      setFilterMember(memberParam);
+      setFilterMember((prev) => (prev !== memberParam ? memberParam : prev));
     }
   }, [memberParam]);
 
   useEffect(() => {
     if (selectableUsers.length > 0) {
-      if (!targetMember || !selectableUsers.some((u) => u.id === targetMember)) {
-        setTargetMember(selectableUsers[0].id);
-      }
+      setTargetMember((prev) => {
+        if (!prev || !selectableUsers.some((u) => u.id === prev)) {
+          return selectableUsers[0].id;
+        }
+        return prev;
+      });
     } else {
-      setTargetMember("");
+      setTargetMember((prev) => (prev ? "" : prev));
     }
-  }, [selectableUsers, targetMember]);
+  }, [selectableUsers]);
 
   // Robust user matching helper to strictly isolate each member's points without cross-mix
   const isMatchUser = (targetId?: string, comparisonUserId?: string) => {

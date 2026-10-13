@@ -1,5 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Cairo } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const cairo = Cairo({
+  subsets: ["arabic", "latin"],
+  display: "swap",
+  variable: "--font-cairo",
+});
 
 export const viewport: Viewport = {
   themeColor: "#1a73e8",
@@ -8,10 +21,49 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "GDG NCTU - Management Portal",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://hr.gdgnctu.com"
+  ),
+  title: {
+    default: "GDG NCTU - Management Portal",
+    template: "%s | GDG NCTU HR Portal",
+  },
   description:
     "Official Operations and Member Performance Platform for GDG on Campus New Cairo Technological University",
+  keywords: [
+    "GDG",
+    "NCTU",
+    "Google Developer Groups",
+    "HR Management",
+    "Performance Evaluation",
+    "Student Community",
+    "Technical Tracks",
+  ],
+  authors: [{ name: "GDG on Campus NCTU Tech Team" }],
   manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.ico",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    alternateLocale: ["ar_EG"],
+    url: "/",
+    siteName: "GDG NCTU HR Portal",
+    title: "GDG NCTU - Management Portal",
+    description:
+      "Official Operations and Member Performance Platform for GDG on Campus New Cairo Technological University",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "GDG NCTU - Management Portal",
+    description:
+      "Official Operations and Member Performance Platform for GDG on Campus New Cairo Technological University",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -25,23 +77,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${inter.variable} ${cairo.variable}`}
+    >
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="theme-color" content="#1a73e8" />
         <script
           dangerouslySetInnerHTML={{
             __html: `

@@ -2,11 +2,19 @@
 
 import React, { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Sidebar } from "./sidebar";
-import { Header } from "./header";
-import { MobileNav } from "./mobile-nav";
+import dynamic from "next/dynamic";
 import { useApp } from "@/lib/app-context";
 import { canAccessRoute } from "@/lib/auth-service";
+
+const Sidebar = dynamic(() => import("./sidebar").then((m) => m.Sidebar), {
+  ssr: true,
+});
+const Header = dynamic(() => import("./header").then((m) => m.Header), {
+  ssr: true,
+});
+const MobileNav = dynamic(() => import("./mobile-nav").then((m) => m.MobileNav), {
+  ssr: true,
+});
 
 interface MainLayoutProps {
   children: React.ReactNode;

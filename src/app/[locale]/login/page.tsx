@@ -115,6 +115,7 @@ export default function LoginPage() {
             variant="ghost"
             size="sm"
             onClick={toggleLocale}
+            aria-label={locale === "en" ? "تغيير اللغة إلى العربية" : "Switch language to English"}
             className="h-8 text-xs font-semibold gap-1 text-foreground"
           >
             <Globe className="w-3.5 h-3.5" />
@@ -124,6 +125,15 @@ export default function LoginPage() {
             variant="ghost"
             size="icon"
             onClick={toggleTheme}
+            aria-label={
+              theme === "light"
+                ? isAr
+                  ? "التبديل إلى الوضع الداكن"
+                  : "Switch to dark mode"
+                : isAr
+                ? "التبديل إلى الوضع الفاتح"
+                : "Switch to light mode"
+            }
             className="h-8 w-8 text-foreground"
           >
             {theme === "light" ? (
@@ -194,12 +204,13 @@ export default function LoginPage() {
               <form onSubmit={handleAuthSubmit} className="space-y-4 text-xs">
                 {isFirstTimeSetup && (
                   <div>
-                    <label className="font-semibold text-foreground block mb-1">
+                    <label htmlFor="login-fullname" className="font-semibold text-foreground block mb-1">
                       {isAr ? "الاسم الكامل لمدير النظام:" : "Super Admin Full Name:"}
                     </label>
                     <div className="relative">
                       <User className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-2.5 text-muted-foreground" />
                       <Input
+                        id="login-fullname"
                         type="text"
                         required
                         value={fullName}
@@ -212,12 +223,13 @@ export default function LoginPage() {
                 )}
 
                 <div>
-                  <label className="font-semibold text-foreground block mb-1">
+                  <label htmlFor="login-email" className="font-semibold text-foreground block mb-1">
                     {isAr ? "البريد الإلكتروني:" : "Email Address:"}
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-2.5 text-muted-foreground" />
                     <Input
+                      id="login-email"
                       type="email"
                       required
                       value={email}
@@ -230,29 +242,29 @@ export default function LoginPage() {
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-semibold text-foreground">
+                    <label htmlFor="login-password" className="font-semibold text-foreground">
                       {isAr ? "كلمة المرور:" : "Password:"}
                     </label>
                     {!isFirstTimeSetup && (
-                      <a
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
+                      <button
+                        type="button"
+                        onClick={() => {
                           alert(
                             isAr
                               ? "يرجى مراجعة مدير النظام (Super Admin) لإعادة تعيين كلمة المرور."
                               : "Please contact Super Admin to reset your password."
                           );
                         }}
-                        className="text-[11px] text-[#1a73e8] hover:underline"
+                        className="text-[11px] text-[#1a73e8] hover:underline bg-transparent border-0 p-0 cursor-pointer"
                       >
                         {isAr ? "نسيت كلمة المرور؟" : "Forgot password?"}
-                      </a>
+                      </button>
                     )}
                   </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-2.5 text-muted-foreground" />
                     <Input
+                      id="login-password"
                       type={showPassword ? "text" : "password"}
                       required
                       value={password}
@@ -263,7 +275,16 @@ export default function LoginPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 rtl:right-auto rtl:left-3 top-2.5 text-muted-foreground hover:text-foreground"
+                      aria-label={
+                        showPassword
+                          ? isAr
+                            ? "إخفاء كلمة المرور"
+                            : "Hide password"
+                          : isAr
+                          ? "إظهار كلمة المرور"
+                          : "Show password"
+                      }
+                      className="absolute right-1.5 rtl:right-auto rtl:left-1.5 top-1.5 text-muted-foreground hover:text-foreground p-1 rounded-md min-w-[28px] min-h-[28px] flex items-center justify-center"
                     >
                       {showPassword ? (
                         <EyeOff className="w-4 h-4" />
