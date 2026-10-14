@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getGoogleConfig,
-  generateOAuthState,
-  generatePKCE,
+  generateOAuthTransaction,
   buildGoogleAuthUrl,
 } from "@/lib/google-auth";
 
 /**
  * GET /api/auth/google/oauth
- * Initiates OpenID Connect / OAuth 2.0 Authorization Code flow with PKCE
- * and cryptographically signed state for CSRF mitigation.
+ * Initiates OpenID Connect / OAuth 2.0 Authorization Code flow with PKCE,
+ * cryptographic nonce, and HMAC-signed state for CSRF mitigation and transaction binding.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const locale = searchParams.get("locale") || "ar";
-  const nextUrl = searchParams.get("next") || `/${locale}`;
+  const rawNext = searchParams.get("next") || `/${locale}`;
 
   const config = getGoogleConfig();
   if (!config.isConfigured) {
@@ -22,15 +21,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(errorUrl);
   }
 
-  // 1. Generate PKCE & Signed State
-  const { codeVerifier, codeChallenge } = generatePKCE();
-  const state = generateOAuthState(locale, nextUrl);
+  // 1. Generate full cryptographic transaction: PKCE, Nonce, and Signed State
+  const transaction = generateOAuthTransaction(locale, rawNext);
 
-  // 2. Build Google Authorization URL
+  // 2. Build Google Authorization URL with Nonce
   const authUrl = buildGoogleAuthUrl({
-    state,
-    codeChallenge,
+    state: transaction.state,
+    codeChallenge: transaction.codeChallenge,
     redirectUri: config.redirectUri,
+    nonce: transaction.nonce,
   });
 
   const response = NextResponse.redirect(authUrl);
@@ -44,9 +43,10 @@ export async function GET(request: NextRequest) {
     maxAge: 15 * 60, // 15 minutes validity
   };
 
-  // Securely store code verifier & state in short-lived HttpOnly cookies
-  response.cookies.set("gdg_oauth_verifier", codeVerifier, cookieOptions);
-  response.cookies.set("gdg_oauth_state", state, cookieOptions);
+  // Securely store code verifier, state, and nonce in short-lived HttpOnly cookies
+  response.cookies.set("gdg_oauth_verifier", transaction.codeVerifier, cookieOptions);
+  response.cookies.set("gdg_oauth_state", transaction.state, cookieOptions);
+  response.cookies.set("gdg_oauth_nonce", transaction.nonce, cookieOptions);
 
   return response;
 }

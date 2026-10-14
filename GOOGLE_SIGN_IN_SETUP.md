@@ -67,10 +67,10 @@ Add the generated credentials to `.env.local` (for development) and your product
 
 ```bash
 # Google Cloud OAuth 2.0 Credentials
-GOOGLE_CLIENT_ID=xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 
 # Cryptographic Session HMAC Secret (Min 32 characters)
 SESSION_SECRET=gdg_nctu_session_hmac_secret_2026_enterprise_ultra_secure
