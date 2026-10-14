@@ -654,7 +654,16 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
     return role === "super_admin" || role === "hr_admin";
   }
 
-  if (cleanPath === "/hr-kpis" || cleanPath === "/reports") {
+  if (cleanPath === "/hr-kpis") {
+    return (
+      role === "super_admin" ||
+      role === "hr_admin" ||
+      role === "team_lead" ||
+      role === "track_lead"
+    );
+  }
+
+  if (cleanPath === "/reports") {
     return (
       role === "super_admin" ||
       role === "hr_admin" ||

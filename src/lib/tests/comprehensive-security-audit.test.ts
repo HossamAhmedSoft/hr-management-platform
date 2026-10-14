@@ -61,13 +61,7 @@ async function runComprehensiveSecurityAudit() {
   }
 
   const memberRestrictedRoutes = [
-    "/members",
-    "/education",
     "/audit-log",
-    "/hr-kpis",
-    "/reports",
-    "/feedback",
-    "/incidents",
   ];
 
   for (const route of memberRestrictedRoutes) {

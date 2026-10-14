@@ -181,6 +181,12 @@ export const internalDB = {
     return profiles.find((p) => p.email.toLowerCase() === email.toLowerCase()) || null;
   },
 
+  getProfileByGoogleId(googleId: string): Profile | null {
+    if (!googleId) return null;
+    const profiles = this.getProfiles();
+    return profiles.find((p) => p.google_id === googleId) || null;
+  },
+
   createProfile(profile: Profile): Profile {
     const sanitized = this.sanitizeProfile(profile);
     const profiles = this.getProfiles();

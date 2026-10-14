@@ -52,6 +52,20 @@ npm run build
 
 **Expected Result:** Exit code 0, 41/41 routes prerendered, proxy middleware compiled.
 
+### 1.5 Google Identity & OpenID Connect Security Test Suite (11 Tests, 100% Pass)
+Executes the Google OAuth 2.0 & GIS token verification suite covering cryptographic signature validation, audience check, expiration check, unverified email rejection, account linking, privilege escalation defense, CSRF state HMAC, and PKCE entropy:
+
+```bash
+npx tsx src/lib/tests/google-auth-security.test.ts
+```
+
+**Expected Result:**
+```
+============================================================
+🏁 TEST EXECUTION COMPLETE: 11/11 TESTS PASSED
+============================================================
+```
+
 ---
 
 ## 2. Manual Penetration Testing & Evidence Reproduction

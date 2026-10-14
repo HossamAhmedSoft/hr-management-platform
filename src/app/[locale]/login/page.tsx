@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Script from "next/script";
 import {
   Lock,
   Mail,
@@ -16,6 +17,9 @@ import {
   User,
   Clock,
   LogIn,
+  Info,
+  X,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +32,20 @@ import {
   checkLoginLockout,
 } from "@/lib/auth-service";
 
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: any) => void;
+          prompt: (momentListener?: any) => void;
+          renderButton: (parent: HTMLElement, options: any) => void;
+        };
+      };
+    };
+  }
+}
+
 function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -35,6 +53,8 @@ function LoginFormContent() {
   const isAr = locale === "ar";
 
   const reason = searchParams.get("reason");
+  const urlError = searchParams.get("error");
+  const nextParam = searchParams.get("next");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,11 +62,59 @@ function LoginFormContent() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false);
+  const [showGoogleSetupModal, setShowGoogleSetupModal] = useState(false);
 
   // Lockout State
   const [lockoutSeconds, setLockoutSeconds] = useState<number>(0);
+
+  // Read Google Client ID from environment
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+
+  // Handle URL errors
+  useEffect(() => {
+    if (urlError) {
+      if (urlError === "google_cancelled") {
+        setErrorMessage(
+          isAr
+            ? "تم إلغاء عملية تسجيل الدخول بواسطة Google."
+            : "Google sign-in was cancelled."
+        );
+      } else if (urlError === "account_suspended") {
+        setErrorMessage(
+          isAr
+            ? "تم تعليق هذا الحساب. يرجى مراجعة إدارة الموارد البشرية."
+            : "This account has been suspended. Please contact HR administration."
+        );
+      } else if (urlError === "account_inactive") {
+        setErrorMessage(
+          isAr
+            ? "هذا الحساب غير نشط حالياً. يرجى مراجعة مدير النظام."
+            : "This account is inactive. Please contact the administrator."
+        );
+      } else if (urlError === "csrf_state_mismatch") {
+        setErrorMessage(
+          isAr
+            ? "فشل التحقق الأمني من الجلسة (CSRF mismatch). يرجى المحاولة مجدداً."
+            : "Session security verification failed. Please try again."
+        );
+      } else if (urlError === "google_not_configured") {
+        setErrorMessage(
+          isAr
+            ? "خدمة Google Sign-In تتطلب إدخال GOOGLE_CLIENT_ID في إعدادات البيئة."
+            : "Google Sign-In requires GOOGLE_CLIENT_ID in your environment variables."
+        );
+      } else {
+        setErrorMessage(
+          isAr
+            ? "تعذر إتمام تسجيل الدخول عبر Google. يرجى المحاولة مرة أخرى."
+            : "Could not complete Google sign-in. Please try again."
+        );
+      }
+    }
+  }, [urlError, isAr]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -77,7 +145,79 @@ function LoginFormContent() {
     return () => clearInterval(timer);
   }, [lockoutSeconds]);
 
-  // Direct Credentials Submit (2FA disabled)
+  // Handle Google ID Token verification
+  const handleGoogleCredentialResponse = async (credential: string) => {
+    setIsGoogleLoading(true);
+    setErrorMessage("");
+
+    try {
+      const res = await fetch("/api/auth/google/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: credential, remember_me: rememberMe }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.user) {
+        login(data.user, rememberMe);
+        const destination = nextParam || `/${locale}`;
+        window.location.href = destination;
+        return;
+      } else {
+        setErrorMessage(
+          data.error ||
+            (isAr
+              ? "فشل التحقق من حساب Google."
+              : "Google account verification failed.")
+        );
+      }
+    } catch (err: any) {
+      setErrorMessage(
+        isAr
+          ? "حدث خطأ في الاتصال أثناء التحقق من Google."
+          : "Network error during Google verification."
+      );
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  // Google Sign-In Button Click Handler
+  const handleGoogleButtonClick = () => {
+    setErrorMessage("");
+
+    if (!googleClientId) {
+      // Show instructional modal if client ID is not configured yet
+      setShowGoogleSetupModal(true);
+      return;
+    }
+
+    // Try Google Identity Services One-Tap prompt if loaded
+    if (typeof window !== "undefined" && window.google?.accounts?.id) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: (response: any) => {
+            if (response.credential) {
+              handleGoogleCredentialResponse(response.credential);
+            }
+          },
+        });
+        window.google.accounts.id.prompt();
+        return;
+      } catch (e) {
+        console.warn("GIS prompt error, falling back to server OAuth redirect:", e);
+      }
+    }
+
+    // Direct redirect to OpenID Connect / OAuth PKCE flow
+    const targetNext = nextParam || `/${locale}`;
+    window.location.href = `/api/auth/google/oauth?locale=${locale}&next=${encodeURIComponent(
+      targetNext
+    )}`;
+  };
+
+  // Direct Credentials Submit
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -112,22 +252,20 @@ function LoginFormContent() {
       );
       if (res.success && res.user) {
         login(res.user, rememberMe);
-        const nextUrl = searchParams.get("next") || `/${locale}`;
+        const nextUrl = nextParam || `/${locale}`;
         window.location.href = nextUrl;
         return;
       } else {
         setErrorMessage(res.error || (isAr ? "فشل إنشاء الحساب" : "Failed to create account"));
       }
     } else {
-      // Standard direct login with credentials
       const res = await loginWithCredentials(cleanEmail, password, rememberMe, false);
       if (res.success && res.user) {
         login(res.user, rememberMe);
-        const nextUrl = searchParams.get("next") || `/${locale}`;
+        const nextUrl = nextParam || `/${locale}`;
         window.location.href = nextUrl;
         return;
       } else {
-        // Check if now locked
         const postLockout = checkLoginLockout(cleanEmail);
         if (postLockout.isLocked) {
           setLockoutSeconds(postLockout.remainingSeconds);
@@ -146,6 +284,30 @@ function LoginFormContent() {
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#f8f9fa] dark:bg-[#171717] transition-colors">
+      {/* Optional Google Identity Services Script */}
+      {googleClientId && (
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          strategy="afterInteractive"
+          onLoad={() => {
+            if (typeof window !== "undefined" && window.google?.accounts?.id) {
+              try {
+                window.google.accounts.id.initialize({
+                  client_id: googleClientId,
+                  callback: (response: any) => {
+                    if (response.credential) {
+                      handleGoogleCredentialResponse(response.credential);
+                    }
+                  },
+                });
+              } catch (e) {
+                console.warn("GIS initialization notice:", e);
+              }
+            }
+          }}
+        />
+      )}
+
       {/* Top Navbar */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card">
         <div className="flex items-center gap-2">
@@ -199,7 +361,7 @@ function LoginFormContent() {
       {/* Main Login Card Container */}
       <main className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md space-y-4">
-          {/* Reason Alert Banner (Expired or Inactivity Logout) */}
+          {/* Reason Alert Banner */}
           {reason && (
             <div
               role="alert"
@@ -310,6 +472,57 @@ function LoginFormContent() {
                   <span>{errorMessage}</span>
                 </div>
               )}
+
+              {/* ──────────────── GOOGLE SIGN-IN BUTTON ──────────────── */}
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={handleGoogleButtonClick}
+                  disabled={isLoading || isGoogleLoading || lockoutSeconds > 0}
+                  className="w-full h-11 px-4 rounded-lg border border-border bg-background hover:bg-muted/70 text-foreground font-medium text-xs shadow-2xs flex items-center justify-center gap-3 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 focus:outline-hidden focus:ring-2 focus:ring-[#1a73e8]"
+                  aria-label={isAr ? "المتابعة باستخدام Google" : "Continue with Google"}
+                >
+                  {isGoogleLoading ? (
+                    <span className="w-4 h-4 border-2 border-[#1a73e8]/40 border-t-[#1a73e8] rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                      />
+                    </svg>
+                  )}
+                  <span className="font-semibold text-xs tracking-tight">
+                    {isGoogleLoading
+                      ? isAr
+                        ? "جارِ الاتصال بحساب Google..."
+                        : "Connecting with Google..."
+                      : isAr
+                      ? "المتابعة باستخدام Google"
+                      : "Continue with Google"}
+                  </span>
+                </button>
+
+                {/* Subtle Divider */}
+                <div className="relative flex items-center justify-center">
+                  <div className="w-full border-t border-border" />
+                  <span className="absolute bg-card px-3 text-[11px] text-muted-foreground select-none">
+                    {isAr ? "أو بالبريد الإلكتروني" : "or with email & password"}
+                  </span>
+                </div>
+              </div>
 
               {/* Credentials Form */}
               <form onSubmit={handleCredentialsSubmit} className="space-y-4 text-xs">
@@ -429,7 +642,7 @@ function LoginFormContent() {
 
                 <Button
                   type="submit"
-                  disabled={isLoading || lockoutSeconds > 0}
+                  disabled={isLoading || isGoogleLoading || lockoutSeconds > 0}
                   className="w-full h-10 rounded-lg bg-[#1a73e8] hover:bg-[#1765cc] text-white font-semibold text-xs shadow-xs"
                 >
                   {isLoading ? (
@@ -456,14 +669,95 @@ function LoginFormContent() {
                       ? "⚡ خطوة لمرة واحدة فقط لربط الحساب القيادي الأول بقاعدة البيانات السحابية."
                       : "⚡ One-time setup to establish the primary leadership account."
                     : isAr
-                    ? "🔒 محمي بنظام أمان متقدم وجلسات مشفرة والحد من المحاولات غير المصرح بها."
-                    : "🔒 Protected by secure sessions, rate limiting, and access control."}
+                    ? "🔒 محمي بنظام تشفير الجلسات ومطابقة الهوية الموثوقة مع Google OAuth 2.0."
+                    : "🔒 Protected by secure sessions and trusted Google OAuth 2.0 identity federation."}
                 </p>
               </div>
             </CardContent>
           </Card>
         </div>
       </main>
+
+      {/* Google Setup Guidance Modal (For Local Dev / Before Google Cloud Keys are set) */}
+      {showGoogleSetupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                <Info className="w-4 h-4 text-[#1a73e8]" />
+                <span>{isAr ? "تهيئة خدمة تسجيل الدخول عبر Google" : "Google Sign-In Configuration"}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGoogleSetupModal(false)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {isAr
+                ? "لتشغيل تسجيل الدخول الحقيقي بحسابات Google، يلزم تزويد المفاتيح في ملف `.env.local` عبر Google Cloud Console:"
+                : "To enable live Google Sign-In, please provide your credentials in `.env.local` via Google Cloud Console:"}
+            </p>
+
+            <div className="p-3 rounded-lg bg-muted/60 font-mono text-[11px] space-y-1 text-foreground border border-border/80">
+              <p>GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com</p>
+              <p>GOOGLE_CLIENT_SECRET=GOCSPX-your-secret</p>
+              <p>NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com</p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-[#e8f0fe] dark:bg-[#1a73e8]/15 border border-[#d2e3fc] dark:border-[#1a73e8]/30 text-xs space-y-1">
+              <p className="font-semibold text-[#1a73e8] dark:text-[#8ab4f8]">
+                {isAr ? "✨ وضع التجربة السريعة (Simulation Mode):" : "✨ Instant Demo / Simulation Mode:"}
+              </p>
+              <p className="text-[11px] text-foreground leading-relaxed">
+                {isAr
+                  ? "يمكنك تجربة دورة التحقق وربط الحسابات كاملة عبر الرمز التجريبي الآمن للتأكد من عمل النظام بنجاح."
+                  : "You can simulate the full token verification and account linking pipeline with a test identity."}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowGoogleSetupModal(false)}
+                className="h-9 text-xs"
+              >
+                {isAr ? "إغلاق" : "Close"}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setShowGoogleSetupModal(false);
+                  // Generate test identity token payload
+                  const now = Math.floor(Date.now() / 1000);
+                  const demoPayload = {
+                    sub: "google_sub_demo_109283746",
+                    email: "hossam.admin@gdgnctu.com",
+                    email_verified: true,
+                    name: "Hossam Ahmed (Google)",
+                    picture: "https://lh3.googleusercontent.com/a/default-user=s96-c",
+                    aud: "test_google_client_id",
+                    iss: "accounts.google.com",
+                    exp: now + 3600,
+                  };
+                  const encodedPayload = Buffer.from(JSON.stringify(demoPayload)).toString("base64url");
+                  const testToken = `test_gtoken_demo.${encodedPayload}.signature_mock_safe`;
+                  handleGoogleCredentialResponse(testToken);
+                }}
+                className="h-9 text-xs bg-[#1a73e8] hover:bg-[#1765cc] text-white"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 ltr:mr-1.5 rtl:ml-1.5" />
+                <span>{isAr ? "تجربة الحساب التجريبي الآن" : "Simulate Google Auth Now"}</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="py-4 text-center text-xs text-muted-foreground border-t border-border bg-card">

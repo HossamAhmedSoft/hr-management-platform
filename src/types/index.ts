@@ -28,6 +28,7 @@ export interface Profile {
   phone?: string;
   bio?: string;
   academic_notes?: string;
+  google_id?: string;
   created_at: string;
   updated_at: string;
 }
