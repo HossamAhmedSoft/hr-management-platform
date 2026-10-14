@@ -4,20 +4,18 @@ import React, { useState } from "react";
 import Link from "next/link";
 import {
   Award,
-  Users,
   CheckCircle,
   AlertTriangle,
-  Clock,
-  ShieldAlert,
   ArrowRight,
-  TrendingUp,
   Download,
-  Filter,
   Plus,
   Scale,
   ExternalLink,
   CheckSquare,
   Calendar,
+  Sparkles,
+  TrendingUp,
+  ShieldAlert,
 } from "lucide-react";
 import { StatsCard } from "@/components/common/stats-card";
 import { PageHeader } from "@/components/common/page-header";
@@ -30,13 +28,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useApp } from "@/lib/app-context";
-import {
-  POLICY_POINT_CATEGORIES,
-  POLICY_POINT_CAP_CATEGORIES,
-} from "@/lib/policy-catalog";
+import { POLICY_POINT_CATEGORIES } from "@/lib/policy-catalog";
 import { Task } from "@/types";
 
 export default function DashboardPage() {
@@ -49,28 +43,29 @@ export default function DashboardPage() {
     pointEvents,
     addPointEvent,
     evaluations,
-    appeals,
     submitAppeal,
     incidents,
   } = useApp();
 
   const isAr = locale === "ar";
-
   const userRole = currentUser?.role || "member";
   const isMember = userRole === "member";
-  const canRecordPoints = userRole === "super_admin" || userRole === "hr_admin" || userRole === "hr_reviewer" || userRole === "team_lead";
-  const canExport = userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
+  const canRecordPoints =
+    userRole === "super_admin" ||
+    userRole === "hr_admin" ||
+    userRole === "hr_reviewer" ||
+    userRole === "team_lead";
+  const canExport =
+    userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
 
-  // Filter states for Points Log & Rules Table
-  const [pointTrackFilter, setPointTrackFilter] = useState<"all" | "tech" | "non_tech">("all");
-  const [pointStatusFilter, setPointStatusFilter] = useState<"all" | "approved" | "pending_review">("all");
-
-  // Dispute / Add Point Modals
+  // Modals state
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
   const [isAddPointModalOpen, setIsAddPointModalOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
   const [newExplanation, setNewExplanation] = useState("");
-  const [newSelectedCategory, setNewSelectedCategory] = useState(POLICY_POINT_CATEGORIES[0]?.id || "");
+  const [newSelectedCategory, setNewSelectedCategory] = useState(
+    POLICY_POINT_CATEGORIES[0]?.id || ""
+  );
   const [targetMemberId, setTargetMemberId] = useState(availableUsers[0]?.id || "");
 
   React.useEffect(() => {
@@ -79,21 +74,24 @@ export default function DashboardPage() {
     }
   }, [availableUsers, targetMemberId]);
 
-  // Robust matching helper to strictly isolate each member's points without cross-mix
+  // Matching helper
   const isMatchUser = (targetId?: string, comparisonUserId?: string) => {
     const compareWith = comparisonUserId || currentUser?.id;
     if (!targetId || !compareWith) return false;
 
     const cleanTarget = targetId.toLowerCase().trim();
     const cleanComp = compareWith.toLowerCase().trim();
-
     if (cleanTarget === cleanComp) return true;
 
     const targetProf = availableUsers.find(
-      (u) => u.id.toLowerCase() === cleanTarget || (u.email && u.email.toLowerCase().trim() === cleanTarget)
+      (u) =>
+        u.id.toLowerCase() === cleanTarget ||
+        (u.email && u.email.toLowerCase().trim() === cleanTarget)
     );
     const compProf = availableUsers.find(
-      (u) => u.id.toLowerCase() === cleanComp || (u.email && u.email.toLowerCase().trim() === cleanComp)
+      (u) =>
+        u.id.toLowerCase() === cleanComp ||
+        (u.email && u.email.toLowerCase().trim() === cleanComp)
     );
 
     if (targetProf && compProf) {
@@ -124,12 +122,14 @@ export default function DashboardPage() {
   const getMemberName = (id: string) => {
     const clean = id.toLowerCase().trim();
     const prof = availableUsers.find(
-      (u) => u.id.toLowerCase() === clean || (u.email && u.email.toLowerCase().trim() === clean)
+      (u) =>
+        u.id.toLowerCase() === clean ||
+        (u.email && u.email.toLowerCase().trim() === clean)
     );
     return prof?.full_name || id;
   };
 
-  // Helper to determine if a task belongs strictly to current user
+  // Task filtering
   const isTaskAssigned = (t: Task) => {
     if (!currentUser) return false;
     if (t.created_by === currentUser.id) return true;
@@ -163,7 +163,7 @@ export default function DashboardPage() {
     (t) => isTaskAssigned(t) && t.status !== "completed" && t.status !== "cancelled"
   );
 
-  // Role-scoped records for current dashboard view
+  // Points & Metrics
   const userPointEvents = isMember
     ? pointEvents.filter((p) => isMatchUser(p.member_id))
     : userRole === "team_lead" && currentUser?.team_id
@@ -179,7 +179,6 @@ export default function DashboardPage() {
       })
     : evaluations;
 
-  // Metrics
   const approvedPositive = userPointEvents
     .filter((p) => p.status === "approved" && p.direction === "positive")
     .reduce((sum, p) => sum + p.value, 0);
@@ -189,30 +188,27 @@ export default function DashboardPage() {
     .reduce((sum, p) => sum + p.value, 0);
 
   const totalPointsNet = approvedPositive + approvedNegative;
-  const attendanceRate = userEvaluations.length > 0
-    ? Math.round((userEvaluations.reduce((sum, e) => {
-        const attRating = e.ratings?.find((r) => r.category_id === "eval-cat-3")?.rating;
-        return sum + (attRating ? (attRating / 5) * 100 : 100);
-      }, 0) / userEvaluations.length))
-    : 100;
-  const activeWarningsCount = isMember
-    ? incidents.filter((i) => isMatchUser(i.member_id) && i.status === "open").length
-    : incidents.filter((i) => i.status === "open").length;
-  const avgEvalScore = userEvaluations.length > 0
-    ? (userEvaluations.reduce((sum, e) => sum + (e.total_score || 0), 0) / userEvaluations.length).toFixed(1)
-    : "—";
 
-  // Filtered Points Log
-  const filteredPointEvents = userPointEvents.filter((evt) => {
-    if (pointStatusFilter !== "all" && evt.status !== pointStatusFilter) return false;
-    if (pointTrackFilter === "tech") {
-      return evt.team_id?.includes("web") || evt.team_id?.includes("ai") || evt.team_id?.includes("tech");
-    }
-    if (pointTrackFilter === "non_tech") {
-      return evt.team_id?.includes("hr") || evt.team_id?.includes("pr") || evt.team_id?.includes("ops");
-    }
-    return true;
-  });
+  const attendanceRate =
+    userEvaluations.length > 0
+      ? Math.round(
+          userEvaluations.reduce((sum, e) => {
+            const attRating = e.ratings?.find((r) => r.category_id === "eval-cat-3")?.rating;
+            return sum + (attRating ? (attRating / 5) * 100 : 100);
+          }, 0) / userEvaluations.length
+        )
+      : 100;
+
+  const avgEvalScore =
+    userEvaluations.length > 0
+      ? (
+          userEvaluations.reduce((sum, e) => sum + (e.total_score || 0), 0) /
+          userEvaluations.length
+        ).toFixed(1)
+      : "—";
+
+  // Recent 3 point events for the clean feed
+  const recentPointEvents = userPointEvents.slice(0, 3);
 
   const handleExportCSV = () => {
     const headers = "ID,Member,Category,Direction,Points,Date,Status,Explanation\n";
@@ -235,168 +231,192 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Page Header */}
-      <PageHeader
-        title={
-          isAr
-            ? isMember
-              ? `مرحباً بك، ${currentUser?.full_name || "العضو"} — لوحة أدائك الشخصية`
-              : "بوابة إدارة الأداء وقواعد النقاط — GDG NCTU"
-            : isMember
-              ? `Welcome, ${currentUser?.full_name || "Member"} — Personal Performance`
-              : "GDG NCTU Performance & Points Management Portal"
-        }
-        description={
-          isAr
-            ? isMember
-              ? "متابعة رصيدك الصافي من النقاط، وحضورك بالورش، وتقييمك الشهري، والمهام المسندة إليك."
-              : "نظام الحوكمة الرقمية للفرق واللجان: فصل تام بين سجل النقاط والتقييم الشهري، وإشعار مسبق قبل أي خصم."
-            : isMember
-              ? "Track your net point balance, attendance rate, official evaluation score, and active tasks."
-              : "Google Workspace Admin Console aesthetic for member governance, verified points ledger, and progressive escalation."
-        }
-      >
-        {canExport && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="gap-2 text-xs border-border"
-          >
-            <Download className="w-3.5 h-3.5 text-[#137333]" />
-            {isAr ? "تصدير السجل (CSV)" : "Export CSV"}
-          </Button>
-        )}
-        {canRecordPoints && (
-          <Button
-            size="sm"
-            onClick={() => setIsAddPointModalOpen(true)}
-            className="gap-2 text-xs bg-[#1a73e8] hover:bg-[#1765cc] text-white"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            {isAr ? "تسجيل حركة نقاط" : "Record Point Event"}
-          </Button>
-        )}
-      </PageHeader>
+      {/* 1. Cockpit Header Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-card border border-border/80 shadow-2xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-lg bg-[#1a73e8]/10 text-[#1a73e8] dark:text-[#8ab4f8]">
+              <Sparkles className="w-4 h-4" />
+            </span>
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
+              {isAr
+                ? `مرحباً بك، ${currentUser?.full_name || "العضو"}`
+                : `Welcome back, ${currentUser?.full_name || "Member"}`}
+            </h1>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {isAr
+              ? "مركز قيادة الأداء والعمليات — ملخص سريع ومباشر لحالتك ومهامك اليوم."
+              : "Operations & Governance Cockpit — A clean executive summary of your focus today."}
+          </p>
+        </div>
 
-      {/* 2. Metric Overview Cards (Google Workspace Style) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1: Total Points */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {canExport && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="h-8 gap-1.5 text-xs rounded-lg"
+            >
+              <Download className="w-3.5 h-3.5 text-[#137333]" />
+              <span>{isAr ? "تصدير السجل" : "Export CSV"}</span>
+            </Button>
+          )}
+
+          {canRecordPoints && (
+            <Button
+              size="sm"
+              onClick={() => setIsAddPointModalOpen(true)}
+              className="h-8 gap-1.5 text-xs rounded-lg bg-[#1a73e8] hover:bg-[#1765cc] text-white shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{isAr ? "تسجيل نقاط" : "Record Points"}</span>
+            </Button>
+          )}
+
+          <Link href={`/${locale}/tasks`}>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-8 gap-1 text-xs rounded-lg"
+            >
+              <span>{isAr ? "المهام" : "Tasks"}</span>
+              <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* 2. Compact Metric Overview Cards (4 Key Metrics) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Metric 1: Net Points */}
         <StatsCard
-          title={isAr ? (isMember ? "رصيدي الصافي من النقاط" : "صافي رصيد النقاط المعتمد") : (isMember ? "My Net Points" : "Total Net Points")}
+          title={isAr ? "صافي النقاط" : "Net Points"}
           value={`${totalPointsNet > 0 ? "+" : ""}${totalPointsNet} pts`}
-          subtitle={isAr ? `+${approvedPositive} إيجابية | ${approvedNegative} سلبية` : `+${approvedPositive} positive | ${approvedNegative} negative`}
-          icon={<Award className="w-5 h-5" />}
-          delta={{ value: totalPointsNet >= 10 ? "Green Tier (Outstanding)" : totalPointsNet >= 0 ? "Normal Tier" : "Support Tier", isPositive: totalPointsNet >= 0 }}
+          subtitle={
+            isAr
+              ? `+${approvedPositive} إيجابي | ${approvedNegative} سلبي`
+              : `+${approvedPositive} pos | ${approvedNegative} neg`
+          }
+          icon={<Award className="w-4 h-4" />}
+          delta={{
+            value: totalPointsNet >= 10 ? "Green Tier" : "Normal Tier",
+            isPositive: totalPointsNet >= 0,
+          }}
           accentColor="blue"
         />
 
         {/* Metric 2: Attendance Rate */}
         <StatsCard
-          title={isAr ? (isMember ? "معدل التزامي وحضوري" : "معدل الحضور والالتزام") : (isMember ? "My Attendance Rate" : "Attendance Rate")}
+          title={isAr ? "نسبة الالتزام" : "Attendance"}
           value={`${attendanceRate}%`}
-          subtitle={isAr ? (isMember ? "نسبة التزامك بالاجتماعات والورش" : "متوسط حضور الجلسات والورش") : (isMember ? "Your verified attendance" : "Average across committees")}
-          icon={<CheckCircle className="w-5 h-5" />}
-          delta={{ value: "Target: ≥85%", isPositive: attendanceRate >= 85 }}
+          subtitle={isAr ? "المستهدف: ≥85%" : "Target: ≥85%"}
+          icon={<CheckCircle className="w-4 h-4" />}
+          delta={{ value: "Verified", isPositive: attendanceRate >= 85 }}
           accentColor="green"
         />
 
-        {/* Metric 3: Active Warnings */}
+        {/* Metric 3: Active Tasks */}
         <StatsCard
-          title={isAr ? (isMember ? "متابعاتي وإنذاراتي" : "الإنذارات والحالات النشطة") : (isMember ? "My Active Warnings" : "Active Warnings & PIPs")}
-          value={activeWarningsCount}
-          subtitle={isAr ? (isMember ? "حالات متابعة نشطة مسجلة لك" : "حالات تحت المتابعة والتوجيه") : (isMember ? "Active notices for you" : "Under progressive review ladder")}
-          icon={<AlertTriangle className="w-5 h-5" />}
-          delta={{ value: activeWarningsCount === 0 ? "0 Violations" : `${activeWarningsCount} Active`, isPositive: activeWarningsCount === 0 }}
+          title={isAr ? "المهام الجارية" : "Active Tasks"}
+          value={userActiveTasks.length}
+          subtitle={
+            userActiveTasks.length === 0
+              ? isAr
+                ? "لا توجد مهام متأخرة"
+                : "All tasks completed"
+              : isAr
+              ? "مهام بانتظار إنجازك"
+              : "Pending deliverables"
+          }
+          icon={<CheckSquare className="w-4 h-4" />}
+          delta={{
+            value: userActiveTasks.length === 0 ? "All Done" : `${userActiveTasks.length} Pending`,
+            isPositive: userActiveTasks.length === 0,
+          }}
           accentColor="yellow"
         />
 
-        {/* Metric 4: Performance Distribution */}
+        {/* Metric 4: Monthly Performance */}
         <StatsCard
-          title={isAr ? (isMember ? "درجة تقييمي الشهري" : "متوسط التقييم الشهري") : (isMember ? "My Monthly Evaluation" : "Monthly Performance Average")}
+          title={isAr ? "التقييم الشهري" : "Monthly Eval"}
           value={avgEvalScore !== "—" ? `${avgEvalScore} / 100` : "—"}
-          subtitle={userEvaluations.length > 0 ? (isAr ? `${userEvaluations.length} تقييمات معتمدة` : `${userEvaluations.length} Finalized`) : (isAr ? "في انتظار بدء دورة التقييم" : "Awaiting Evaluation Cycle")}
-          icon={<TrendingUp className="w-5 h-5" />}
-          delta={{ value: userEvaluations.length > 0 ? "Active Evaluation" : "Clean Slate", isPositive: true }}
+          subtitle={
+            userEvaluations.length > 0
+              ? isAr
+                ? `${userEvaluations.length} تقييمات معتمدة`
+                : `${userEvaluations.length} Finalized`
+              : isAr
+              ? "في انتظار دورة التقييم"
+              : "Awaiting cycle"
+          }
+          icon={<TrendingUp className="w-4 h-4" />}
+          delta={{ value: "Active", isPositive: true }}
           accentColor="red"
         />
       </div>
 
-      {/* 2.5. Active Tasks Section */}
-      <Card className="border border-border bg-card shadow-2xs">
-        <CardHeader className="pb-3 border-b border-border">
+      {/* 3. Action Center: Tasks Requiring Immediate Attention */}
+      <Card className="border border-border/80 bg-card rounded-2xl shadow-2xs overflow-hidden">
+        <CardHeader className="py-3.5 px-5 border-b border-border/60 bg-muted/10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CheckSquare className="w-4 h-4 text-[#1a73e8]" />
-              <div>
-                <CardTitle className="text-sm font-bold text-foreground">
-                  {isAr
-                    ? isMember
-                      ? "مهامي وتكليفاتي الحالية"
-                      : "أحدث المهام والتكليفات التنفيذية"
-                    : isMember
-                    ? "My Active Assigned Tasks"
-                    : "Active Task Deliverables"}
-                </CardTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isAr
-                    ? "متابعة المهام المسندة، المواعيد النهائية، وحالة تسليم المخرجات."
-                    : "Track deliverables, milestones, submission evidence, and deadlines."}
-                </p>
-              </div>
+              <CardTitle className="text-xs sm:text-sm font-bold text-foreground">
+                {isAr ? "ما يحتاج انتباهك الآن — التكليفات والمهام" : "Action Required — Active Tasks"}
+              </CardTitle>
             </div>
             <Link href={`/${locale}/tasks`}>
-              <Button variant="ghost" size="sm" className="text-xs text-[#1a73e8] gap-1">
-                <span>{isAr ? "كافة المهام" : "All Tasks"}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
+              <span className="text-xs font-semibold text-[#1a73e8] hover:underline flex items-center gap-1">
+                <span>{isAr ? "عرض كل المهام" : "View All Tasks"}</span>
+                <ArrowRight className="w-3 h-3 rtl:rotate-180" />
+              </span>
             </Link>
           </div>
         </CardHeader>
-        <CardContent className="pt-4">
+        <CardContent className="p-4 sm:p-5">
           {userActiveTasks.length === 0 ? (
-            <div className="py-6 text-center text-muted-foreground">
-              <CheckCircle className="w-6 h-6 mx-auto mb-1 text-emerald-600 opacity-60" />
-              <p className="text-xs font-semibold">
-                {isAr
-                  ? "لا توجد مهام نشطة مسندة إليك حالياً"
-                  : "No active tasks assigned to you right now"}
+            <div className="py-6 text-center text-muted-foreground space-y-1">
+              <CheckCircle className="w-7 h-7 mx-auto text-[#34a853] opacity-80" />
+              <p className="text-xs font-bold text-foreground">
+                {isAr ? "أنت منجز لكافة مهامك!" : "You are completely up to date!"}
               </p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
+              <p className="text-[11px] text-muted-foreground">
                 {isAr
-                  ? "ستظهر هنا أي تكليفات جديدة فور إسنادها لك من قائد الفريق أو الإدارة."
-                  : "Any deliverables assigned by your team lead or admin will appear here."}
+                  ? "لا توجد تكليفات عاجلة متأخرة أو بانتظار تسليمك اليوم."
+                  : "No pending or overdue deliverables waiting on you today."}
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {userActiveTasks.map((t) => (
+              {userActiveTasks.slice(0, 3).map((t) => (
                 <div
                   key={t.id}
-                  className="p-3.5 rounded-xl border border-border/70 bg-background/50 hover:bg-background transition-all space-y-2 flex flex-col justify-between"
+                  className="p-3.5 rounded-xl border border-border/70 bg-card hover:border-[#1a73e8]/40 transition-colors flex flex-col justify-between space-y-3"
                 >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                         {t.priority}
                       </span>
-                      <StatusBadge status={t.status} />
+                      <StatusBadge status={t.status} size="sm" />
                     </div>
                     <h4 className="font-bold text-xs text-foreground line-clamp-1">
                       {t.title}
                     </h4>
-                    <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
                       {t.description}
                     </p>
                   </div>
                   <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[11px]">
                     <span className="flex items-center gap-1 text-muted-foreground">
                       <Calendar className="w-3 h-3" />
-                      {new Date(t.deadline).toLocaleDateString()}
+                      <span>{new Date(t.deadline).toLocaleDateString()}</span>
                     </span>
                     <Link href={`/${locale}/tasks`}>
-                      <span className="font-semibold text-[#1a73e8] hover:underline text-xs">
-                        {isAr ? "تسليم / تفاصيل" : "Deliver →"}
+                      <span className="font-bold text-[#1a73e8] hover:underline text-xs">
+                        {isAr ? "تسليم المهمة ←" : "Deliver →"}
                       </span>
                     </Link>
                   </div>
@@ -407,284 +427,158 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* 3. Escalation Ladder Component (Vertical Stepper from ui ana) */}
-      <Card className="border border-border bg-card shadow-2xs">
-        <CardHeader className="pb-3 border-b border-border">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-                <ShieldAlert className="w-4 h-4 text-[#ea4335]" />
-                <span>
-                  {isAr
-                    ? "سلم التصعيد الإداري المتدرج (4 مستويات معتمدة)"
-                    : "Progressive Escalation Ladder (4-Level Stepper)"}
+      {/* 4. Split Grid: Recent Points Feed & Sleek Escalation Stepper */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Left: Recent Points Activity Feed (Clean, 3 items max) */}
+        <Card className="border border-border/80 bg-card rounded-2xl shadow-2xs overflow-hidden">
+          <CardHeader className="py-3.5 px-5 border-b border-border/60 bg-muted/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-[#1a73e8]" />
+                <CardTitle className="text-xs sm:text-sm font-bold text-foreground">
+                  {isAr ? "أحدث حركات النقاط" : "Recent Point Activity"}
+                </CardTitle>
+              </div>
+              <Link href={`/${locale}/points`}>
+                <span className="text-xs font-semibold text-[#1a73e8] hover:underline flex items-center gap-1">
+                  <span>{isAr ? "سجل النقاط الكامل" : "Full Ledger"}</span>
+                  <ArrowRight className="w-3 h-3 rtl:rotate-180" />
                 </span>
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isAr
-                  ? "تدرج لوني تدريجي من الأزرق إلى الأصفر ثم البرتقالي فالأحمر — لا عقوبة دون إشعار وتحقيق."
-                  : "Color graduation from Blue to Yellow to Orange to Red. No penalty without prior notice."}
-              </p>
-            </div>
-            {!isMember && (
-              <Link href={`/${locale}/incidents`}>
-                <Button variant="ghost" size="sm" className="text-xs text-[#1a73e8]">
-                  {isAr ? "إدارة المخالفات" : "View Incidents"}
-                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                </Button>
               </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 space-y-2.5">
+            {recentPointEvents.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground space-y-1">
+                <Award className="w-6 h-6 mx-auto opacity-40 text-primary" />
+                <p className="text-xs font-semibold">
+                  {isAr ? "لا توجد وقائع نقاط مسجلة حالياً" : "No point transactions recorded yet"}
+                </p>
+              </div>
+            ) : (
+              recentPointEvents.map((evt) => (
+                <div
+                  key={evt.id}
+                  className="p-3 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between gap-3 text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className={`font-mono font-bold text-xs px-2 py-0.5 rounded-md shrink-0 ${
+                        evt.direction === "positive"
+                          ? "bg-[#e6f4ea] text-[#137333] dark:bg-[#34a853]/20 dark:text-[#81c995]"
+                          : "bg-[#fce8e6] text-[#c5221f] dark:bg-[#ea4335]/20 dark:text-[#f28b82]"
+                      }`}
+                    >
+                      {evt.direction === "positive" ? `+${evt.value}` : evt.value} pts
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-bold text-foreground truncate max-w-[200px] sm:max-w-xs">
+                        {evt.explanation}
+                      </p>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {evt.event_date} • {getMemberName(evt.member_id)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsDisputeModalOpen(true)}
+                    className="h-7 px-2 text-[11px] text-[#1a73e8] hover:bg-[#1a73e8]/10 shrink-0"
+                  >
+                    <Scale className="w-3 h-3 mr-1" />
+                    <span>{isAr ? "طعن" : "Dispute"}</span>
+                  </Button>
+                </div>
+              ))
             )}
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            {/* Level 1: Friendly Notice (Blue) */}
-            <div className="p-4 rounded-lg bg-[#e8f0fe] dark:bg-[#1a73e8]/15 border border-[#d2e3fc] dark:border-[#1a73e8]/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#1a73e8] text-white">
-                  Level 1
+          </CardContent>
+        </Card>
+
+        {/* Right: Sleek Progressive Escalation Ladder (Compact Stepper) */}
+        <Card className="border border-border/80 bg-card rounded-2xl shadow-2xs overflow-hidden">
+          <CardHeader className="py-3.5 px-5 border-b border-border/60 bg-muted/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-[#ea4335]" />
+                <CardTitle className="text-xs sm:text-sm font-bold text-foreground">
+                  {isAr ? "سلم المتابعة والتصعيد" : "Escalation & Support Ladder"}
+                </CardTitle>
+              </div>
+              <Link href={`/${locale}/incidents`}>
+                <span className="text-xs font-semibold text-[#1a73e8] hover:underline flex items-center gap-1">
+                  <span>{isAr ? "التفاصيل والحالات" : "Details"}</span>
+                  <ArrowRight className="w-3 h-3 rtl:rotate-180" />
                 </span>
-                <span className="text-xs font-bold text-[#1a73e8] dark:text-[#8ab4f8]">Blue Notice</span>
-              </div>
-              <h4 className="font-bold text-xs text-foreground">
-                {isAr ? "تنبيه ودي مباشر" : "Friendly Notice"}
-              </h4>
-              <p className="text-[11px] text-[#5f6368] dark:text-[#9aa0a6] leading-relaxed">
-                {isAr
-                  ? "محادثة توجيهية ثنائية غير رسمية لتصحيح المسار فور حدوث تأخر أو تقصير بسيط."
-                  : "Informal, constructive 1-on-1 alignment to address initial delays or misses."}
-              </p>
+              </Link>
             </div>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-5 space-y-3">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {isAr
+                ? "تدرج تنظيمي لحماية العضو وضمان الشفافية: لا عقوبة دون إشعار مسبق وجلسة توجيه."
+                : "Transparent 4-tier progressive path ensuring alignment before any disciplinary escalation."}
+            </p>
 
-            {/* Level 2: PIP (Yellow) */}
-            <div className="p-4 rounded-lg bg-[#fef7e0] dark:bg-[#fbbc04]/15 border border-[#feefc3] dark:border-[#fbbc04]/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#b06000] text-white">
-                  Level 2
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs pt-1">
+              {/* Level 1 */}
+              <div className="p-2.5 rounded-xl bg-[#e8f0fe] dark:bg-[#1a73e8]/15 border border-[#d2e3fc] dark:border-[#1a73e8]/30 space-y-1">
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#1a73e8] text-white">
+                  L1
                 </span>
-                <span className="text-xs font-bold text-[#b06000] dark:text-[#fdd663]">Yellow Notice</span>
-              </div>
-              <h4 className="font-bold text-xs text-foreground">
-                {isAr ? "خطة تحسين الأداء (PIP)" : "Performance Plan (PIP)"}
-              </h4>
-              <p className="text-[11px] text-[#5f6368] dark:text-[#9aa0a6] leading-relaxed">
-                {isAr
-                  ? "خطة أهداف مكتوبة ومحددة زمنياً مع تقديم دعم وتوجيه من قائد الفريق وHR."
-                  : "Time-bound formal improvement plan with specific agreed deliverables and mentoring."}
-              </p>
-            </div>
-
-            {/* Level 3: Head/Vice Head Review (Orange) */}
-            <div className="p-4 rounded-lg bg-[#feefe3] dark:bg-[#e37400]/15 border border-[#fed7b2] dark:border-[#e37400]/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#e37400] text-white">
-                  Level 3
+                <p className="font-bold text-[11px] text-foreground">
+                  {isAr ? "تنبيه ودي" : "Notice"}
+                </p>
+                <span className="text-[10px] text-muted-foreground block">
+                  {isAr ? "توجيه ثنائي" : "1-on-1"}
                 </span>
-                <span className="text-xs font-bold text-[#e37400] dark:text-[#ff9800]">Orange Review</span>
               </div>
-              <h4 className="font-bold text-xs text-foreground">
-                {isAr ? "مراجعة قائد ونائب الفريق" : "Head/Vice Head Review"}
-              </h4>
-              <p className="text-[11px] text-[#5f6368] dark:text-[#9aa0a6] leading-relaxed">
-                {isAr
-                  ? "جلسة استماع رسمية على مستوى قيادة اللجنة لبحث أسباب عدم الاستجابة لخطة PIP."
-                  : "Formal committee review meeting assessing systemic non-delivery with HR presence."}
-              </p>
-            </div>
 
-            {/* Level 4: Community Leadership Escalation (Red) */}
-            <div className="p-4 rounded-lg bg-[#fce8e6] dark:bg-[#ea4335]/15 border border-[#fad2cf] dark:border-[#ea4335]/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ea4335] text-white">
-                  Level 4
+              {/* Level 2 */}
+              <div className="p-2.5 rounded-xl bg-[#fef7e0] dark:bg-[#fbbc04]/15 border border-[#feefc3] dark:border-[#fbbc04]/30 space-y-1">
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#b06000] text-white">
+                  L2
                 </span>
-                <span className="text-xs font-bold text-[#ea4335] dark:text-[#f28b82]">Red Escalation</span>
-              </div>
-              <h4 className="font-bold text-xs text-foreground">
-                {isAr ? "تصعيد لقيادة مجتمع GDG" : "Leadership Escalation"}
-              </h4>
-              <p className="text-[11px] text-[#5f6368] dark:text-[#9aa0a6] leading-relaxed">
-                {isAr
-                  ? "قرار نهائي من قائد GDG NCTU ولجنة القيادة بشأن عضوية العضو بعد استيفاء التحقيق."
-                  : "Final determination by GDG Lead and Executive Board after formal review hearing."}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 4. Points Log & Rules Table (Data table with crisp 1px borders from ui ana) */}
-      <Card className="border border-border bg-card shadow-2xs">
-        <CardHeader className="pb-3 border-b border-border">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-sm font-bold text-foreground">
-                {isAr ? "سجل وقائع النقاط وقواعد اللائحة" : "Points Log & Rules Ledger"}
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isAr
-                  ? "جدول البيانات الرسمي مع تطبيق سقف النقاط الإيجابية والتحقق المستقل."
-                  : "Verified log with crisp 1px borders, rounded pill badges, and track filters."}
-              </p>
-            </div>
-
-            {/* Filter controls */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Track filter */}
-              <div className="flex items-center rounded-lg bg-[#f1f3f4] dark:bg-[#303134] p-0.5 border border-border text-xs">
-                <button
-                  onClick={() => setPointTrackFilter("all")}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                    pointTrackFilter === "all" ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground"
-                  }`}
-                >
-                  {isAr ? "الكل" : "All Tracks"}
-                </button>
-                <button
-                  onClick={() => setPointTrackFilter("tech")}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                    pointTrackFilter === "tech" ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground"
-                  }`}
-                >
-                  {isAr ? "تقني" : "Tech"}
-                </button>
-                <button
-                  onClick={() => setPointTrackFilter("non_tech")}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                    pointTrackFilter === "non_tech" ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground"
-                  }`}
-                >
-                  {isAr ? "غير تقني" : "Non-Tech"}
-                </button>
+                <p className="font-bold text-[11px] text-foreground">
+                  {isAr ? "خطة PIP" : "Plan"}
+                </p>
+                <span className="text-[10px] text-muted-foreground block">
+                  {isAr ? "تحسين محدد" : "Timeline"}
+                </span>
               </div>
 
-              {/* Status filter */}
-              <div className="flex items-center rounded-lg bg-[#f1f3f4] dark:bg-[#303134] p-0.5 border border-border text-xs">
-                <button
-                  onClick={() => setPointStatusFilter("all")}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                    pointStatusFilter === "all" ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground"
-                  }`}
-                >
-                  {isAr ? "الكل" : "All Status"}
-                </button>
-                <button
-                  onClick={() => setPointStatusFilter("approved")}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                    pointStatusFilter === "approved" ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground"
-                  }`}
-                >
-                  {isAr ? "معتمد" : "Approved"}
-                </button>
-                <button
-                  onClick={() => setPointStatusFilter("pending_review")}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                    pointStatusFilter === "pending_review" ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground"
-                  }`}
-                >
-                  {isAr ? "قيد المراجعة" : "Pending"}
-                </button>
+              {/* Level 3 */}
+              <div className="p-2.5 rounded-xl bg-[#feefe3] dark:bg-[#e37400]/15 border border-[#fed7b2] dark:border-[#e37400]/30 space-y-1">
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#e37400] text-white">
+                  L3
+                </span>
+                <p className="font-bold text-[11px] text-foreground">
+                  {isAr ? "مراجعة الفريق" : "Review"}
+                </p>
+                <span className="text-[10px] text-muted-foreground block">
+                  {isAr ? "جلسة استماع" : "Hearing"}
+                </span>
+              </div>
+
+              {/* Level 4 */}
+              <div className="p-2.5 rounded-xl bg-[#fce8e6] dark:bg-[#ea4335]/15 border border-[#fad2cf] dark:border-[#ea4335]/30 space-y-1">
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#ea4335] text-white">
+                  L4
+                </span>
+                <p className="font-bold text-[11px] text-foreground">
+                  {isAr ? "تصعيد القيادة" : "Lead"}
+                </p>
+                <span className="text-[10px] text-muted-foreground block">
+                  {isAr ? "قرار نهائي" : "Decision"}
+                </span>
               </div>
             </div>
-          </div>
-        </CardHeader>
+          </CardContent>
+        </Card>
+      </div>
 
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left border-collapse">
-              <thead>
-                <tr className="bg-[#f8f9fa] dark:bg-[#202124] border-b border-border text-[#5f6368] dark:text-[#9aa0a6] font-semibold">
-                  <th className="py-3 px-4">{isAr ? "النقاط" : "Points"}</th>
-                  <th className="py-3 px-4">{isAr ? "العضو" : "Member"}</th>
-                  <th className="py-3 px-4">{isAr ? "بيان الواقعة والسبب" : "Explanation & Ground"}</th>
-                  <th className="py-3 px-4">{isAr ? "التاريخ" : "Date"}</th>
-                  <th className="py-3 px-4">{isAr ? "الحالة" : "Status"}</th>
-                  <th className="py-3 px-4 text-right">{isAr ? "إجراء" : "Action"}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredPointEvents.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                      <Award className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
-                      <p className="text-sm font-semibold">{isAr ? "لا توجد وقائع نقاط مسجلة حالياً" : "No point events recorded yet"}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{isAr ? "اضغط على 'تسجيل حركة نقاط' بالأعلى لإضافة حركة جديدة." : "Click 'Record Point Event' above to register a new entry."}</p>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredPointEvents.map((evt) => (
-                  <tr key={evt.id} className="hover:bg-[#f8f9fa] dark:hover:bg-[#202124] transition-colors">
-                    {/* Points Pill */}
-                    <td className="py-3 px-4 font-mono font-bold whitespace-nowrap">
-                      {evt.direction === "positive" ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#e6f4ea] text-[#137333] border border-[#ceead6] dark:bg-[#34a853]/20 dark:text-[#81c995]">
-                          +{evt.value} pts
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#fce8e6] text-[#c5221f] border border-[#fad2cf] dark:bg-[#ea4335]/20 dark:text-[#f28b82]">
-                          {evt.value} pts
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Member */}
-                    <td className="py-3 px-4 font-bold text-foreground whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
-                          {getMemberName(evt.member_id).slice(0, 1)}
-                        </div>
-                        <span className="truncate max-w-[150px]">{getMemberName(evt.member_id)}</span>
-                      </div>
-                    </td>
-
-                    {/* Explanation */}
-                    <td className="py-3 px-4 text-foreground max-w-md">
-                      <p className="line-clamp-2">{evt.explanation}</p>
-                      {evt.evidence_url && (
-                        <a
-                          href={evt.evidence_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] text-[#1a73e8] hover:underline mt-0.5"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          {isAr ? "معاينة الدليل" : "Proof Attached"}
-                        </a>
-                      )}
-                    </td>
-
-                    {/* Date */}
-                    <td className="py-3 px-4 text-muted-foreground whitespace-nowrap font-mono">
-                      {evt.event_date}
-                    </td>
-
-                    {/* Status Badge */}
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <StatusBadge status={evt.status} size="sm" />
-                    </td>
-
-                    {/* Dispute / Action Button */}
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsDisputeModalOpen(true)}
-                        className="h-7 text-[11px] text-[#1a73e8] hover:bg-[#e8f0fe] dark:hover:bg-[#1a73e8]/20"
-                      >
-                        <Scale className="w-3 h-3 mr-1" />
-                        {isAr ? "طعن / تظلم" : "Dispute"}
-                      </Button>
-                    </td>
-                  </tr>
-                )))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-
-      {/* Dispute Modal (Micro-interaction) */}
+      {/* Dispute Modal (Preserved & Fully Functional) */}
       {isDisputeModalOpen && (
         <Dialog open={isDisputeModalOpen} onOpenChange={setIsDisputeModalOpen}>
           <DialogContent>
@@ -737,7 +631,9 @@ export default function DashboardPage() {
                       entity_type: "point_event",
                       entity_id: "point_event",
                       grounds: disputeReason,
-                      deadline_date: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
+                      deadline_date: new Date(Date.now() + 7 * 86400000)
+                        .toISOString()
+                        .split("T")[0],
                       status: "under_review",
                     });
                     setIsDisputeModalOpen(false);
@@ -752,7 +648,7 @@ export default function DashboardPage() {
         </Dialog>
       )}
 
-      {/* Record Point Event Modal */}
+      {/* Record Point Event Modal (Preserved & Fully Functional) */}
       {isAddPointModalOpen && (
         <Dialog open={isAddPointModalOpen} onOpenChange={setIsAddPointModalOpen}>
           <DialogContent>
@@ -828,16 +724,22 @@ export default function DashboardPage() {
                   size="sm"
                   className="bg-[#1a73e8] hover:bg-[#1765cc] text-white"
                   onClick={() => {
-                    const cat = POLICY_POINT_CATEGORIES.find((c) => c.id === newSelectedCategory);
+                    const cat = POLICY_POINT_CATEGORIES.find(
+                      (c) => c.id === newSelectedCategory
+                    );
                     const targetU = availableUsers.find((u) => u.id === targetMemberId);
                     if (cat && newExplanation.trim() && currentUser && targetU) {
                       addPointEvent({
                         member_id: targetU.id,
-                        team_id: targetU.team_id || currentUser.team_id || teams[0]?.id || "",
+                        team_id:
+                          targetU.team_id || currentUser.team_id || teams[0]?.id || "",
                         event_date: new Date().toISOString().split("T")[0],
                         category_id: cat.id,
                         direction: cat.direction,
-                        value: cat.direction === "positive" ? cat.default_value : -Math.abs(cat.default_value),
+                        value:
+                          cat.direction === "positive"
+                            ? cat.default_value
+                            : -Math.abs(cat.default_value),
                         explanation: newExplanation,
                         recorded_by: currentUser.id,
                         status: canRecordPoints ? "approved" : "pending_review",
