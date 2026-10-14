@@ -83,6 +83,9 @@ export default function PointsPage() {
   const [filterMember, setFilterMember] = useState<string>(
     isMember && currentUser?.id ? currentUser.id : memberParam || "all"
   );
+  const [activeMainTab, setActiveMainTab] = useState<"ledger" | "balances" | "caps">("ledger");
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [showPolicyGuardrail, setShowPolicyGuardrail] = useState(false);
   const [isRecommendOpen, setIsRecommendOpen] = useState(false);
   const [selectedEventForReview, setSelectedEventForReview] = useState<PointEvent | null>(null);
   const [reviewRationale, setReviewRationale] = useState("");
@@ -438,71 +441,6 @@ export default function PointsPage() {
         </div>
       )}
 
-      {/* Filter and Member Selector Strip for Admins */}
-      {!isMember && (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border/80">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold">
-            <Filter className="w-4 h-4 text-primary" />
-            <span>{isAr ? "اختيار عضو لمعاينة رصيده وسجله الفردي:" : "Select Member to inspect individual balance:"}</span>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-            <select
-              value={filterTeam}
-              onChange={(e) => setFilterTeam(e.target.value)}
-              className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none max-w-[170px]"
-            >
-              <option value="all">{isAr ? "جميع الفرق واللجان" : "All Committees"}</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {isAr ? t.name_ar : t.name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filterMember}
-              onChange={(e) => {
-                const val = e.target.value;
-                setFilterMember(val);
-                if (val === "all") {
-                  router.push(`/${locale}/points`);
-                } else {
-                  router.push(`/${locale}/points?member=${val}`);
-                }
-              }}
-              className="h-8 px-3 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none min-w-[200px]"
-            >
-              <option value="all">
-                {isAr ? "جميع الأعضاء (عرض عام)" : "All Members (Global View)"}
-              </option>
-              {availableUsers.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.full_name} ({u.role.replace("_", " ")})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {/* Policy Guardrails Box */}
-      <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-3">
-        <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
-        <div className="space-y-1">
-          <p className="font-bold">
-            {isAr
-              ? "ضوابط لائحة النقاط الرسمية:"
-              : "Mandatory Policy Guardrail:"}
-          </p>
-          <p>
-            {isAr
-              ? "1. رصيد النقاط منفصل تماماً عن التقييم الشهري للـ 100 درجة. 2. لا يُسمح بتكرار الخصم لنفس الواقعة. 3. النقاط السلبية لا تؤدي للفصل المباشر بل للمتابعة والتطوير."
-              : "1. Points are independent of monthly 100-pt evaluation. 2. Deductions cannot be duplicated. 3. Points do not automatically expel members."}
-          </p>
-        </div>
-      </div>
-
       {/* Summary KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="p-4 border-border/70 bg-card">
@@ -562,109 +500,154 @@ export default function PointsPage() {
         </Card>
       </div>
 
-      {/* Member Points Summary Grid (Shown when Admin is in "All" view to prove individual points) */}
-      {!isMember && filterMember === "all" && (
-        <Card className="border-border/80">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold flex items-center justify-between">
-              <span>{isAr ? "رصيد كل عضو في النظام (أرصدة فردية منفصلة)" : "Individual Member Balances Ledger"}</span>
-              <span className="text-xs text-muted-foreground font-normal">
-                {availableUsers.length} {isAr ? "أعضاء" : "members"}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {availableUsers.map((user) => {
-                const bal = calculateMemberBalance(user.id);
-                return (
-                  <div
-                    key={user.id}
-                    onClick={() => {
-                      setFilterMember(user.id);
-                      router.push(`/${locale}/points?member=${user.id}`);
-                    }}
-                    className="p-3 rounded-xl border border-border/70 bg-muted/20 hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-bold text-xs text-foreground truncate">
-                        {user.full_name}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {user.email}
-                      </p>
-                    </div>
+      {/* Primary Section Switcher */}
+      <div className="flex items-center gap-1.5 p-1 bg-muted/60 dark:bg-muted/30 rounded-2xl border border-border/60 max-w-xl">
+        <button
+          type="button"
+          onClick={() => setActiveMainTab("ledger")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-bold rounded-xl transition-all ${
+            activeMainTab === "ledger"
+              ? "bg-card text-foreground shadow-sm border border-border/80"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Layers className="w-4 h-4 text-primary" />
+          <span>{isAr ? "سجل الحركات" : "Ledger"}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
+            {filteredEvents.length}
+          </span>
+        </button>
 
-                    <div className="text-right rtl:text-left shrink-0">
-                      <p
-                        className={`text-sm font-black ${
-                          bal.net >= 0 ? "text-emerald-600" : "text-rose-600"
-                        }`}
-                      >
-                        {bal.net > 0 ? `+${bal.net}` : bal.net} pts
-                      </p>
-                      <span className="text-[10px] text-muted-foreground block">
-                        +{bal.pos} / {bal.neg}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Monthly Positive Caps Breakdown */}
-      <Card className="border-border/80">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold flex items-center justify-between">
-            <span>
-              {isAr
-                ? "الأسقف الشهرية لفئات النقاط الإيجابية (Caps)"
-                : "Official Positive Point Monthly Caps"}
+        <button
+          type="button"
+          onClick={() => setActiveMainTab("balances")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-bold rounded-xl transition-all ${
+            activeMainTab === "balances"
+              ? "bg-card text-foreground shadow-sm border border-border/80"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <User className="w-4 h-4 text-indigo-500" />
+          <span>{isAr ? (isMember ? "تفاصيل رصيدي" : "أرصدة الأعضاء") : (isMember ? "My Standing" : "Member Balances")}</span>
+          {!isMember && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 font-bold">
+              {availableUsers.length}
             </span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600">
-              {isAr ? "7 فئات مستقلة" : "7 Distinct Caps"}
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">
-            {POLICY_POINT_CAP_CATEGORIES.map((cap) => (
-              <div key={cap.id} className="p-3 rounded-xl bg-muted/40 border border-border/50">
-                <div className="flex items-center justify-between font-semibold text-foreground mb-1">
-                  <span className="truncate">{isAr ? cap.name_ar : cap.name}</span>
-                  <span className="text-emerald-600 shrink-0 font-bold">Max {cap.monthly_cap}</span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-1.5 mt-2">
-                  <div className="bg-emerald-500 h-1.5 rounded-full w-1/4" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </button>
 
-      {/* Filter Tabs for Events */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-        {[
-          { key: "all", label: isAr ? "جميع الحركات" : "All Entries" },
-          { key: "pending", label: isAr ? "قيد المراجعة" : "Pending Review" },
-          { key: "positive", label: isAr ? "إيجابية فقط" : "Positive Only" },
-          { key: "negative", label: isAr ? "سلبية فقط" : "Negative Only" },
-        ].map((btn) => (
-          <Button
-            key={btn.key}
-            variant={filterDirection === btn.key ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilterDirection(btn.key)}
-            className="text-xs h-8 rounded-full shrink-0"
-          >
-            {btn.label}
-          </Button>
-        ))}
+        <button
+          type="button"
+          onClick={() => setActiveMainTab("caps")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-bold rounded-xl transition-all ${
+            activeMainTab === "caps"
+              ? "bg-card text-foreground shadow-sm border border-border/80"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4 text-amber-500" />
+          <span>{isAr ? "اللوائح والأسقف" : "Caps & Policy"}</span>
+        </button>
       </div>
+
+      {/* TAB 1: LEDGER */}
+      {activeMainTab === "ledger" && (
+        <div className="space-y-4">
+          {/* Filter and Member Selector Strip for Admins */}
+          {!isMember && (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border/80">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold">
+                <Filter className="w-4 h-4 text-primary" />
+                <span>{isAr ? "اختيار عضو لمعاينة رصيده وسجله الفردي:" : "Select Member to inspect individual balance:"}</span>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <select
+                  value={filterTeam}
+                  onChange={(e) => setFilterTeam(e.target.value)}
+                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none max-w-[170px]"
+                >
+                  <option value="all">{isAr ? "جميع الفرق واللجان" : "All Committees"}</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {isAr ? t.name_ar : t.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={filterMember}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFilterMember(val);
+                    if (val === "all") {
+                      router.push(`/${locale}/points`);
+                    } else {
+                      router.push(`/${locale}/points?member=${val}`);
+                    }
+                  }}
+                  className="h-8 px-3 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none min-w-[200px]"
+                >
+                  <option value="all">
+                    {isAr ? "جميع الأعضاء (عرض عام)" : "All Members (Global View)"}
+                  </option>
+                  {availableUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.role.replace("_", " ")})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Filter Tabs for Events */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+              {[
+                { key: "all", label: isAr ? "جميع الحركات" : "All Entries" },
+                { key: "pending", label: isAr ? "قيد المراجعة" : "Pending Review" },
+                { key: "positive", label: isAr ? "إيجابية فقط" : "Positive Only" },
+                { key: "negative", label: isAr ? "سلبية فقط" : "Negative Only" },
+              ].map((btn) => (
+                <Button
+                  key={btn.key}
+                  variant={filterDirection === btn.key ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterDirection(btn.key)}
+                  className="text-xs h-8 rounded-full shrink-0"
+                >
+                  {btn.label}
+                </Button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowPolicyGuardrail(!showPolicyGuardrail)}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 font-medium transition-colors"
+            >
+              <Info className="w-3.5 h-3.5 text-amber-500" />
+              <span>{isAr ? (showPolicyGuardrail ? "إخفاء الضوابط" : "عرض ضوابط اللائحة") : (showPolicyGuardrail ? "Hide Policy Guide" : "Show Policy Guide")}</span>
+            </button>
+          </div>
+
+          {/* Expandable Policy Guardrail Box */}
+          {showPolicyGuardrail && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-3 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold">
+                  {isAr ? "ضوابط لائحة النقاط الرسمية:" : "Mandatory Policy Guardrail:"}
+                </p>
+                <p>
+                  {isAr
+                    ? "1. رصيد النقاط منفصل تماماً عن التقييم الشهري للـ 100 درجة. 2. لا يُسمح بتكرار الخصم لنفس الواقعة. 3. النقاط السلبية لا تؤدي للفصل المباشر بل للمتابعة والتطوير."
+                    : "1. Points are independent of monthly 100-pt evaluation. 2. Deductions cannot be duplicated. 3. Points do not automatically expel members."}
+                </p>
+              </div>
+            </div>
+          )}
 
       {/* Ledger Table */}
       <div className="space-y-3">
@@ -784,6 +767,226 @@ export default function PointsPage() {
           ))
         )}
       </div>
+        </div>
+      )}
+
+      {/* TAB 2: MEMBER BALANCES */}
+      {activeMainTab === "balances" && (
+        <div className="space-y-4">
+          {!isMember ? (
+            <Card className="border-border/80">
+              <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-sm font-bold">
+                      {isAr ? "أرصدة جميع الأعضاء في النظام" : "All Member Balances & Standing"}
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {isAr
+                        ? "اضغط على أي عضو لعرض سجله الفردي وتفاصيل عملياته."
+                        : "Click any member card to inspect their dedicated transaction ledger."}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder={isAr ? "بحث بالاسم أو البريد..." : "Search name or email..."}
+                      value={memberSearchQuery}
+                      onChange={(e) => setMemberSearchQuery(e.target.value)}
+                      className="h-8 text-xs max-w-[200px]"
+                    />
+                    <select
+                      value={filterTeam}
+                      onChange={(e) => setFilterTeam(e.target.value)}
+                      className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none"
+                    >
+                      <option value="all">{isAr ? "جميع الفرق" : "All Committees"}</option>
+                      {teams.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {isAr ? t.name_ar : t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {availableUsers
+                    .filter((u) => {
+                      const matchesSearch =
+                        !memberSearchQuery.trim() ||
+                        u.full_name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+                        u.email.toLowerCase().includes(memberSearchQuery.toLowerCase());
+                      const matchesTeam = filterTeam === "all" || isUserInTeam(u, filterTeam);
+                      return matchesSearch && matchesTeam;
+                    })
+                    .map((user) => {
+                      const bal = calculateMemberBalance(user.id);
+                      return (
+                        <div
+                          key={user.id}
+                          onClick={() => {
+                            setFilterMember(user.id);
+                            setActiveMainTab("ledger");
+                            router.push(`/${locale}/points?member=${user.id}`);
+                          }}
+                          className="p-3.5 rounded-xl border border-border/70 bg-card hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-bold text-xs text-foreground truncate group-hover:text-primary transition-colors">
+                              {user.full_name}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {user.email}
+                            </p>
+                            <span className="text-[10px] text-muted-foreground/80 mt-1 inline-block">
+                              {user.role.replace("_", " ")}
+                            </span>
+                          </div>
+
+                          <div className="text-right rtl:text-left shrink-0">
+                            <p
+                              className={`text-sm font-black ${
+                                bal.net >= 0 ? "text-emerald-600" : "text-rose-600"
+                              }`}
+                            >
+                              {bal.net > 0 ? `+${bal.net}` : bal.net} pts
+                            </p>
+                            <span className="text-[10px] text-muted-foreground block">
+                              +{bal.pos} / {bal.neg}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            /* Member Personal Standing Card */
+            <Card className="border-border/80 p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-foreground">
+                    {isAr ? "مستوى أدائي ونقاطي المعتمدة" : "My Personal Standing & Balance"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    {isAr
+                      ? "رصيدك الحالي المعتمد بناءً على لائحة الحوافز والالتزام الخاصة بالمؤسسة."
+                      : "Your verified points according to the official chapter incentive policy."}
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  onClick={() => setActiveMainTab("ledger")}
+                  variant="outline"
+                  className="text-xs h-8 gap-1.5"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  {isAr ? "عرض سجل حركاتي" : "View My Events"}
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                    {isAr ? "مجموع النقاط الإيجابية" : "Total Positive"}
+                  </span>
+                  <p className="text-2xl font-black text-emerald-600 mt-1">
+                    +{approvedPositive} pts
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                  <span className="text-xs font-semibold text-rose-800 dark:text-rose-300">
+                    {isAr ? "مجموع النقاط السلبية" : "Total Deductions"}
+                  </span>
+                  <p className="text-2xl font-black text-rose-600 mt-1">
+                    {approvedNegative} pts
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+                  <span className="text-xs font-semibold text-primary">
+                    {isAr ? "تصنيف ومستوى الأداء" : "Standing Tier"}
+                  </span>
+                  <p className="text-lg font-black text-foreground mt-1">
+                    {netTier.label}
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: CAPS & POLICY */}
+      {activeMainTab === "caps" && (
+        <div className="space-y-4">
+          {/* Policy Guardrails Box */}
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold text-sm">
+                {isAr
+                  ? "ضوابط لائحة النقاط الرسمية المعتمدة:"
+                  : "Official Policy Governance Guardrails:"}
+              </p>
+              <p className="leading-relaxed">
+                {isAr
+                  ? "1. رصيد النقاط منفصل تماماً عن التقييم الشهري للـ 100 درجة (لا يؤثر مباشرة في درجة التقييم الفني)."
+                  : "1. Points ledger is strictly independent of the monthly 100-pt technical evaluation."}
+              </p>
+              <p className="leading-relaxed">
+                {isAr
+                  ? "2. لا يُسمح بتكرار الخصم لنفس الواقعة أو الحدث لمنع الازدواجية التأديبية."
+                  : "2. Deduction duplicates for the exact same occurrence are prohibited."}
+              </p>
+              <p className="leading-relaxed">
+                {isAr
+                  ? "3. النقاط السلبية لا تؤدي للفصل المباشر بل للمتابعة والتطوير وخطط التحسين."
+                  : "3. Negative points do not result in expulsion; they trigger PIP mentoring and improvement."}
+              </p>
+            </div>
+          </div>
+
+          {/* Monthly Positive Caps Breakdown */}
+          <Card className="border-border/80">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold flex items-center justify-between">
+                <span>
+                  {isAr
+                    ? "الأسقف الشهرية لفئات النقاط الإيجابية (Caps)"
+                    : "Official Positive Point Monthly Caps"}
+                </span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600">
+                  {isAr ? "7 فئات مستقلة" : "7 Distinct Caps"}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">
+                {POLICY_POINT_CAP_CATEGORIES.map((cap) => (
+                  <div key={cap.id} className="p-3.5 rounded-xl bg-muted/40 border border-border/50 space-y-2">
+                    <div className="flex items-center justify-between font-semibold text-foreground">
+                      <span className="truncate">{isAr ? cap.name_ar : cap.name}</span>
+                      <span className="text-emerald-600 shrink-0 font-bold">Max {cap.monthly_cap}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-1.5">
+                      <div className="bg-emerald-500 h-1.5 rounded-full w-1/4" />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground line-clamp-2">
+                      {isAr ? "الحد الأقصى للنقاط المكتسبة شهرياً من هذا النشاط." : "Monthly maximum cap for this incentive activity."}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Edit Point Event Modal */}
       {isEditEventOpen && editingEvent && (

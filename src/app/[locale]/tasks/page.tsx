@@ -18,6 +18,9 @@ import {
   Filter,
   User,
   X,
+  LayoutGrid,
+  List,
+  Search,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -64,6 +67,8 @@ export default function TasksPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterTeam, setFilterTeam] = useState<string>("all");
   const [filterMember, setFilterMember] = useState<string>(memberParam || "all");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [taskSearchQuery, setTaskSearchQuery] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -234,7 +239,29 @@ export default function TasksPage() {
     return diff >= 0 && diff <= 48;
   });
 
+  const getAssigneeInfo = (task: Task) => {
+    if (!task.assignees || task.assignees.length === 0) {
+      return isAr ? "غير محدد" : "Unassigned";
+    }
+    const a = task.assignees[0];
+    const user = a.profile || availableUsers.find((u) => u.id === a.profile_id);
+    return user?.full_name || (isAr ? "عضو مكلف" : "Assigned Member");
+  };
+
+  const getTeamName = (teamId?: string) => {
+    const tm = teams.find((t) => t.id === teamId);
+    return isAr ? tm?.name_ar || tm?.name || "-" : tm?.name || "-";
+  };
+
   const filteredTasks = visibleTasks.filter((t) => {
+    if (taskSearchQuery.trim()) {
+      const q = taskSearchQuery.toLowerCase();
+      const matchTitle = t.title.toLowerCase().includes(q);
+      const matchDesc = t.description?.toLowerCase().includes(q) || false;
+      const matchAssignee = getAssigneeInfo(t).toLowerCase().includes(q);
+      const matchTeam = getTeamName(t.team_id).toLowerCase().includes(q);
+      if (!matchTitle && !matchDesc && !matchAssignee && !matchTeam) return false;
+    }
     if (filterStatus === "all") return true;
     if (filterStatus === "escalated") {
       const isPast = t.deadline && new Date(t.deadline).getTime() < Date.now();
@@ -249,15 +276,6 @@ export default function TasksPage() {
     }
     return t.status === filterStatus;
   });
-
-  const getAssigneeInfo = (task: Task) => {
-    if (!task.assignees || task.assignees.length === 0) {
-      return isAr ? "غير محدد" : "Unassigned";
-    }
-    const a = task.assignees[0];
-    const user = a.profile || availableUsers.find((u) => u.id === a.profile_id);
-    return user?.full_name || (isAr ? "عضو مكلف" : "Assigned Member");
-  };
 
   const getFilteredMemberName = () => {
     if (filterMember === "all") return "";
@@ -553,10 +571,96 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Filter Bar with Member Selector and Status Tabs */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border/80">
+      {/* Streamlined Filter & View Bar */}
+      <div className="space-y-2.5 bg-card p-3 rounded-2xl border border-border/80">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+          {/* Search Box */}
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className="w-3.5 h-3.5 absolute left-3 rtl:right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={isAr ? "بحث في عنوان المهمة أو المكلف أو اللجنة..." : "Search task, assignee, or committee..."}
+              value={taskSearchQuery}
+              onChange={(e) => setTaskSearchQuery(e.target.value)}
+              className="h-8 text-xs pl-8 rtl:pr-8 rtl:pl-3 bg-background"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap justify-between md:justify-end">
+            {/* Member and Team Filter Dropdowns for Admins */}
+            {!isMember && (
+              <>
+                <div className="flex items-center gap-1.5 bg-background border border-border rounded-xl px-2 h-8">
+                  <Filter className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <select
+                    value={filterTeam}
+                    onChange={(e) => setFilterTeam(e.target.value)}
+                    className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer max-w-[150px]"
+                  >
+                    <option value="all">{isAr ? "كل الفرق" : "All Teams"}</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {isAr ? t.name_ar : t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <select
+                  value={filterMember}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFilterMember(val);
+                    if (val === "all") {
+                      router.push(`/${locale}/tasks`);
+                    } else {
+                      router.push(`/${locale}/tasks?member=${val}`);
+                    }
+                  }}
+                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none max-w-[180px]"
+                >
+                  <option value="all">
+                    {isAr ? "جميع المكلفين" : "All Assignees"}
+                  </option>
+                  {availableUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.role.replace("_", " ")})
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+
+            {/* View Mode Switcher */}
+            <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/50 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`p-1.5 rounded-lg transition-all ${
+                  viewMode === "cards"
+                    ? "bg-card text-foreground shadow-sm border border-border/70"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title={isAr ? "عرض بطاقات" : "Grid View"}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`p-1.5 rounded-lg transition-all ${
+                  viewMode === "table"
+                    ? "bg-card text-foreground shadow-sm border border-border/70"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title={isAr ? "عرض جدول مضغوط" : "Table View"}
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Status Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-1 border-t border-border/50 no-scrollbar">
           {[
             { key: "all", label: isAr ? "الكل" : "All" },
             {
@@ -576,59 +680,163 @@ export default function TasksPage() {
               variant={filterStatus === tab.key ? "default" : "outline"}
               size="sm"
               onClick={() => setFilterStatus(tab.key)}
-              className="text-xs h-8 rounded-xl shrink-0"
+              className="text-xs h-7 px-3 rounded-full shrink-0"
             >
               {tab.label}
             </Button>
           ))}
         </div>
-
-        {/* Member and Team Filter Dropdowns for Admins */}
-        {!isMember && (
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-            <div className="flex items-center gap-1.5 bg-background border border-border rounded-xl px-2 h-8">
-              <Filter className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              <select
-                value={filterTeam}
-                onChange={(e) => setFilterTeam(e.target.value)}
-                className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer max-w-[160px]"
-              >
-                <option value="all">{isAr ? "كل الفرق واللجان" : "All Teams"}</option>
-                {teams.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {isAr ? t.name_ar : t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <select
-              value={filterMember}
-              onChange={(e) => {
-                const val = e.target.value;
-                setFilterMember(val);
-                if (val === "all") {
-                  router.push(`/${locale}/tasks`);
-                } else {
-                  router.push(`/${locale}/tasks?member=${val}`);
-                }
-              }}
-              className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none max-w-[200px]"
-            >
-              <option value="all">
-                {isAr ? "جميع الأعضاء المكلفين" : "All Assignees"}
-              </option>
-              {availableUsers.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.full_name} ({u.role.replace("_", " ")})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
-      {/* Tasks Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {viewMode === "table" ? (
+        <Card className="border-border/80 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left rtl:text-right">
+              <thead className="bg-muted/50 border-b border-border/80 text-muted-foreground font-semibold">
+                <tr>
+                  <th className="py-3 px-4">{isAr ? "المهمة والتفاصيل" : "Task & Description"}</th>
+                  <th className="py-3 px-3">{isAr ? "الفريق / اللجنة" : "Committee"}</th>
+                  <th className="py-3 px-3">{isAr ? "المكلف" : "Assignee"}</th>
+                  <th className="py-3 px-3">{isAr ? "الأولوية" : "Priority"}</th>
+                  <th className="py-3 px-3">{isAr ? "الموعد النهائي" : "Deadline"}</th>
+                  <th className="py-3 px-3">{isAr ? "الحالة" : "Status"}</th>
+                  <th className="py-3 px-4 text-center">{isAr ? "الإجراءات" : "Actions"}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60 bg-card">
+                {filteredTasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                      <CheckSquare className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
+                      <p className="text-sm font-semibold">
+                        {isAr ? "لا توجد مهام مطابقة لخيارات البحث والتصفية" : "No tasks matching filter criteria"}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTasks.map((task) => {
+                    const isOverdue =
+                      task.deadline &&
+                      new Date(task.deadline).getTime() < Date.now() &&
+                      task.status !== "completed";
+                    return (
+                      <tr key={task.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-3 px-4 font-medium text-foreground max-w-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold truncate">{task.title}</span>
+                            {isTaskAssignedTo(task, currentUser?.id) && (
+                              <span className="shrink-0 text-[10px] px-1.5 py-0.2 rounded bg-primary/15 text-primary font-bold">
+                                {isAr ? "لك" : "You"}
+                              </span>
+                            )}
+                          </div>
+                          {task.description && (
+                            <p className="text-[11px] text-muted-foreground truncate max-w-sm mt-0.5">
+                              {task.description}
+                            </p>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-muted-foreground whitespace-nowrap">
+                          {getTeamName(task.team_id)}
+                        </td>
+                        <td className="py-3 px-3 text-foreground whitespace-nowrap font-medium">
+                          {getAssigneeInfo(task)}
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <span
+                            className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                              task.priority === "urgent"
+                                ? "bg-rose-500/15 text-rose-600"
+                                : task.priority === "high"
+                                ? "bg-amber-500/15 text-amber-600"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {task.priority}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <span className={isOverdue ? "text-rose-600 font-bold" : "text-muted-foreground"}>
+                            {task.deadline ? new Date(task.deadline).toLocaleDateString() : "-"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <StatusBadge status={task.status} />
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {task.status !== "completed" && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedTask(task);
+                                    setIsSubmitModalOpen(true);
+                                  }}
+                                  className="h-7 px-2 text-[11px] gap-1"
+                                >
+                                  <Send className="w-3 h-3 text-primary" />
+                                  <span>{isAr ? "تسليم" : "Submit"}</span>
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedTask(task);
+                                    setIsDelayModalOpen(true);
+                                  }}
+                                  className="h-7 px-2 text-[11px] text-amber-600 hover:bg-amber-500/10"
+                                >
+                                  {isAr ? "تأجيل" : "Delay"}
+                                </Button>
+                              </>
+                            )}
+                            {task.status === "submitted" && canApproveTask && (
+                              <Button
+                                size="sm"
+                                onClick={() => updateTaskStatus(task.id, "completed")}
+                                className="h-7 px-2 text-[11px] bg-emerald-600 hover:bg-emerald-700"
+                              >
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                <span>{isAr ? "اعتماد" : "Approve"}</span>
+                              </Button>
+                            )}
+                            {canManageTask && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => openEditModal(task, e)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                title={isAr ? "تعديل المهمة" : "Edit Task"}
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                            {canManageTask && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => openDeleteModal(task, e)}
+                                className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-500/10"
+                                title={isAr ? "حذف المهمة" : "Delete Task"}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : (
+        /* Tasks Grid */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredTasks.length === 0 ? (
           <Card className="col-span-full p-12 text-center text-muted-foreground border-dashed">
             <CheckSquare className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
@@ -766,6 +974,7 @@ export default function TasksPage() {
           ))
         )}
       </div>
+      )}
 
       {/* Edit Task Modal */}
       {isEditTaskOpen && editingTask && (

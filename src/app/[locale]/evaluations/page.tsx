@@ -13,6 +13,8 @@ import {
   Award,
   Edit,
   Trash2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -53,6 +55,7 @@ export default function EvaluationsPage() {
     userRole === "super_admin" || userRole === "hr_admin" || userRole === "team_lead";
 
   const [filterTeam, setFilterTeam] = useState<string>("all");
+  const [showCriteriaGuide, setShowCriteriaGuide] = useState(false);
   const [evalTeamFilter, setEvalTeamFilter] = useState<string>("all");
 
   // Helper to match user to committee
@@ -298,40 +301,57 @@ export default function EvaluationsPage() {
         )}
       </PageHeader>
 
-      {/* 6 Official Categories Breakdown Cards */}
-      <Card className="border-border/80">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold flex items-center justify-between">
-            <span>
+      {/* 6 Official Categories Breakdown Cards (Collapsible Guide) */}
+      <Card className="border-border/80 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowCriteriaGuide(!showCriteriaGuide)}
+          className="w-full p-4 flex items-center justify-between bg-card hover:bg-muted/30 transition-colors text-left rtl:text-right"
+        >
+          <div className="flex items-center gap-2.5">
+            <Calculator className="w-4 h-4 text-primary" />
+            <span className="text-sm font-bold text-foreground">
               {isAr
-                ? "معايير التقييم الستة المعتمدة باللائحة"
-                : "Official 6 Evaluation Criteria & Weights"}
+                ? "دليل معايير التقييم الستة المعتمدة باللائحة وأوزانها"
+                : "Official 6 Evaluation Criteria & Weight Breakdown"}
             </span>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-              100 Points Total
+              100 pts
             </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {POLICY_EVALUATION_CATEGORIES.map((cat) => (
-              <div
-                key={cat.id}
-                className="p-3 rounded-xl border border-border/60 bg-muted/20 text-center space-y-1"
-              >
-                <span className="text-2xl font-black text-primary">
-                  {cat.weight}%
-                </span>
-                <p className="text-xs font-bold text-foreground truncate">
-                  {isAr ? cat.name_ar : cat.name}
-                </p>
-                <p className="text-[10px] text-muted-foreground line-clamp-2">
-                  {cat.description}
-                </p>
-              </div>
-            ))}
           </div>
-        </CardContent>
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+            <span>{isAr ? (showCriteriaGuide ? "إخفاء التفاصيل" : "عرض التفاصيل") : (showCriteriaGuide ? "Hide Guide" : "View Guide")}</span>
+            {showCriteriaGuide ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </div>
+        </button>
+
+        {showCriteriaGuide && (
+          <CardContent className="pt-2 pb-4 border-t border-border/60 animate-in fade-in duration-200">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {POLICY_EVALUATION_CATEGORIES.map((cat) => (
+                <div
+                  key={cat.id}
+                  className="p-3 rounded-xl border border-border/60 bg-muted/20 text-center space-y-1"
+                >
+                  <span className="text-2xl font-black text-primary">
+                    {cat.weight}%
+                  </span>
+                  <p className="text-xs font-bold text-foreground truncate">
+                    {isAr ? cat.name_ar : cat.name}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground line-clamp-2">
+                    {cat.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* Finalized Evaluations List */}
