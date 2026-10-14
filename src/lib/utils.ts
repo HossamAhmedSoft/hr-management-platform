@@ -275,3 +275,58 @@ export function isDuplicateDeduction(
   );
 }
 
+/**
+ * CSV Formula Injection Sanitizer (CWE-1236 Defense)
+ * Neutralizes characters (=, +, -, @, \t, \r) that can trigger remote code or command
+ * execution in spreadsheet applications (Excel, LibreOffice, Google Sheets).
+ */
+export function sanitizeCSVCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const str = String(value);
+  if (!str) return "";
+
+  // Check if cell starts with dangerous formula prefixes (raw or whitespace-trimmed)
+  const dangerousPrefixes = ["=", "+", "-", "@", "\t", "\r", "%", "|"];
+  const trimmed = str.trimStart();
+  const startsWithDangerous = dangerousPrefixes.some((p) => str.startsWith(p) || trimmed.startsWith(p));
+
+  // If it starts with dangerous character, prefix with a single quote to force text interpretation
+  const safeStr = startsWithDangerous ? `'${str}` : str;
+
+  // Escape any existing double quotes by doubling them
+  return safeStr.replace(/"/g, '""');
+}
+
+/**
+ * Safe URL Sanitizer & Protocol Allowlist (XSS / Protocol Injection Defense)
+ * Strictly disallows unsafe schemes like javascript:, data:, vbscript: while
+ * permitting safe http:, https:, mailto:, tel:, and relative URLs.
+ */
+export function sanitizeUrl(url?: string | null, fallback: string = ""): string {
+  if (!url || typeof url !== "string") return fallback;
+  const trimmed = url.trim();
+  if (!trimmed) return fallback;
+
+  // Check for control characters or null bytes
+  if (/[\x00-\x1F\x7F]/.test(trimmed)) return fallback;
+
+  // Relative URLs (starting with / or #) are safe within the domain
+  if (trimmed.startsWith("/") || trimmed.startsWith("#")) {
+    // Avoid protocol-relative URLs (//) which could point to third-party domains
+    if (trimmed.startsWith("//")) return fallback;
+    return trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const safeProtocols = ["http:", "https:", "mailto:", "tel:"];
+    if (safeProtocols.includes(parsed.protocol)) {
+      return trimmed;
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+

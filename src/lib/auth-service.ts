@@ -34,11 +34,45 @@ export function generateCryptoToken(): string {
   return `session_${Date.now()}_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
 }
 
+export const SESSION_SECRET = process.env.SESSION_SECRET || "gdg_nctu_session_hmac_secret_2026_enterprise";
+
+export function createSessionSignature(userId: string, role: string, token: string): string {
+  if (typeof window === "undefined") {
+    try {
+      const nodeCrypto = require("crypto");
+      return nodeCrypto
+        .createHmac("sha256", SESSION_SECRET)
+        .update(`${userId}:${role}:${token}`)
+        .digest("hex");
+    } catch (_) {}
+  }
+  // Universal browser fallback
+  let hashVal = 0;
+  const str = `${SESSION_SECRET}:${userId}:${role}:${token}`;
+  for (let i = 0; i < str.length; i++) {
+    hashVal = (hashVal << 5) - hashVal + str.charCodeAt(i);
+    hashVal |= 0;
+  }
+  return `sig_${Math.abs(hashVal).toString(16)}`;
+}
+
+export function verifySessionSignature(
+  userId: string,
+  role: string,
+  token: string,
+  signature: string
+): boolean {
+  if (!userId || !role || !token || !signature) return false;
+  const expected = createSessionSignature(userId, role, token);
+  return expected === signature;
+}
+
 export function saveSession(user: Profile, rememberMe: boolean = false): AuthSession {
   const now = Date.now();
   const lifespan = rememberMe ? SESSION_LIFETIME_REMEMBER_MS : SESSION_LIFETIME_STANDARD_MS;
   const expiresAt = now + lifespan;
   const token = generateCryptoToken();
+  const sig = createSessionSignature(user.id, user.role, token);
 
   const session: AuthSession = {
     user,
@@ -59,6 +93,7 @@ export function saveSession(user: Profile, rememberMe: boolean = false): AuthSes
       document.cookie = `gdg_session_user=${encodeURIComponent(user.id)}; path=/; max-age=${maxAgeSec}; SameSite=Lax`;
       document.cookie = `gdg_session_expires=${expiresAt}; path=/; max-age=${maxAgeSec}; SameSite=Lax`;
       document.cookie = `gdg_auth_token=${encodeURIComponent(token)}; path=/; max-age=${maxAgeSec}; SameSite=Lax`;
+      document.cookie = `gdg_session_sig=${encodeURIComponent(sig)}; path=/; max-age=${maxAgeSec}; SameSite=Lax`;
     } else {
       sessionStorage.setItem(STORAGE_KEY, serialized);
       localStorage.removeItem(STORAGE_KEY);
@@ -67,6 +102,7 @@ export function saveSession(user: Profile, rememberMe: boolean = false): AuthSes
       document.cookie = `gdg_session_user=${encodeURIComponent(user.id)}; path=/; SameSite=Lax`;
       document.cookie = `gdg_session_expires=${expiresAt}; path=/; SameSite=Lax`;
       document.cookie = `gdg_auth_token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
+      document.cookie = `gdg_session_sig=${encodeURIComponent(sig)}; path=/; SameSite=Lax`;
     }
   } else {
     nodeMemoryStore[STORAGE_KEY] = JSON.stringify(session);
@@ -150,6 +186,7 @@ export function clearSession(): void {
     document.cookie = "gdg_session_user=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "gdg_session_expires=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "gdg_auth_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "gdg_session_sig=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
   } else {
     delete nodeMemoryStore[STORAGE_KEY];
   }
@@ -509,9 +546,8 @@ export async function registerWithCredentials(
   const cleanEmail = email.trim().toLowerCase();
   const userId = generateId();
 
-  // Securely retain password meta inside academic_notes for cross-device authentication
+  // Profile initialization metadata (passwords are stored separately and salted/hashed)
   const academicNotes = JSON.stringify({
-    pwd: password,
     created_role: role,
     init_date: new Date().toISOString(),
   });

@@ -46,8 +46,9 @@ export const dbService = {
             merged.push(lp);
           }
         });
-        internalDB.setProfiles(merged);
-        return merged;
+        const sanitized = merged.map((p) => internalDB.sanitizeProfile(p));
+        internalDB.setProfiles(sanitized);
+        return sanitized;
       }
     } catch (e) {
       console.warn("Supabase profiles query error, falling back to local:", e);
@@ -57,10 +58,11 @@ export const dbService = {
 
   async createProfile(profile: Profile): Promise<Profile> {
     const profileId = ensureUUID(profile.id);
+    const sanitizedProfile = internalDB.sanitizeProfile(profile);
     const newProfile: Profile = {
-      ...profile,
+      ...sanitizedProfile,
       id: profileId,
-      team_id: profile.team_id ? normalizeTeamUUID(profile.team_id) : profile.team_id,
+      team_id: sanitizedProfile.team_id ? normalizeTeamUUID(sanitizedProfile.team_id) : sanitizedProfile.team_id,
     };
     try {
       const supabase = createClient();
@@ -71,8 +73,9 @@ export const dbService = {
         .single();
 
       if (!error && data) {
-        internalDB.createProfile(data as Profile);
-        return data as Profile;
+        const safeData = internalDB.sanitizeProfile(data as Profile);
+        internalDB.createProfile(safeData);
+        return safeData;
       }
     } catch (e) {
       console.warn("Supabase createProfile error:", e);
@@ -132,8 +135,10 @@ export const dbService = {
         } catch {
           meta = {};
         }
-        meta.pwd = password;
-        meta.updated_at = new Date().toISOString();
+        // Purge any plaintext credential fields from profile metadata
+        delete meta.pwd;
+        delete meta.password;
+        meta.password_updated_at = new Date().toISOString();
 
         await supabase
           .from("profiles")
@@ -148,6 +153,9 @@ export const dbService = {
     }
   },
 
+  /**
+   * @deprecated Directly reading passwords is prohibited. Always use `verifyPassword` instead.
+   */
   async getPassword(email: string): Promise<string | null> {
     return internalDB.getPassword(email);
   },

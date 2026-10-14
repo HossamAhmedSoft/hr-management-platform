@@ -1,10 +1,40 @@
 import { NextResponse } from "next/server";
 import { tracksService } from "@/lib/tracks-service";
+import crypto from "crypto";
+
+// In-memory rate limiting defense (max 30 requests / min / IP)
+const ipRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+function timingSafeCompare(a: string, b: string): boolean {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const aBuf = Buffer.from(a, "utf8");
+  const bBuf = Buffer.from(b, "utf8");
+  if (aBuf.length !== bBuf.length) {
+    // Constant-time dummy comparison to prevent length timing leakage
+    crypto.timingSafeEqual(aBuf, aBuf);
+    return false;
+  }
+  return crypto.timingSafeEqual(aBuf, bBuf);
+}
+
+function checkRateLimit(ip: string, limit: number = 30, windowMs: number = 60000): boolean {
+  const now = Date.now();
+  const record = ipRateLimits.get(ip);
+  if (!record || now > record.resetAt) {
+    ipRateLimits.set(ip, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (record.count >= limit) {
+    return false;
+  }
+  record.count += 1;
+  return true;
+}
 
 /**
  * Server-side scheduled job endpoint for Smart Reminders & At-Risk Evaluations.
  * Compatible with Vercel Cron, external monitoring webhooks, or direct manual execution.
- * Enforces idempotent processing and returns full execution telemetry.
+ * Enforces timing-safe token verification, mandatory secret enforcement, and rate-limiting.
  */
 export async function GET(request: Request) {
   return handleReminderProcessing(request);
@@ -15,15 +45,36 @@ export async function POST(request: Request) {
 }
 
 async function handleReminderProcessing(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  // If CRON_SECRET is configured in production, verify bearer token
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // 1. IP Rate Limiting Check
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
+  if (!checkRateLimit(clientIp)) {
     return NextResponse.json(
-      { error: "Unauthorized scheduled execution request" },
-      { status: 401 }
+      { error: "Rate limit exceeded. Maximum 30 requests per minute." },
+      { status: 429, headers: { "Retry-After": "60" } }
     );
+  }
+
+  // 2. Constant-Time Authentication Check
+  const authHeader = request.headers.get("authorization") || "";
+  const cronSecret = process.env.CRON_SECRET || process.env.SCHEDULER_SECRET;
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (isProduction && !cronSecret) {
+    return NextResponse.json(
+      { error: "Server misconfiguration: CRON_SECRET is required in production mode." },
+      { status: 500 }
+    );
+  }
+
+  if (cronSecret) {
+    const expectedHeader = `Bearer ${cronSecret}`;
+    if (!timingSafeCompare(authHeader, expectedHeader)) {
+      return NextResponse.json(
+        { error: "Unauthorized: Invalid or missing bearer token." },
+        { status: 401 }
+      );
+    }
   }
 
   const startTime = Date.now();

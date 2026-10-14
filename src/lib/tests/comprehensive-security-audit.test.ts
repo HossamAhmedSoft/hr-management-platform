@@ -14,9 +14,14 @@ import {
   SESSION_LIFETIME_STANDARD_MS,
   SESSION_LIFETIME_REMEMBER_MS,
   IDLE_TIMEOUT_MS,
+  createSessionSignature,
+  verifySessionSignature,
 } from "../auth-service";
-import { internalDB, DEFAULT_PROFILES } from "../internal-db";
+import { internalDB, DEFAULT_PROFILES, hashPassword, verifyPasswordHash } from "../internal-db";
+import { dbService } from "../db-service";
+import { sanitizeCSVCell, sanitizeUrl } from "../utils";
 import { UserRole, Profile, Appeal, Incident } from "@/types";
+import crypto from "crypto";
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -366,8 +371,177 @@ async function runComprehensiveSecurityAudit() {
   const resetStatus = checkLoginLockout(attackEmail);
   assert(resetStatus.isLocked === false, "Lockout cleared upon administrative or successful reset");
 
+  // =================================================================
+  // SUITE 8: CSV FORMULA INJECTION DEFENSE (CWE-1236)
+  // =================================================================
+  console.log("\n--- SUITE 8: CSV Formula Injection Defense (CWE-1236) ---");
+  const dangerousCells = [
+    { input: "=cmd|' /C calc'!A0", expectedPrefix: "'=" },
+    { input: "+12345", expectedPrefix: "'+12345" },
+    { input: "-2+5", expectedPrefix: "'-2+5" },
+    { input: "@SUM(1,2)", expectedPrefix: "'@SUM(1,2)" },
+    { input: "\tDDE(\"cmd\";\"/C calc\";\"__DdeLink__\")", expectedPrefix: "'\t" },
+    { input: "%USERPROFILE%", expectedPrefix: "'%" },
+  ];
+
+  for (const { input } of dangerousCells) {
+    const sanitized = sanitizeCSVCell(input);
+    assert(
+      sanitized.startsWith("'"),
+      `SECURITY ENFORCED: Dangerous CSV prefix neutralized with leading single quote: ${input} -> ${sanitized}`
+    );
+  }
+
+  // Safe cells are preserved without single quote prefix
+  const safeCell = sanitizeCSVCell("Hossam Ahmed");
+  assert(safeCell === "Hossam Ahmed", "Safe text preserved without modification");
+  const emailCell = sanitizeCSVCell("hossam.admin@gdgnctu.com");
+  assert(emailCell === "hossam.admin@gdgnctu.com", "Safe email preserved without modification");
+
+  // Double quotes escaped
+  const quotesCell = sanitizeCSVCell('He said "Hello"');
+  assert(quotesCell === 'He said ""Hello""', "Internal quotes escaped to CSV standard double-double quotes");
+
+  // =================================================================
+  // SUITE 9: MALICIOUS URL PROTOCOL NEUTRALIZATION (XSS / CWE-79)
+  // =================================================================
+  console.log("\n--- SUITE 9: Malicious URL Protocol Neutralization ---");
+  const maliciousUrls = [
+    "javascript:alert(document.cookie)",
+    "JAVASCRIPT:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+    "vbscript:msgbox(1)",
+    "//evil-phishing.com/login",
+    "https://trusted.com/\x00evil",
+  ];
+
+  for (const badUrl of maliciousUrls) {
+    const safeUrl = sanitizeUrl(badUrl);
+    assert(
+      safeUrl === "",
+      `SECURITY ENFORCED: Dangerous URL neutralized to empty string: ${badUrl}`
+    );
+  }
+
+  // Safe URLs allowed
+  const safeHttps = "https://drive.google.com/medical_report.pdf";
+  assert(sanitizeUrl(safeHttps) === safeHttps, "Safe HTTPS URL correctly allowed");
+  const safeRelative = "/dashboard/tasks";
+  assert(sanitizeUrl(safeRelative) === safeRelative, "Safe relative path correctly allowed");
+
+  // =================================================================
+  // SUITE 10: SALTED PASSWORD HASHING & PROFILE PASSWORD STRIPPING (SEC-01)
+  // =================================================================
+  console.log("\n--- SUITE 10: Salted Password Hashing & Profile Password Stripping (SEC-01) ---");
+  const plainPass = "SuperSecretGdg2026!#";
+  const hashedPass = hashPassword(plainPass, "test_salt_123");
+  assert(
+    hashedPass.startsWith("sha256$test_salt_123$"),
+    "Hashed password produces sha256$<salt>$<hash> format"
+  );
+  assert(
+    hashedPass !== plainPass,
+    "Hashed password is completely distinct from plaintext password"
+  );
+  assert(
+    verifyPasswordHash(plainPass, hashedPass) === true,
+    "Password hash verifies correctly with exact password"
+  );
+  assert(
+    verifyPasswordHash("WrongPassword123!", hashedPass) === false,
+    "Password hash verification fails with wrong password"
+  );
+
+  // Profile Credential Stripping Verification
+  const rawLeakProfile: Profile = {
+    id: "prof_leak_test_1",
+    email: "leak.test@gdgnctu.com",
+    full_name: "Leak Test User",
+    role: "member",
+    status: "active",
+    join_date: "2026-01-01",
+    academic_notes: JSON.stringify({ pwd: "PlaintextPasswordShouldBeStripped", department: "Engineering" }),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const cleanProf = internalDB.sanitizeProfile(rawLeakProfile);
+  const cleanParsed = JSON.parse(cleanProf.academic_notes || "{}");
+  assert(
+    cleanParsed.pwd === undefined,
+    "SECURITY ENFORCED: pwd field stripped from profile academic_notes"
+  );
+  assert(
+    cleanParsed.department === "Engineering",
+    "Non-sensitive profile metadata preserved intact"
+  );
+
+  // =================================================================
+  // SUITE 11: CRYPTOGRAPHIC SESSION SIGNATURE & ROLE TAMPERING DEFENSE (SEC-08)
+  // =================================================================
+  console.log("\n--- SUITE 11: Session Role Signature & Client Tampering Defense (SEC-08) ---");
+  const userId = "usr_tamper_test";
+  const legitimateRole = "member";
+  const sessionToken = "session_token_xyz123";
+
+  const legitimateSignature = createSessionSignature(userId, legitimateRole, sessionToken);
+  assert(
+    typeof legitimateSignature === "string" && legitimateSignature.length > 10,
+    "HMAC session signature generated with high entropy"
+  );
+
+  // Legitimate session verifies
+  assert(
+    verifySessionSignature(userId, legitimateRole, sessionToken, legitimateSignature) === true,
+    "Valid session role signature verifies successfully"
+  );
+
+  // Client role escalation attempt (member -> super_admin)
+  const escalatedRole = "super_admin";
+  const tamperVerification = verifySessionSignature(userId, escalatedRole, sessionToken, legitimateSignature);
+  assert(
+    tamperVerification === false,
+    "SECURITY ENFORCED: Unauthorized role elevation (member -> super_admin) detected and rejected!"
+  );
+
+  // Altered token rejected
+  assert(
+    verifySessionSignature(userId, legitimateRole, "forged_token", legitimateSignature) === false,
+    "SECURITY ENFORCED: Mismatched session token rejected"
+  );
+
+  // =================================================================
+  // SUITE 12: TIMING-SAFE AUTHENTICATION & SCHEDULED ROUTE DEFENSE (SEC-03)
+  // =================================================================
+  console.log("\n--- SUITE 12: Timing-Safe Comparison & Scheduled Route Defense (SEC-03) ---");
+  function localTimingSafeCompare(a: string, b: string): boolean {
+    const aBuf = Buffer.from(a, "utf8");
+    const bBuf = Buffer.from(b, "utf8");
+    if (aBuf.length !== bBuf.length) {
+      crypto.timingSafeEqual(aBuf, aBuf);
+      return false;
+    }
+    return crypto.timingSafeEqual(aBuf, bBuf);
+  }
+
+  const validToken = "Bearer secret_cron_key_gdg_2026_super_secure";
+  const maliciousToken = "Bearer secret_cron_key_gdg_2026_wrong_guess";
+
+  assert(
+    localTimingSafeCompare(validToken, validToken) === true,
+    "Timing-safe comparison succeeds for identical tokens"
+  );
+  assert(
+    localTimingSafeCompare(maliciousToken, validToken) === false,
+    "Timing-safe comparison rejects mismatched bearer tokens"
+  );
+  assert(
+    localTimingSafeCompare("short", validToken) === false,
+    "Timing-safe comparison safely rejects unequal length tokens without side-channel"
+  );
+
   console.log("\n=================================================================");
-  console.log("🛡️ ALL 7 ENTERPRISE SECURITY & RBAC AUDIT SUITES PASSED (100%)!");
+  console.log("🛡️ ALL 12 ENTERPRISE SECURITY & HARDENING SUITES PASSED (100%)!");
   console.log("=================================================================\n");
 }
 

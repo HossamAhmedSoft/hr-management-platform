@@ -28,6 +28,7 @@ import {
   RiskFollowUpCase,
   CaseActionLog,
 } from "@/types";
+import { sanitizeCSVCell, sanitizeUrl } from "./utils";
 
 const STORAGE_PREFIX = "gdg_nctu_tracks_";
 const inMemoryCache: Record<string, unknown[]> = {};
@@ -1870,7 +1871,7 @@ export const tracksService = {
       amount: Math.min(15, Math.max(1, amount)),
       category,
       description,
-      evidence_url: evidenceUrl,
+      evidence_url: sanitizeUrl(evidenceUrl),
       recorded_by: recordedBy,
       approval_status: "pending",
       created_at: new Date().toISOString(),
@@ -2140,7 +2141,7 @@ export const tracksService = {
       ]);
     });
 
-    return rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    return rows.map((r) => r.map((cell) => `"${sanitizeCSVCell(cell)}"`).join(",")).join("\n");
   },
 
   exportAttendanceToCSV(trackId: string): string {
@@ -2161,7 +2162,7 @@ export const tracksService = {
       rows.push([p?.full_name || "", p?.email || "", ...sessionStatuses, `${metrics.attendancePercentage}%`]);
     });
 
-    return rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    return rows.map((r) => r.map((cell) => `"${sanitizeCSVCell(cell)}"`).join(",")).join("\n");
   },
 
   exportGradesToCSV(trackId: string): string {
@@ -2188,7 +2189,7 @@ export const tracksService = {
       ]);
     });
 
-    return rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    return rows.map((r) => r.map((cell) => `"${sanitizeCSVCell(cell)}"`).join(",")).join("\n");
   },
 
   // ════════════════════════════════════════════════════════════
