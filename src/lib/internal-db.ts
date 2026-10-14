@@ -17,7 +17,7 @@ import {
 import { generateId } from "./utils";
 
 // ============================================================
-// Internal Enterprise Storage Engine (Pure Production)
+// Internal Enterprise Storage Engine (Pure Production)rtg
 // ============================================================
 
 const STORAGE_PREFIX = "gdg_nctu_db_";
@@ -118,7 +118,7 @@ export function hashPassword(password: string, salt: string = "gdg_sec_2026"): s
       const nodeCrypto = require("crypto");
       const hash = nodeCrypto.createHmac("sha256", salt).update(password).digest("hex");
       return `sha256$${salt}$${hash}`;
-    } catch (_) {}
+    } catch (_) { }
   }
   // Browser-compatible deterministic SHA-256 equivalent
   let hashVal = 0;
@@ -161,7 +161,7 @@ export const internalDB = {
           delete meta.token;
           clean.academic_notes = JSON.stringify(meta);
         }
-      } catch (_) {}
+      } catch (_) { }
     }
     return clean;
   },
@@ -257,7 +257,7 @@ export const internalDB = {
           this.setPassword(cleanEmail, password);
           return true;
         }
-      } catch {}
+      } catch { }
     }
 
     // Default Super Admin password check (for initial seed / testing)
@@ -415,13 +415,13 @@ export const internalDB = {
     const updated = events.map((pe) =>
       pe.id === id
         ? {
-            ...pe,
-            status,
-            ...(isDecision ? { decision: status as "approved" | "rejected" } : {}),
-            ...(isDecision ? { decision_at: new Date().toISOString() } : {}),
-            decision_rationale: reviewerNotes || pe.decision_rationale,
-            updated_at: new Date().toISOString(),
-          }
+          ...pe,
+          status,
+          ...(isDecision ? { decision: status as "approved" | "rejected" } : {}),
+          ...(isDecision ? { decision_at: new Date().toISOString() } : {}),
+          decision_rationale: reviewerNotes || pe.decision_rationale,
+          updated_at: new Date().toISOString(),
+        }
         : pe
     );
     setTable("point_events", updated);
