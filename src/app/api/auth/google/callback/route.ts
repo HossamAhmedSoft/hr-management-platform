@@ -70,11 +70,15 @@ export async function GET(request: NextRequest) {
   const expectedNonce = stateVerification.expectedNonce || storedNonce;
 
   // 7. Exchange authorization code for Google tokens
+  // Enforce using the exact same redirect URI bound to the authorization transaction
+  const cookieRedirectUri = request.cookies.get("gdg_oauth_redirect_uri")?.value;
   const config = getGoogleConfig();
+  const exchangeRedirectUri = stateVerification.redirectUri || cookieRedirectUri || config.redirectUri;
+
   const tokenResponse = await exchangeOAuthCode({
     code,
     codeVerifier,
-    redirectUri: config.redirectUri,
+    redirectUri: exchangeRedirectUri,
   });
 
   if (!tokenResponse.id_token) {
@@ -134,6 +138,7 @@ export async function GET(request: NextRequest) {
   response.cookies.delete("gdg_oauth_verifier");
   response.cookies.delete("gdg_oauth_state");
   response.cookies.delete("gdg_oauth_nonce");
+  response.cookies.delete("gdg_oauth_redirect_uri");
 
   return response;
 }

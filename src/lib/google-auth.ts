@@ -35,27 +35,98 @@ export interface GoogleConfigStatus {
 }
 
 /**
+ * Resolves and canonicalizes the Google OAuth redirect URI.
+ * - Strips inadvertent trailing slashes, quotes, carriage returns, and duplicate slashes.
+ * - Enforces exact protocol, hostname, port, and callback path (/api/auth/google/callback).
+ * - In production (NODE_ENV === "production"), enforces HTTPS for non-localhost hostnames
+ *   and refuses to silently fall back to an unverified localhost URL if a production domain is required.
+ * - Strictly does NOT trust arbitrary incoming Host or X-Forwarded-* request headers.
+ */
+export function resolveGoogleRedirectUri(): { uri: string; isMissing: boolean } {
+  const isProd = process.env.NODE_ENV === "production";
+  const explicitRaw = (process.env.GOOGLE_REDIRECT_URI || "")
+    .replace(/['"\r\n]/g, "")
+    .trim();
+
+  if (explicitRaw) {
+    try {
+      const parsed = new URL(explicitRaw);
+      parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/api/auth/google/callback";
+      if (!parsed.pathname.endsWith("/api/auth/google/callback")) {
+        parsed.pathname = parsed.pathname === "/" ? "/api/auth/google/callback" : `${parsed.pathname}/api/auth/google/callback`;
+      }
+      if (isProd && !parsed.hostname.includes("localhost") && parsed.hostname !== "127.0.0.1") {
+        parsed.protocol = "https:";
+      }
+      return { uri: parsed.toString(), isMissing: false };
+    } catch {
+      const clean = explicitRaw.replace(/\/+$/, "");
+      return { uri: clean, isMissing: false };
+    }
+  }
+
+  // Derive from configured application URL (NEXT_PUBLIC_APP_URL or APP_URL)
+  const appUrlRaw = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "")
+    .replace(/['"\r\n]/g, "")
+    .trim();
+
+  if (appUrlRaw) {
+    try {
+      const withProto = appUrlRaw.startsWith("http://") || appUrlRaw.startsWith("https://")
+        ? appUrlRaw
+        : `https://${appUrlRaw}`;
+      const parsed = new URL(withProto);
+      if (isProd && !parsed.hostname.includes("localhost") && parsed.hostname !== "127.0.0.1") {
+        parsed.protocol = "https:";
+      }
+      const cleanOrigin = parsed.origin;
+      return { uri: `${cleanOrigin}/api/auth/google/callback`, isMissing: false };
+    } catch {}
+  }
+
+  // In production, check trusted deployment platform variables (e.g. VERCEL_PROJECT_PRODUCTION_URL)
+  if (isProd) {
+    const vercelDomain = (process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL || "")
+      .replace(/['"\r\n]/g, "")
+      .trim();
+    if (vercelDomain) {
+      const cleanHost = vercelDomain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+      return { uri: `https://${cleanHost}/api/auth/google/callback`, isMissing: false };
+    }
+    // In production without configured URL, refuse to fall back to localhost
+    return { uri: "", isMissing: true };
+  }
+
+  // Development default
+  return { uri: "http://localhost:3000/api/auth/google/callback", isMissing: false };
+}
+
+/**
  * Returns the exact configuration status and lists any missing environment keys
  * without exposing sensitive values like the client secret.
  */
 export function getGoogleConfigStatus(): GoogleConfigStatus {
   const missing: string[] = [];
-  const clientId = (process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
-  const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim();
-  const redirectUri = (process.env.GOOGLE_REDIRECT_URI || "").trim();
+  const clientId = (process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "")
+    .replace(/['"\r\n]/g, "")
+    .trim();
+  const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || "")
+    .replace(/['"\r\n]/g, "")
+    .trim();
 
   if (!clientId) missing.push("GOOGLE_CLIENT_ID");
   if (!clientSecret) missing.push("GOOGLE_CLIENT_SECRET");
   if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) missing.push("NEXT_PUBLIC_GOOGLE_CLIENT_ID");
-  if (!process.env.NEXT_PUBLIC_APP_URL && !process.env.GOOGLE_REDIRECT_URI) missing.push("GOOGLE_REDIRECT_URI");
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").trim();
-  const finalRedirect = redirectUri || `${appUrl}/api/auth/google/callback`;
+  const resolved = resolveGoogleRedirectUri();
+  if (resolved.isMissing || !resolved.uri) {
+    missing.push("GOOGLE_REDIRECT_URI");
+  }
 
   return {
     isConfigured: missing.length === 0,
     clientId,
-    redirectUri: finalRedirect,
+    redirectUri: resolved.uri || "http://localhost:3000/api/auth/google/callback",
     missingFields: missing,
   };
 }
@@ -580,11 +651,13 @@ export interface OAuthTransaction {
   codeChallenge: string;
   nonce: string;
   sanitizedNextUrl: string;
+  redirectUri: string;
 }
 
 export function generateOAuthTransaction(
   locale: string = "ar",
-  nextUrl: string = "/"
+  nextUrl: string = "/",
+  redirectUri?: string
 ): OAuthTransaction {
   const codeVerifier = crypto.randomBytes(32).toString("base64url");
   const codeChallenge = crypto
@@ -596,8 +669,14 @@ export function generateOAuthTransaction(
   const randomStateId = crypto.randomBytes(16).toString("hex");
   const timestamp = Date.now();
   const sanitizedNextUrl = sanitizeRedirectPath(nextUrl, locale);
+  const targetRedirectUri = (
+    redirectUri ||
+    getGoogleConfig().redirectUri ||
+    "http://localhost:3000/api/auth/google/callback"
+  ).trim();
+  const encodedRedirectUri = Buffer.from(targetRedirectUri, "utf8").toString("base64url");
 
-  const raw = `${randomStateId}:${timestamp}:${locale}:${sanitizedNextUrl}:${nonce}`;
+  const raw = `${randomStateId}:${timestamp}:${locale}:${sanitizedNextUrl}:${nonce}:${encodedRedirectUri}`;
   const hmac = crypto
     .createHmac("sha256", SESSION_SECRET)
     .update(raw)
@@ -612,6 +691,7 @@ export function generateOAuthTransaction(
     codeChallenge,
     nonce,
     sanitizedNextUrl,
+    redirectUri: targetRedirectUri,
   };
 }
 
@@ -620,6 +700,7 @@ export function verifyAndConsumeOAuthState(state: string): {
   locale: string;
   nextUrl: string;
   expectedNonce?: string;
+  redirectUri?: string;
   error?: string;
 } {
   try {
@@ -628,8 +709,27 @@ export function verifyAndConsumeOAuthState(state: string): {
     if (parts.length < 6) {
       return { valid: false, locale: "ar", nextUrl: "/ar", error: "MALFORMED_STATE" };
     }
-    const [stateId, timestampStr, locale, nextUrl, nonce, hmac] = parts;
-    const raw = `${stateId}:${timestampStr}:${locale}:${nextUrl}:${nonce}`;
+
+    let stateId = "";
+    let timestampStr = "";
+    let locale = "ar";
+    let nextUrl = "/";
+    let nonce = "";
+    let encodedRedirectUri = "";
+    let hmac = "";
+
+    if (parts.length >= 7) {
+      // 7-part format with encoded redirectUri
+      [stateId, timestampStr, locale, nextUrl, nonce, encodedRedirectUri, hmac] = parts;
+    } else {
+      // Backward-compatible 6-part format
+      [stateId, timestampStr, locale, nextUrl, nonce, hmac] = parts;
+    }
+
+    const raw = parts.length >= 7
+      ? `${stateId}:${timestampStr}:${locale}:${nextUrl}:${nonce}:${encodedRedirectUri}`
+      : `${stateId}:${timestampStr}:${locale}:${nextUrl}:${nonce}`;
+
     const expectedHmac = crypto
       .createHmac("sha256", SESSION_SECRET)
       .update(raw)
@@ -657,19 +757,27 @@ export function verifyAndConsumeOAuthState(state: string): {
     const safeLocale = ALLOWED_LOCALES.has(locale) ? locale : "ar";
     const safeNext = sanitizeRedirectPath(nextUrl, safeLocale);
 
+    let decodedRedirectUri: string | undefined = undefined;
+    if (encodedRedirectUri) {
+      try {
+        decodedRedirectUri = Buffer.from(encodedRedirectUri, "base64url").toString("utf8");
+      } catch {}
+    }
+
     return {
       valid: true,
       locale: safeLocale,
       nextUrl: safeNext,
       expectedNonce: nonce,
+      redirectUri: decodedRedirectUri,
     };
   } catch (err: any) {
     return { valid: false, locale: "ar", nextUrl: "/ar", error: "STATE_PARSE_ERROR" };
   }
 }
 
-export function generateOAuthState(locale: string = "ar", nextUrl: string = "/"): string {
-  return generateOAuthTransaction(locale, nextUrl).state;
+export function generateOAuthState(locale: string = "ar", nextUrl: string = "/", redirectUri?: string): string {
+  return generateOAuthTransaction(locale, nextUrl, redirectUri).state;
 }
 
 export function verifyOAuthState(state: string): {

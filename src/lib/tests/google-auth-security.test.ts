@@ -18,6 +18,8 @@ import {
   sanitizeRedirectPath,
   buildGoogleAuthUrl,
   getGoogleConfigStatus,
+  getGoogleConfig,
+  resolveGoogleRedirectUri,
 } from "../google-auth";
 import { internalDB } from "../internal-db";
 import { verifySessionSignature } from "../auth-service";
@@ -87,6 +89,52 @@ async function runGoogleSecuritySuite() {
     } finally {
       if (savedClientId) process.env.GOOGLE_CLIENT_ID = savedClientId;
       if (savedSecret) process.env.GOOGLE_CLIENT_SECRET = savedSecret;
+    }
+  });
+
+  test("resolveGoogleRedirectUri canonicalizes and strips trailing slashes and quotes", () => {
+    const savedRedirect = process.env.GOOGLE_REDIRECT_URI;
+    try {
+      process.env.GOOGLE_REDIRECT_URI = '"http://localhost:3000/api/auth/google/callback/"';
+      const resolved = resolveGoogleRedirectUri();
+      assert.strictEqual(resolved.uri, "http://localhost:3000/api/auth/google/callback", "Trailing slash and quotes must be stripped");
+    } finally {
+      if (savedRedirect) process.env.GOOGLE_REDIRECT_URI = savedRedirect;
+      else delete process.env.GOOGLE_REDIRECT_URI;
+    }
+  });
+
+  test("resolveGoogleRedirectUri normalizes NEXT_PUBLIC_APP_URL with trailing slash", () => {
+    const savedRedirect = process.env.GOOGLE_REDIRECT_URI;
+    const savedAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+    try {
+      delete process.env.GOOGLE_REDIRECT_URI;
+      process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000/";
+      const resolved = resolveGoogleRedirectUri();
+      assert.strictEqual(resolved.uri, "http://localhost:3000/api/auth/google/callback", "Must normalize to single clean slash");
+    } finally {
+      if (savedRedirect) process.env.GOOGLE_REDIRECT_URI = savedRedirect;
+      if (savedAppUrl) process.env.NEXT_PUBLIC_APP_URL = savedAppUrl;
+      else delete process.env.NEXT_PUBLIC_APP_URL;
+    }
+  });
+
+  test("SECURITY ENFORCED: resolveGoogleRedirectUri enforces HTTPS for production domains", () => {
+    const savedEnv = process.env.NODE_ENV;
+    const savedRedirect = process.env.GOOGLE_REDIRECT_URI;
+    const savedAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+    try {
+      (process.env as any).NODE_ENV = "production";
+      delete process.env.GOOGLE_REDIRECT_URI;
+      process.env.NEXT_PUBLIC_APP_URL = "http://hr.gdgnctu.com";
+      const resolved = resolveGoogleRedirectUri();
+      assert(resolved.uri.startsWith("https://hr.gdgnctu.com"), "Production domain must enforce HTTPS");
+      assert.strictEqual(resolved.uri, "https://hr.gdgnctu.com/api/auth/google/callback");
+    } finally {
+      (process.env as any).NODE_ENV = savedEnv;
+      if (savedRedirect) process.env.GOOGLE_REDIRECT_URI = savedRedirect;
+      if (savedAppUrl) process.env.NEXT_PUBLIC_APP_URL = savedAppUrl;
+      else delete process.env.NEXT_PUBLIC_APP_URL;
     }
   });
 
@@ -183,6 +231,42 @@ async function runGoogleSecuritySuite() {
 
     const verified = verifyAndConsumeOAuthState(tampered);
     assert.strictEqual(verified.valid, false, "Tampered state must fail HMAC verification");
+    assert.strictEqual(verified.error, "HMAC_MISMATCH");
+  });
+
+  test("OAuth transaction binds exact redirectUri to state and authorization request", () => {
+    const customUri = "http://localhost:3000/api/auth/google/callback";
+    const tx = generateOAuthTransaction("ar", "/ar/tasks", customUri);
+    assert.strictEqual(tx.redirectUri, customUri, "Transaction must store exact redirectUri");
+
+    const verified = verifyAndConsumeOAuthState(tx.state);
+    assert.strictEqual(verified.valid, true, "State must be valid");
+    assert.strictEqual(verified.redirectUri, customUri, "Decoded state must yield exact same redirectUri");
+
+    // Build auth URL and verify redirect_uri parameter
+    const authUrl = buildGoogleAuthUrl({
+      state: tx.state,
+      codeChallenge: tx.codeChallenge,
+      redirectUri: tx.redirectUri,
+    });
+    const parsedAuth = new URL(authUrl);
+    assert.strictEqual(
+      parsedAuth.searchParams.get("redirect_uri"),
+      customUri,
+      "Authorization URL must use identical redirectUri"
+    );
+  });
+
+  test("SECURITY ENFORCED: Tampering with bound redirectUri in state fails HMAC check", () => {
+    const tx = generateOAuthTransaction("ar", "/ar/tasks", "http://localhost:3000/api/auth/google/callback");
+    const decoded = Buffer.from(tx.state, "base64url").toString("utf-8");
+    const parts = decoded.split(":");
+    // parts[5] is the base64url-encoded redirectUri
+    parts[5] = Buffer.from("https://attacker.com/evil/callback").toString("base64url");
+    const tamperedState = Buffer.from(parts.join(":")).toString("base64url");
+
+    const verified = verifyAndConsumeOAuthState(tamperedState);
+    assert.strictEqual(verified.valid, false, "Tampered redirectUri must fail HMAC verification");
     assert.strictEqual(verified.error, "HMAC_MISMATCH");
   });
 

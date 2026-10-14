@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(errorUrl);
   }
 
-  // 1. Generate full cryptographic transaction: PKCE, Nonce, and Signed State
-  const transaction = generateOAuthTransaction(locale, rawNext);
+  // 1. Generate full cryptographic transaction: PKCE, Nonce, Signed State, and bound Redirect URI
+  const transaction = generateOAuthTransaction(locale, rawNext, config.redirectUri);
 
-  // 2. Build Google Authorization URL with Nonce
+  // 2. Build Google Authorization URL with exact Redirect URI and Nonce
   const authUrl = buildGoogleAuthUrl({
     state: transaction.state,
     codeChallenge: transaction.codeChallenge,
@@ -43,10 +43,11 @@ export async function GET(request: NextRequest) {
     maxAge: 15 * 60, // 15 minutes validity
   };
 
-  // Securely store code verifier, state, and nonce in short-lived HttpOnly cookies
+  // Securely store code verifier, state, nonce, and bound redirect URI in short-lived HttpOnly cookies
   response.cookies.set("gdg_oauth_verifier", transaction.codeVerifier, cookieOptions);
   response.cookies.set("gdg_oauth_state", transaction.state, cookieOptions);
   response.cookies.set("gdg_oauth_nonce", transaction.nonce, cookieOptions);
+  response.cookies.set("gdg_oauth_redirect_uri", config.redirectUri, cookieOptions);
 
   return response;
 }
