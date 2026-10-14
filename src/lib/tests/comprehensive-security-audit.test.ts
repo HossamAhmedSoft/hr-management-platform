@@ -1,4 +1,20 @@
-import { canAccessRoute, saveSession, getSession, clearSession, loginWithCredentials } from "../auth-service";
+import {
+  canAccessRoute,
+  saveSession,
+  getSession,
+  clearSession,
+  loginWithCredentials,
+  generateCryptoToken,
+  generateSecurityTokenCode,
+  verifySecurityTokenCode,
+  clearSecurityTokenCode,
+  recordFailedLogin,
+  checkLoginLockout,
+  resetLoginAttempts,
+  SESSION_LIFETIME_STANDARD_MS,
+  SESSION_LIFETIME_REMEMBER_MS,
+  IDLE_TIMEOUT_MS,
+} from "../auth-service";
 import { internalDB, DEFAULT_PROFILES } from "../internal-db";
 import { UserRole, Profile, Appeal, Incident } from "@/types";
 
@@ -221,9 +237,9 @@ async function runComprehensiveSecurityAudit() {
   assert(reviewerVisibleAppeals.length === 2, "Reviewer/Admin can review all appeals submitted by members");
 
   // =================================================================
-  // SUITE 5: SESSION LIFECYCLE & COOKIE SECURITY
+  // SUITE 5: SESSION LIFECYCLE & EXPIRATION DEFENSE
   // =================================================================
-  console.log("\n--- SUITE 5: Session Lifecycle & Expiry Handling ---");
+  console.log("\n--- SUITE 5: Session Lifecycle, Expiration & Idle Inactivity Defense ---");
   const testUser: Profile = {
     id: "usr_session_sec_1",
     email: "session.test@gdgnctu.com",
@@ -235,12 +251,123 @@ async function runComprehensiveSecurityAudit() {
     updated_at: "2026-01-01",
   };
 
-  const session = saveSession(testUser);
-  assert(!!session.token && session.token.startsWith("session_"), "Generated session token has expected entropy format");
-  assert(session.expiresAt > Date.now(), "Session expiry date is properly set into future");
+  // 5.1 Standard ephemeral session (Default: RememberMe = false)
+  const standardSession = saveSession(testUser, false);
+  assert(
+    standardSession.token.startsWith("session_"),
+    "Generated session token has expected 'session_' entropy prefix"
+  );
+  assert(
+    standardSession.rememberMe === false,
+    "Standard session remembers device is false by default"
+  );
+  assert(
+    standardSession.expiresAt - standardSession.issuedAt === SESSION_LIFETIME_STANDARD_MS,
+    `Standard session lifespan is strictly limited to 2 hours (${SESSION_LIFETIME_STANDARD_MS}ms)`
+  );
+
+  // 5.2 Persistent session (RememberMe = true)
+  const persistentSession = saveSession(testUser, true);
+  assert(
+    persistentSession.rememberMe === true,
+    "Persistent session remembers device is true"
+  );
+  assert(
+    persistentSession.expiresAt - persistentSession.issuedAt === SESSION_LIFETIME_REMEMBER_MS,
+    `Persistent session lifespan is capped at 24 hours (${SESSION_LIFETIME_REMEMBER_MS}ms)`
+  );
+
+  // 5.3 Active session retrieval
+  const activeSession = getSession();
+  assert(activeSession !== null, "Active session is successfully retrieved from storage");
+  assert(activeSession?.user.email === testUser.email, "Session user matches logged-in user profile");
+
+  // 5.4 Clean Session Teardown
+  clearSession();
+  assert(getSession() === null, "SECURITY ENFORCED: Session cleanly purged upon logout");
+
+  // 5.5 Cryptographic Token Entropy
+  const token1 = generateCryptoToken();
+  const token2 = generateCryptoToken();
+  assert(
+    token1.startsWith("session_") && token2.startsWith("session_"),
+    "Cryptographic tokens follow the standard format"
+  );
+  assert(token1 !== token2, "Consecutively generated session tokens are unique and collision-free");
+
+  // =================================================================
+  // SUITE 6: TWO-FACTOR SECURITY TOKEN CODE ENGINE ("توكين كود")
+  // =================================================================
+  console.log("\n--- SUITE 6: Two-Factor Security Token Code (2FA) Engine ---");
+  const secEmail = "hossam.admin@gdgnctu.com";
+
+  // 6.1 Token Code Generation
+  const tokenRecord = generateSecurityTokenCode(secEmail);
+  assert(
+    typeof tokenRecord.code === "string" && tokenRecord.code.length === 6,
+    `Security token code is a 6-digit numeric OTP: ${tokenRecord.code}`
+  );
+  assert(
+    tokenRecord.expiresAt > Date.now(),
+    "Security token code expiry timestamp is set into the future (5 minutes)"
+  );
+
+  // 6.2 Token Verification with Wrong Code (Decrements attempts)
+  const wrongCodeRes = verifySecurityTokenCode(secEmail, "000000");
+  assert(
+    wrongCodeRes.success === false,
+    "SECURITY ENFORCED: Incorrect 2FA token code is rejected"
+  );
+  assert(
+    Boolean(wrongCodeRes.error?.includes("المحاولات المتبقية")),
+    "Remaining attempts warning communicated after wrong code attempt"
+  );
+
+  // 6.3 Valid Token Code Verification
+  const validCodeRes = verifySecurityTokenCode(secEmail, tokenRecord.code);
+  assert(validCodeRes.success === true, "Valid 2FA security token code verified successfully");
+
+  // 6.4 One-Time Use Consumption (Replay Attack Prevention)
+  const replayRes = verifySecurityTokenCode(secEmail, tokenRecord.code);
+  assert(
+    replayRes.success === false,
+    "SECURITY ENFORCED: Token code consumed immediately after first use (Replay prevention)"
+  );
+
+  // =================================================================
+  // SUITE 7: BRUTE-FORCE RATE LIMITING & ACCOUNT LOCKOUT
+  // =================================================================
+  console.log("\n--- SUITE 7: Brute-Force Rate Limiting & Account Lockout Defense ---");
+  const attackEmail = "target.user@gdgnctu.com";
+  resetLoginAttempts(attackEmail);
+
+  // Simulate 4 failed attempts
+  for (let i = 1; i <= 4; i++) {
+    const attempt = recordFailedLogin(attackEmail);
+    assert(attempt.isLocked === false, `Attempt #${i} fails but account is not yet locked`);
+    assert(attempt.attemptsLeft === 5 - i, `Attempts left correctly calculated: ${5 - i}`);
+  }
+
+  // 5th attempt triggers lockout
+  const fifthAttempt = recordFailedLogin(attackEmail);
+  assert(
+    fifthAttempt.isLocked === true,
+    "SECURITY ENFORCED: 5th consecutive failed attempt locks out the account"
+  );
+  assert(fifthAttempt.attemptsLeft === 0, "No attempts left once locked out");
+
+  // Verify lockout check blocks login immediately
+  const lockoutStatus = checkLoginLockout(attackEmail);
+  assert(lockoutStatus.isLocked === true, "Account is confirmed locked in rate-limiting check");
+  assert(lockoutStatus.remainingSeconds > 0, "Remaining lockout seconds calculated");
+
+  // Reset clears lockout
+  resetLoginAttempts(attackEmail);
+  const resetStatus = checkLoginLockout(attackEmail);
+  assert(resetStatus.isLocked === false, "Lockout cleared upon administrative or successful reset");
 
   console.log("\n=================================================================");
-  console.log("🛡️ ALL 5 ENTERPRISE SECURITY & RBAC AUDIT SUITES PASSED (100%)!");
+  console.log("🛡️ ALL 7 ENTERPRISE SECURITY & RBAC AUDIT SUITES PASSED (100%)!");
   console.log("=================================================================\n");
 }
 

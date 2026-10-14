@@ -613,7 +613,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={logout}
+              onClick={() => logout("manual")}
               className="h-8 w-8 text-muted-foreground hover:text-[#ea4335] hover:bg-[#fce8e6] dark:hover:bg-[#ea4335]/20 ml-1"
               title={isAr ? "تسجيل الخروج" : "Sign Out"}
             >

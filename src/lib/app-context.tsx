@@ -16,10 +16,12 @@ import {
   AuditLog,
   Notification,
 } from "@/types";
+import { AlertTriangle } from "lucide-react";
 import {
   saveSession,
   getSession,
   clearSession,
+  updateSessionActivity,
   canAccessRoute,
 } from "@/lib/auth-service";
 import { dbService } from "@/lib/db-service";
@@ -30,8 +32,11 @@ interface AppContextType {
   setCurrentUser: (user: Profile) => void;
   availableUsers: Profile[];
   isAuthenticated: boolean;
-  login: (user: Profile) => void;
-  logout: () => void;
+  login: (user: Profile, rememberMe?: boolean) => void;
+  logout: (reason?: "manual" | "idle_timeout" | "expired") => void;
+  extendSession: () => void;
+  idleWarning: boolean;
+  idleSecondsRemaining: number;
   locale: "en" | "ar";
   setLocale: (locale: "en" | "ar") => void;
   toggleLocale: () => void;
@@ -231,10 +236,14 @@ export function AppProvider({
     };
   }, [currentUser?.id, currentUser?.email]);
 
+  // Session & Inactivity State
+  const [idleWarning, setIdleWarning] = useState<boolean>(false);
+  const [idleSecondsRemaining, setIdleSecondsRemaining] = useState<number>(120);
+
   // Persist session whenever user changes
-  const handleSetCurrentUser = (user: Profile) => {
+  const handleSetCurrentUser = (user: Profile, rememberMe: boolean = false) => {
     setCurrentUser(user);
-    saveSession(user);
+    saveSession(user, rememberMe);
     setIsAuthenticated(true);
   };
 
@@ -271,8 +280,8 @@ export function AppProvider({
     });
   };
 
-  const login = (user: Profile) => {
-    handleSetCurrentUser(user);
+  const login = (user: Profile, rememberMe: boolean = false) => {
+    handleSetCurrentUser(user, rememberMe);
     addAuditLog({
       actor_id: user.id,
       actor_name: user.full_name,
@@ -280,29 +289,91 @@ export function AppProvider({
       entity_type: "auth",
       entity_id: user.id,
       reason: `تسجيل دخول ناجح للمستخدم (${user.full_name})`,
-      details: `User logged in with role: ${user.role}, email: ${user.email}.`,
-      after_value: { role: user.role, email: user.email },
+      details: `User logged in with role: ${user.role}, email: ${user.email}. RememberMe: ${rememberMe}.`,
+      after_value: { role: user.role, email: user.email, rememberMe },
     });
     router.push(`/${locale}`);
   };
 
-  const logout = () => {
+  const logout = (reason: "manual" | "idle_timeout" | "expired" = "manual") => {
     if (currentUser) {
       addAuditLog({
         actor_id: currentUser.id,
         actor_name: currentUser.full_name,
-        action: "AUTH_LOGOUT",
+        action: reason === "manual" ? "AUTH_LOGOUT" : "AUTH_SESSION_EXPIRED",
         entity_type: "auth",
         entity_id: currentUser.id,
-        reason: `تسجيل خروج المستخدم (${currentUser.full_name})`,
-        details: `Session ended cleanly.`,
+        reason:
+          reason === "manual"
+            ? `تسجيل خروج المستخدم (${currentUser.full_name})`
+            : `انتهاء الجلسة تلقائياً (${reason}) للمستخدم (${currentUser.full_name})`,
+        details: `Session terminated cleanly. Reason: ${reason}.`,
       });
     }
     clearSession();
     setIsAuthenticated(false);
     setCurrentUser(null);
-    router.push(`/${locale}/login`);
+    setIdleWarning(false);
+    const query = reason !== "manual" ? `?reason=${reason}` : "";
+    router.push(`/${locale}/login${query}`);
   };
+
+  const extendSession = () => {
+    updateSessionActivity();
+    setIdleWarning(false);
+    setIdleSecondsRemaining(120);
+  };
+
+  // Activity detection & Inactivity Heartbeat (Auto-logout after 30 mins, alert at 28 mins)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let lastRecordedActivity = Date.now();
+
+    const handleUserActivity = () => {
+      const now = Date.now();
+      if (now - lastRecordedActivity > 30000) {
+        lastRecordedActivity = now;
+        updateSessionActivity();
+        setIdleWarning(false);
+      }
+    };
+
+    const activityEvents = ["mousedown", "keydown", "scroll", "touchstart", "click"];
+    activityEvents.forEach((evt) =>
+      window.addEventListener(evt, handleUserActivity, { passive: true })
+    );
+
+    const interval = setInterval(() => {
+      const session = getSession();
+      if (!session) {
+        logout("expired");
+        return;
+      }
+
+      const now = Date.now();
+      const lastActive = session.lastActive || session.issuedAt || now;
+      const idleMs = now - lastActive;
+
+      const warningThreshold = 28 * 60 * 1000; // 28 minutes
+      const timeoutThreshold = 30 * 60 * 1000; // 30 minutes
+
+      if (idleMs >= timeoutThreshold) {
+        logout("idle_timeout");
+      } else if (idleMs >= warningThreshold) {
+        setIdleWarning(true);
+        const secLeft = Math.max(0, Math.ceil((timeoutThreshold - idleMs) / 1000));
+        setIdleSecondsRemaining(secLeft);
+      } else {
+        setIdleWarning(false);
+      }
+    }, 15000);
+
+    return () => {
+      activityEvents.forEach((evt) => window.removeEventListener(evt, handleUserActivity));
+      clearInterval(interval);
+    };
+  }, [isAuthenticated]);
 
   const toggleTheme = () => {
     setTheme((prev) => {
@@ -1048,6 +1119,9 @@ export function AppProvider({
         isAuthenticated,
         login,
         logout,
+        extendSession,
+        idleWarning,
+        idleSecondsRemaining,
         locale,
         setLocale,
         toggleLocale,
@@ -1095,6 +1169,45 @@ export function AppProvider({
       }}
     >
       {children}
+      {idleWarning && isAuthenticated && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="fixed bottom-5 right-5 rtl:right-auto rtl:left-5 z-50 max-w-sm p-4 bg-card/95 dark:bg-[#202124]/95 border-2 border-[#fbbc04] rounded-2xl shadow-2xl backdrop-blur-md text-foreground transition-all animate-in fade-in slide-in-from-bottom-5"
+        >
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-[#fef7e0] dark:bg-[#fbbc04]/20 text-[#b06000] dark:text-[#fdd663] shrink-0">
+              <AlertTriangle className="w-5 h-5 animate-pulse" />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <h4 className="text-xs font-bold text-foreground">
+                {locale === "ar" ? "⚠️ تنبيه أمان: انتهاء الجلسة" : "⚠️ Security: Inactivity Alert"}
+              </h4>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {locale === "ar"
+                  ? `ستنتهي جلستك خلال ${idleSecondsRemaining} ثانية لعدم وجود نشاط حفاظاً على سرية بياناتك.`
+                  : `Your session will expire in ${idleSecondsRemaining}s due to inactivity to protect your account.`}
+              </p>
+              <div className="pt-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={extendSession}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#1a73e8] hover:bg-[#1765cc] text-white shadow-xs transition-colors cursor-pointer"
+                >
+                  {locale === "ar" ? "تمديد الجلسة" : "Stay Signed In"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => logout("manual")}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                >
+                  {locale === "ar" ? "تسجيل خروج" : "Sign Out"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AppContext.Provider>
   );
 }
