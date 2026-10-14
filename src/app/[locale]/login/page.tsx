@@ -84,6 +84,12 @@ function LoginFormContent() {
             ? "تم إلغاء عملية تسجيل الدخول بواسطة Google."
             : "Google sign-in was cancelled."
         );
+      } else if (urlError === "account_not_found") {
+        setErrorMessage(
+          isAr
+            ? "هذا الحساب غير مسجل في النظام. يجب أن تتم إضافتك أولاً من قِبل إدارة الموارد البشرية (HR)."
+            : "This account is not registered in the system. You must be added by HR administration first."
+        );
       } else if (urlError === "account_suspended") {
         setErrorMessage(
           isAr

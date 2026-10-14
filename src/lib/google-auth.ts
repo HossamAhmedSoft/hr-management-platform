@@ -407,7 +407,15 @@ export interface GoogleAuthResult {
   user?: Profile;
   isNewUser?: boolean;
   error?: string;
-  errorCode?: "ACCOUNT_SUSPENDED" | "ACCOUNT_INACTIVE" | "LOCKED_OUT" | "INVALID_DATA" | "ADMIN_LINK_REQUIRES_AUTH" | "DUPLICATE_GOOGLE_IDENTITY" | "SIMULATION_DENIED";
+  errorCode?:
+    | "ACCOUNT_NOT_FOUND"
+    | "ACCOUNT_SUSPENDED"
+    | "ACCOUNT_INACTIVE"
+    | "LOCKED_OUT"
+    | "INVALID_DATA"
+    | "ADMIN_LINK_REQUIRES_AUTH"
+    | "DUPLICATE_GOOGLE_IDENTITY"
+    | "SIMULATION_DENIED";
 }
 
 /**
@@ -564,58 +572,13 @@ export async function handleGoogleIdentity(
     };
   }
 
-  // Handle First-Time Google Registration
-  if (identity.isSimulated && process.env.NODE_ENV === "production") {
-    return {
-      success: false,
-      error: "الهويات التجريبية محظورة في بيئة الإنتاج.",
-      errorCode: "SIMULATION_DENIED",
-    };
-  }
-
-  const emptyDb = await isDatabaseEmpty();
-  // Simulated identities can NEVER bootstrap or receive super_admin privileges
-  const assignedRole: UserRole = emptyDb && !identity.isSimulated ? "super_admin" : "member";
-
-  const newProfileId = ensureUUID(`usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`);
-  const nowIso = new Date().toISOString();
-
-  const newProfile: Profile = {
-    id: newProfileId,
-    email: cleanEmail,
-    full_name: identity.name || cleanEmail.split("@")[0],
-    avatar_url: identity.picture,
-    role: assignedRole,
-    status: "active",
-    google_id: identity.sub,
-    join_date: nowIso,
-    created_at: nowIso,
-    updated_at: nowIso,
-  };
-
-  const created = await dbService.createProfile(newProfile);
-  internalDB.createProfile(created);
-  resetLoginAttempts(cleanEmail);
-
-  try {
-    await dbService.createAuditLog({
-      actor_id: created.id,
-      actor_name: created.full_name,
-      action: "AUTH_GOOGLE_REGISTER",
-      entity_type: "auth",
-      entity_id: created.id,
-      reason: emptyDb
-        ? "إنشاء حساب مدير النظام الأول (Super Admin) عبر حساب Google"
-        : "إنشاء حساب عضو جديد (Member) عبر Google مع تأكيد الهوية",
-      details: `Google sub: ${identity.sub}, email: ${cleanEmail}, role: ${assignedRole}.`,
-      after_value: { role: assignedRole, google_id: identity.sub, email: cleanEmail },
-    });
-  } catch {}
-
+  // ── STRICT PRE-REGISTRATION POLICY (Closed Enterprise Roster) ──
+  // Only accounts pre-registered in the platform by HR / Admin can sign in with Google.
+  // Unknown Google accounts cannot self-register or access internal resources.
   return {
-    success: true,
-    user: created,
-    isNewUser: true,
+    success: false,
+    error: "هذا الحساب غير مسجل في النظام. يجب أن تتم إضافتك أولاً من قِبل إدارة الموارد البشرية (HR).",
+    errorCode: "ACCOUNT_NOT_FOUND",
   };
 }
 

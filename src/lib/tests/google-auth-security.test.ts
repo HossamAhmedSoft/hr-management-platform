@@ -414,18 +414,17 @@ async function runGoogleSecuritySuite() {
     assert.strictEqual(res.user?.role, "member");
   });
 
-  await asyncTest("SECURITY ENFORCED: New Google registrations strictly receive 'member' role (No privilege escalation)", async () => {
-    const newRegistration = {
-      sub: "g_sub_brand_new_user",
-      email: "fresh.member@gdgnctu.com",
+  await asyncTest("SECURITY ENFORCED: Unregistered Google users are strictly denied (Closed Enterprise Roster)", async () => {
+    const unregistered = {
+      sub: "g_sub_brand_new_unregistered_user",
+      email: "fresh.stranger@gdgnctu.com",
       email_verified: true,
-      name: "Fresh Member",
+      name: "Fresh Stranger",
     };
 
-    const res = await handleGoogleIdentity(newRegistration);
-    assert.strictEqual(res.success, true);
-    assert.strictEqual(res.isNewUser, true);
-    assert.strictEqual(res.user?.role, "member", "New registrations MUST strictly receive 'member' role");
+    const res = await handleGoogleIdentity(unregistered);
+    assert.strictEqual(res.success, false, "Unregistered Google accounts must be rejected");
+    assert.strictEqual(res.errorCode, "ACCOUNT_NOT_FOUND", "Error code must be ACCOUNT_NOT_FOUND");
   });
 
   await asyncTest("SECURITY ENFORCED: Suspended account is blocked from login", async () => {
