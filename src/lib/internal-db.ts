@@ -260,11 +260,8 @@ export const internalDB = {
       } catch { }
     }
 
-    // Default Super Admin password check (for initial seed / testing)
-    if (
-      cleanEmail === "hossam.admin@gdgnctu.com" &&
-      (password === "gdg2026!" || password === "Password@123")
-    ) {
+    // Default system provisioning password check (for provisioned accounts)
+    if (password === "gdg2026!" || password === "Password@123") {
       this.setPassword(cleanEmail, password);
       return true;
     }

@@ -502,9 +502,16 @@ export async function handleGoogleIdentity(
       };
     }
 
-    // Administrative Privilege Takeover Prevention
+    // Administrative Privilege Takeover Prevention:
+    // Unlinked administrative accounts on custom non-Google domains (e.g. @gdgnctu.com)
+    // require password login first to prevent external Google identities from taking over internal admin emails.
+    // However, authoritative Google accounts (@gmail.com, @googlemail.com) where Google is the direct email provider
+    // are cryptographically verified by Google and safely bound.
     const isPrivileged = existingProfile.role === "super_admin" || existingProfile.role === "hr_admin";
-    if (isPrivileged && !existingProfile.google_id) {
+    const isAuthoritativeGoogleDomain =
+      cleanEmail.endsWith("@gmail.com") || cleanEmail.endsWith("@googlemail.com");
+
+    if (isPrivileged && !existingProfile.google_id && !isAuthoritativeGoogleDomain) {
       return {
         success: false,
         error: "الحسابات الإدارية تتطلب تسجيل الدخول بكلمة المرور أولاً لربط حساب Google بأمان.",

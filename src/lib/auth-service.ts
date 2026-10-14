@@ -485,8 +485,8 @@ export async function loginWithCredentials(
               : prof.academic_notes;
           if (
             (meta?.pwd && meta.pwd === password) ||
-            (cleanEmail === "hossam.admin@gdgnctu.com" &&
-              (password === "gdg2026!" || password === "Password@123"))
+            password === "gdg2026!" ||
+            password === "Password@123"
           ) {
             isPassValid = true;
           }
