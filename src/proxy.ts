@@ -27,6 +27,7 @@ export default function proxy(request: NextRequest) {
       response.cookies.delete("gdg_session_expires");
       response.cookies.delete("gdg_auth_token");
       response.cookies.delete("gdg_session_sig");
+      response.cookies.delete("gdg_auth_session");
       return response;
     }
   }

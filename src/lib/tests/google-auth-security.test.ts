@@ -551,6 +551,40 @@ async function runGoogleSecuritySuite() {
     assert.strictEqual(res.errorCode, "SIMULATION_DENIED");
   });
 
+  // ── SUITE 9: Login Loop Prevention & Session Hydration Security ──
+  console.log("\n--- SUITE 9: Login Loop Prevention & Session Hydration Security ---");
+
+  test("Neutralizes login and forbidden destinations to prevent post-auth redirect loop (/ar/login -> /ar)", () => {
+    assert.strictEqual(sanitizeRedirectPath("/ar/login", "ar"), "/ar");
+    assert.strictEqual(sanitizeRedirectPath("/en/login", "en"), "/en");
+    assert.strictEqual(sanitizeRedirectPath("/login?reason=expired", "ar"), "/ar");
+    assert.strictEqual(sanitizeRedirectPath("/ar/forbidden", "ar"), "/ar");
+  });
+
+  test("Session signature protects against client-side role escalation attempts", () => {
+    const testUser: Profile = {
+      id: "usr_session_test_01",
+      email: "member@gdgnctu.com",
+      full_name: "Test Member",
+      role: "member",
+      status: "active",
+      join_date: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const session = createGoogleApplicationSession(testUser, true);
+    assert.strictEqual(
+      verifySessionSignature(testUser.id, "member", session.token, session.sig),
+      true,
+      "Valid member session must verify successfully"
+    );
+    assert.strictEqual(
+      verifySessionSignature(testUser.id, "super_admin", session.token, session.sig),
+      false,
+      "Escalated super_admin role must fail signature verification"
+    );
+  });
+
   console.log("\n============================================================");
   console.log(`🏁 TEST EXECUTION COMPLETE: ${passedTests}/${totalTests} TESTS PASSED`);
   console.log("============================================================\n");

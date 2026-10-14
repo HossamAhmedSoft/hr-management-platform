@@ -240,6 +240,49 @@ export function AppProvider({
   const [idleWarning, setIdleWarning] = useState<boolean>(false);
   const [idleSecondsRemaining, setIdleSecondsRemaining] = useState<number>(120);
 
+  // Live session verification and hydration with server API
+  useEffect(() => {
+    let isMounted = true;
+    async function verifySessionWithServer() {
+      try {
+        const session = getSession();
+        if (!session) {
+          const res = await fetch("/api/auth/session");
+          if (res.ok) {
+            const data = await res.json();
+            if (isMounted && data && data.authenticated && data.user) {
+              setCurrentUser(data.user);
+              setIsAuthenticated(true);
+              saveSession(data.user, true);
+            }
+          }
+          return;
+        }
+
+        const res = await fetch("/api/auth/session");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted) {
+          if (data && data.authenticated && data.user) {
+            setCurrentUser(data.user);
+          } else if (
+            data &&
+            data.authenticated === false &&
+            (data.reason === "expired" || data.reason === "account_inactive")
+          ) {
+            logout("expired");
+          }
+        }
+      } catch (e) {
+        // Network resilience: do not log out on transient connectivity glitches
+      }
+    }
+    verifySessionWithServer();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Persist session whenever user changes
   const handleSetCurrentUser = (user: Profile, rememberMe: boolean = false) => {
     setCurrentUser(user);

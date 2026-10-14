@@ -10,6 +10,7 @@ export interface AuthSession {
   lastActive: number;
   rememberMe: boolean;
   issuedAt: number;
+  sig?: string;
 }
 
 const STORAGE_KEY = "gdg_nctu_auth_session";
@@ -82,6 +83,7 @@ export function saveSession(user: Profile, rememberMe: boolean = false): AuthSes
     lastActive: now,
     rememberMe,
     issuedAt: now,
+    sig,
   };
 
   if (typeof window !== "undefined") {
@@ -95,6 +97,7 @@ export function saveSession(user: Profile, rememberMe: boolean = false): AuthSes
       document.cookie = `gdg_session_expires=${expiresAt}; path=/; max-age=${maxAgeSec}; SameSite=Lax`;
       document.cookie = `gdg_auth_token=${encodeURIComponent(token)}; path=/; max-age=${maxAgeSec}; SameSite=Lax`;
       document.cookie = `gdg_session_sig=${encodeURIComponent(sig)}; path=/; max-age=${maxAgeSec}; SameSite=Lax`;
+      document.cookie = `gdg_auth_session=${encodeURIComponent(serialized)}; path=/; max-age=${maxAgeSec}; SameSite=Lax`;
     } else {
       sessionStorage.setItem(STORAGE_KEY, serialized);
       localStorage.removeItem(STORAGE_KEY);
@@ -104,6 +107,7 @@ export function saveSession(user: Profile, rememberMe: boolean = false): AuthSes
       document.cookie = `gdg_session_expires=${expiresAt}; path=/; SameSite=Lax`;
       document.cookie = `gdg_auth_token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
       document.cookie = `gdg_session_sig=${encodeURIComponent(sig)}; path=/; SameSite=Lax`;
+      document.cookie = `gdg_auth_session=${encodeURIComponent(serialized)}; path=/; SameSite=Lax`;
     }
   } else {
     nodeMemoryStore[STORAGE_KEY] = JSON.stringify(session);
@@ -131,6 +135,54 @@ export function getSession(): AuthSession | null {
     if (!raw) {
       raw = localStorage.getItem(STORAGE_KEY);
     }
+
+    // 2. Synchronous OAuth Callback Hydration Fallback:
+    // If client storage is empty, inspect gdg_auth_session cookie established by server OAuth callback
+    if (!raw && typeof document !== "undefined" && document.cookie) {
+      const cookieMatch = document.cookie.match(/(?:^|;\s*)gdg_auth_session=([^;]*)/);
+      if (cookieMatch && cookieMatch[1]) {
+        try {
+          const cookieVal = decodeURIComponent(cookieMatch[1]);
+          const parsed = JSON.parse(cookieVal);
+          if (
+            parsed &&
+            parsed.user &&
+            parsed.user.id &&
+            parsed.expiresAt &&
+            Date.now() < parsed.expiresAt
+          ) {
+            // Check cryptographic signature if present to prevent client-side role tampering
+            const isSigValid =
+              parsed.sig && parsed.token
+                ? verifySessionSignature(parsed.user.id, parsed.user.role, parsed.token, parsed.sig)
+                : true;
+
+            if (isSigValid) {
+              const now = Date.now();
+              const hydratedSession: AuthSession = {
+                user: parsed.user,
+                token: parsed.token || generateCryptoToken(),
+                issuedAt: parsed.issuedAt || now,
+                expiresAt: parsed.expiresAt,
+                lastActive: now,
+                rememberMe: parsed.rememberMe !== false,
+                sig: parsed.sig,
+              };
+              const serialized = JSON.stringify(hydratedSession);
+              if (hydratedSession.rememberMe) {
+                localStorage.setItem(STORAGE_KEY, serialized);
+              } else {
+                sessionStorage.setItem(STORAGE_KEY, serialized);
+              }
+              raw = serialized;
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to hydrate session from gdg_auth_session cookie:", e);
+        }
+      }
+    }
+
     if (!raw) return null;
 
     const session: AuthSession = JSON.parse(raw);
@@ -188,6 +240,7 @@ export function clearSession(): void {
     document.cookie = "gdg_session_expires=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "gdg_auth_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "gdg_session_sig=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "gdg_auth_session=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
   } else {
     delete nodeMemoryStore[STORAGE_KEY];
   }

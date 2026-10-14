@@ -214,6 +214,11 @@ export function sanitizeRedirectPath(rawPath?: string | null, fallbackLocale: st
     return `/${safeLocale}`;
   }
 
+  // Prevent redirect loops to login or error pages after authentication
+  if (clean.includes("/login") || clean.includes("/forbidden")) {
+    return `/${safeLocale}`;
+  }
+
   if (!/^\/[a-zA-Z0-9_\-\/\?=&%#]*$/.test(clean)) {
     return `/${safeLocale}`;
   }

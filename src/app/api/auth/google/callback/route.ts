@@ -134,6 +134,22 @@ export async function GET(request: NextRequest) {
     httpOnly: true,
   });
 
+  // Client-readable serialized auth session for seamless synchronous hydration
+  const authSession = {
+    user: identityResult.user,
+    token: session.token,
+    issuedAt: Date.now(),
+    expiresAt: session.expiresAt,
+    lastActive: Date.now(),
+    rememberMe: true,
+    sig: session.sig,
+  };
+  response.cookies.set(
+    "gdg_auth_session",
+    encodeURIComponent(JSON.stringify(authSession)),
+    baseCookieOptions
+  );
+
   // Purge ephemeral OAuth transaction cookies
   response.cookies.delete("gdg_oauth_verifier");
   response.cookies.delete("gdg_oauth_state");

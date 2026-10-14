@@ -252,7 +252,7 @@ function LoginFormContent() {
     }
 
     // Direct redirect to OpenID Connect / OAuth PKCE flow
-    const targetNext = nextParam || `/${locale}`;
+    const targetNext = nextParam && !nextParam.includes("/login") ? nextParam : `/${locale}`;
     window.location.href = `/api/auth/google/oauth?locale=${locale}&next=${encodeURIComponent(
       targetNext
     )}`;

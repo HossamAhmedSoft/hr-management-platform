@@ -155,6 +155,22 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
     });
 
+    // Client-readable serialized auth session for seamless synchronous hydration
+    const authSession = {
+      user: result.user,
+      token: session.token,
+      expiresAt: session.expiresAt,
+      lastActive: Date.now(),
+      rememberMe: Boolean(remember_me),
+      issuedAt: Date.now(),
+      sig: session.sig,
+    };
+    response.cookies.set(
+      "gdg_auth_session",
+      encodeURIComponent(JSON.stringify(authSession)),
+      baseCookieOptions
+    );
+
     return response;
   } catch (error: any) {
     return NextResponse.json(
