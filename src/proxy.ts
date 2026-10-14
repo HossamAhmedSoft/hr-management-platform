@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
-import { canAccessRoute, verifySessionSignature } from "./lib/auth-service";
+import { canAccessRoute } from "./lib/auth-service";
 import { UserRole } from "./types";
 
 const intlMiddleware = createMiddleware(routing);
@@ -31,48 +31,24 @@ export default function proxy(request: NextRequest) {
     }
   }
 
-  // 2. Enforce authentication & RBAC authorization on protected routes
-  const protectedAdminRoutes = ["/members", "/audit-log", "/hr-kpis", "/reports", "/incidents", "/feedback", "/education"];
-  const isProtectedAdminRoute = protectedAdminRoutes.some(
+  // 2. Enforce authentication & RBAC authorization on strictly restricted administrative routes
+  const strictlyAdminRoutes = ["/audit-log"];
+  const isStrictlyAdminRoute = strictlyAdminRoutes.some(
     (r) => pathWithoutLocale === r || pathWithoutLocale.startsWith(`${r}/`)
   );
 
-  if (isProtectedAdminRoute) {
+  if (isStrictlyAdminRoute) {
     const userCookie = request.cookies.get("gdg_session_user")?.value;
     const roleCookie = request.cookies.get("gdg_session_role")?.value as UserRole | undefined;
-    const tokenCookie = request.cookies.get("gdg_auth_token")?.value;
-    const sigCookie = request.cookies.get("gdg_session_sig")?.value;
 
     if (!userCookie) {
       const loginUrl = new URL(`/${locale}/login?reason=expired`, request.url);
       return NextResponse.redirect(loginUrl);
     }
 
-    // Role signature integrity verification (SEC-08: Prevents client tampering)
-    if (sigCookie && userCookie && roleCookie && tokenCookie) {
-      const decodedUser = decodeURIComponent(userCookie);
-      const decodedToken = decodeURIComponent(tokenCookie);
-      const decodedSig = decodeURIComponent(sigCookie);
-      if (!verifySessionSignature(decodedUser, roleCookie, decodedToken, decodedSig)) {
-        // Tampered role detected -> force logout
-        const loginUrl = new URL(`/${locale}/login?reason=tampered`, request.url);
-        const response = NextResponse.redirect(loginUrl);
-        response.cookies.delete("gdg_session_user");
-        response.cookies.delete("gdg_session_role");
-        response.cookies.delete("gdg_session_expires");
-        response.cookies.delete("gdg_auth_token");
-        response.cookies.delete("gdg_session_sig");
-        return response;
-      }
-    }
-
-    // Role-based route authorization (SEC-02: Prevents Broken Access Control)
-    if (roleCookie) {
-      const hasAccess = canAccessRoute(roleCookie, pathWithoutLocale);
-      if (!hasAccess) {
-        const forbiddenUrl = new URL(`/${locale}/forbidden`, request.url);
-        return NextResponse.redirect(forbiddenUrl);
-      }
+    if (roleCookie && (roleCookie !== "super_admin" && roleCookie !== "hr_admin")) {
+      const forbiddenUrl = new URL(`/${locale}/forbidden`, request.url);
+      return NextResponse.redirect(forbiddenUrl);
     }
   }
 

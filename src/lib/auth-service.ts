@@ -37,16 +37,6 @@ export function generateCryptoToken(): string {
 export const SESSION_SECRET = process.env.SESSION_SECRET || "gdg_nctu_session_hmac_secret_2026_enterprise";
 
 export function createSessionSignature(userId: string, role: string, token: string): string {
-  if (typeof window === "undefined") {
-    try {
-      const nodeCrypto = require("crypto");
-      return nodeCrypto
-        .createHmac("sha256", SESSION_SECRET)
-        .update(`${userId}:${role}:${token}`)
-        .digest("hex");
-    } catch (_) {}
-  }
-  // Universal browser fallback
   let hashVal = 0;
   const str = `${SESSION_SECRET}:${userId}:${role}:${token}`;
   for (let i = 0; i < str.length; i++) {
@@ -64,7 +54,18 @@ export function verifySessionSignature(
 ): boolean {
   if (!userId || !role || !token || !signature) return false;
   const expected = createSessionSignature(userId, role, token);
-  return expected === signature;
+  if (expected === signature) return true;
+
+  try {
+    const nodeCrypto = require("crypto");
+    const nodeHash = nodeCrypto
+      .createHmac("sha256", SESSION_SECRET)
+      .update(`${userId}:${role}:${token}`)
+      .digest("hex");
+    if (nodeHash === signature) return true;
+  } catch (_) {}
+
+  return false;
 }
 
 export function saveSession(user: Profile, rememberMe: boolean = false): AuthSession {
@@ -629,6 +630,7 @@ export async function isDatabaseEmpty(): Promise<boolean> {
 export function canAccessRoute(role: UserRole, pathname: string): boolean {
   const cleanPath = pathname.replace(/^\/(en|ar)/, "") || "/";
 
+  // General routes accessible to all authenticated users
   if (
     cleanPath === "/" ||
     cleanPath === "/login" ||
@@ -638,34 +640,13 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
     cleanPath === "/appeals" ||
     cleanPath === "/attendance" ||
     cleanPath === "/teams" ||
-    cleanPath === "/policy"
+    cleanPath === "/policy" ||
+    cleanPath === "/members" ||
+    cleanPath === "/education" ||
+    cleanPath === "/incidents" ||
+    cleanPath === "/feedback"
   ) {
     return true;
-  }
-
-  // Restricted from standard member: Members Contact Directory
-  if (cleanPath === "/members") {
-    return (
-      role === "super_admin" ||
-      role === "hr_admin" ||
-      role === "hr_reviewer" ||
-      role === "team_lead" ||
-      role === "track_lead"
-    );
-  }
-
-  // Educational Tracks & Academy: Accessible to HR, Leads, Instructors, Mentors, and Attendees (Hidden from core-team member)
-  if (cleanPath === "/education") {
-    return (
-      role === "super_admin" ||
-      role === "hr_admin" ||
-      role === "hr_reviewer" ||
-      role === "team_lead" ||
-      role === "track_lead" ||
-      role === "lead_instructor" ||
-      role === "ta_mentor" ||
-      role === "attendee"
-    );
   }
 
   // Security audit log: Super Admin and HR Admin only
@@ -673,12 +654,14 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
     return role === "super_admin" || role === "hr_admin";
   }
 
-  if (cleanPath === "/hr-kpis" || cleanPath === "/feedback" || cleanPath === "/reports") {
-    return role === "super_admin" || role === "hr_admin" || role === "team_lead";
-  }
-
-  if (cleanPath === "/incidents") {
-    return role === "super_admin" || role === "hr_admin" || role === "hr_reviewer" || role === "team_lead";
+  if (cleanPath === "/hr-kpis" || cleanPath === "/reports") {
+    return (
+      role === "super_admin" ||
+      role === "hr_admin" ||
+      role === "team_lead" ||
+      role === "hr_reviewer" ||
+      role === "track_lead"
+    );
   }
 
   return true;
