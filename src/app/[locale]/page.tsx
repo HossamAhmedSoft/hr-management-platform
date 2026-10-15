@@ -163,9 +163,18 @@ export default function DashboardPage() {
     (t) => isTaskAssigned(t) && t.status !== "completed" && t.status !== "cancelled"
   );
 
-  // Points & Metrics
+  // Points & Metrics (Distinguish Personal Points vs Organization Overview)
+  const personalPointEvents = pointEvents.filter((p) => isMatchUser(p.member_id));
+  const personalApprovedPositive = personalPointEvents
+    .filter((p) => p.status === "approved" && p.direction === "positive")
+    .reduce((sum, p) => sum + p.value, 0);
+  const personalApprovedNegative = personalPointEvents
+    .filter((p) => p.status === "approved" && p.direction === "negative")
+    .reduce((sum, p) => sum + p.value, 0);
+  const personalTotalNet = personalApprovedPositive + personalApprovedNegative;
+
   const userPointEvents = isMember
-    ? pointEvents.filter((p) => isMatchUser(p.member_id))
+    ? personalPointEvents
     : userRole === "team_lead" && currentUser?.team_id
     ? pointEvents.filter((p) => p.team_id === currentUser.team_id || isMatchUser(p.member_id))
     : pointEvents;
@@ -292,17 +301,45 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Metric 1: Net Points */}
         <StatsCard
-          title={isAr ? "صافي النقاط" : "Net Points"}
-          value={`${totalPointsNet > 0 ? "+" : ""}${totalPointsNet} pts`}
+          title={
+            isMember
+              ? isAr
+                ? "رصيد نقاطي الشخصية"
+                : "My Personal Points"
+              : userRole === "team_lead"
+              ? isAr
+                ? "إجمالي نقاط الفريق"
+                : "Team Net Points"
+              : isAr
+              ? "إجمالي نقاط المنظمة"
+              : "Org Net Points"
+          }
+          value={
+            isMember
+              ? `${personalTotalNet > 0 ? "+" : ""}${personalTotalNet} pts`
+              : `${totalPointsNet > 0 ? "+" : ""}${totalPointsNet} pts`
+          }
           subtitle={
-            isAr
-              ? `+${approvedPositive} إيجابي | ${approvedNegative} سلبي`
-              : `+${approvedPositive} pos | ${approvedNegative} neg`
+            isMember
+              ? isAr
+                ? `+${personalApprovedPositive} إيجابي | ${personalApprovedNegative} سلبي (رصيدك الخاص)`
+                : `+${personalApprovedPositive} pos | ${personalApprovedNegative} neg (Your Balance)`
+              : isAr
+              ? `إجمالي كافة الأعضاء (${approvedPositive >= 0 ? "+" : ""}${approvedPositive} / ${approvedNegative}) • نقاطك: ${personalTotalNet}`
+              : `All members (${approvedPositive >= 0 ? "+" : ""}${approvedPositive} / ${approvedNegative}) • You: ${personalTotalNet}`
           }
           icon={<Award className="w-4 h-4" />}
           delta={{
-            value: totalPointsNet >= 10 ? "Green Tier" : "Normal Tier",
-            isPositive: totalPointsNet >= 0,
+            value: isMember
+              ? personalTotalNet >= 10
+                ? "Green Tier"
+                : personalTotalNet < 0
+                ? "Warning Tier"
+                : "Normal Tier"
+              : isAr
+              ? "إجمالي شامل"
+              : "Org-Wide",
+            isPositive: isMember ? personalTotalNet >= 0 : totalPointsNet >= 0,
           }}
           accentColor="blue"
         />
@@ -476,20 +513,42 @@ export default function DashboardPage() {
                         {evt.explanation}
                       </p>
                       <span className="text-[10px] text-muted-foreground font-mono">
-                        {evt.event_date} • {getMemberName(evt.member_id)}
+                        {evt.event_date} •{" "}
+                        {isMatchUser(evt.member_id) ? (
+                          <span className="text-primary font-semibold">
+                            {isAr ? "حسابك الشخصي" : "Your Account"}
+                          </span>
+                        ) : (
+                          <span>
+                            {isAr ? "العضو: " : "Member: "}
+                            {getMemberName(evt.member_id)}
+                          </span>
+                        )}
                       </span>
                     </div>
                   </div>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsDisputeModalOpen(true)}
-                    className="h-7 px-2 text-[11px] text-[#1a73e8] hover:bg-[#1a73e8]/10 shrink-0"
-                  >
-                    <Scale className="w-3 h-3 mr-1" />
-                    <span>{isAr ? "طعن" : "Dispute"}</span>
-                  </Button>
+                  {isMatchUser(evt.member_id) && evt.direction === "negative" ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsDisputeModalOpen(true)}
+                      className="h-7 px-2 text-[11px] text-[#c5221f] dark:text-[#f28b82] hover:bg-[#ea4335]/10 shrink-0 font-bold"
+                    >
+                      <Scale className="w-3 h-3 mr-1" />
+                      <span>{isAr ? "تقديم طعن" : "Dispute"}</span>
+                    </Button>
+                  ) : (
+                    <Link href={`/${locale}/points`}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground shrink-0"
+                      >
+                        <span>{isAr ? "عرض" : "View"}</span>
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               ))
             )}

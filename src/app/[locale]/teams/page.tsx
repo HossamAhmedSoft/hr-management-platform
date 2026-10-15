@@ -547,7 +547,12 @@ export default function TeamsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {currentStats.members.map((m) => {
                       const memberNetPoints = pointEvents
-                        .filter((p) => p.member_id === m.id && p.status === "approved")
+                        .filter(
+                          (p) =>
+                            (p.member_id === m.id ||
+                              (m.email && p.member_id.toLowerCase() === m.email.toLowerCase())) &&
+                            p.status === "approved"
+                        )
                         .reduce(
                           (sum, p) => sum + (p.direction === "positive" ? p.value : -Math.abs(p.value)),
                           0
