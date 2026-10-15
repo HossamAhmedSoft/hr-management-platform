@@ -681,50 +681,92 @@ export async function isDatabaseEmpty(): Promise<boolean> {
 
 // Role Permissions Matrix
 export function canAccessRoute(role: UserRole, pathname: string): boolean {
-  const cleanPath = pathname.replace(/^\/(en|ar)/, "") || "/";
+  const cleanPath = pathname.replace(/^\/(en|ar)/, "").split("?")[0] || "/";
 
-  // General routes accessible to all authenticated users
+  // Super Admin and HR Admin have universal administrative clearance
+  if (role === "super_admin" || role === "hr_admin") {
+    return true;
+  }
+
+  // Security audit log: Strictly Super Admin and HR Admin only
+  if (cleanPath === "/audit-log" || cleanPath.startsWith("/audit-log/")) {
+    return false;
+  }
+
+  // Common routes accessible to all authenticated personas
   if (
     cleanPath === "/" ||
     cleanPath === "/login" ||
+    cleanPath === "/forbidden" ||
     cleanPath === "/tasks" ||
+    cleanPath.startsWith("/tasks/") ||
     cleanPath === "/points" ||
+    cleanPath.startsWith("/points/") ||
     cleanPath === "/evaluations" ||
+    cleanPath.startsWith("/evaluations/") ||
     cleanPath === "/appeals" ||
+    cleanPath.startsWith("/appeals/") ||
     cleanPath === "/attendance" ||
+    cleanPath.startsWith("/attendance/") ||
     cleanPath === "/teams" ||
+    cleanPath.startsWith("/teams/") ||
     cleanPath === "/policy" ||
-    cleanPath === "/members" ||
-    cleanPath === "/education" ||
-    cleanPath === "/incidents" ||
-    cleanPath === "/feedback"
+    cleanPath.startsWith("/policy/")
   ) {
     return true;
   }
 
-  // Security audit log: Super Admin and HR Admin only
-  if (cleanPath === "/audit-log") {
-    return role === "super_admin" || role === "hr_admin";
-  }
-
-  if (cleanPath === "/hr-kpis") {
+  // Educational Academy Tracks
+  if (cleanPath === "/education" || cleanPath.startsWith("/education/")) {
     return (
-      role === "super_admin" ||
-      role === "hr_admin" ||
       role === "team_lead" ||
-      role === "track_lead"
+      role === "track_lead" ||
+      role === "lead_instructor" ||
+      role === "ta_mentor"
     );
   }
 
-  if (cleanPath === "/reports") {
+  // HR KPIs Benchmarks
+  if (cleanPath === "/hr-kpis" || cleanPath.startsWith("/hr-kpis/")) {
+    return role === "team_lead" || role === "track_lead";
+  }
+
+  // Members Directory
+  if (cleanPath === "/members" || cleanPath.startsWith("/members/")) {
     return (
-      role === "super_admin" ||
-      role === "hr_admin" ||
+      role === "team_lead" ||
+      role === "track_lead" ||
+      role === "hr_reviewer"
+    );
+  }
+
+  // Progressive Escalations & Disciplinary Incidents
+  if (cleanPath === "/incidents" || cleanPath.startsWith("/incidents/")) {
+    return (
       role === "team_lead" ||
       role === "hr_reviewer" ||
       role === "track_lead"
     );
   }
 
-  return true;
+  // Feedback & 1-on-1 Coaching
+  if (cleanPath === "/feedback" || cleanPath.startsWith("/feedback/")) {
+    return (
+      role === "team_lead" ||
+      role === "hr_reviewer" ||
+      role === "track_lead"
+    );
+  }
+
+  // Operational Reports & Analytics
+  if (cleanPath === "/reports" || cleanPath.startsWith("/reports/")) {
+    return (
+      role === "team_lead" ||
+      role === "hr_reviewer" ||
+      role === "track_lead"
+    );
+  }
+
+  return false;
 }
+

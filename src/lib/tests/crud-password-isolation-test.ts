@@ -24,7 +24,7 @@ console.log("\n--- TEST GROUP 1: PASSWORD RESET & SECURITY ---");
 const testEmail = "member.omar@gdgnctu.com";
 internalDB.setPassword(testEmail, "newSecret2026!");
 const storedPw = internalDB.getPassword(testEmail);
-assert(storedPw === "newSecret2026!", "TEST-01", "Super Admin can set member password");
+assert(Boolean(storedPw && storedPw.startsWith("sha256$")), "TEST-01", "Super Admin can set member password with secure salted hash");
 assert(internalDB.verifyPassword(testEmail, "newSecret2026!"), "TEST-02", "Correct password verifies successfully");
 assert(!internalDB.verifyPassword(testEmail, "wrongPass"), "TEST-03", "Incorrect password fails verification");
 
