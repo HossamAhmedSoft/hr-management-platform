@@ -1613,8 +1613,6 @@ export default function EducationPage() {
             <SmartRemindersPanel
               isAr={isAr}
               canManage={isHRorAdmin || isInstructor}
-              currentUser={currentUser}
-              selectedTrackId={selectedTrackId}
               onRefresh={reloadData}
             />
           )}
