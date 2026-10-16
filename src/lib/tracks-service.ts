@@ -1465,6 +1465,12 @@ export const tracksService = {
     return !!this.updateTrack(id, { status: "archived" });
   },
 
+  deleteTrack(id: string): boolean {
+    const list = this.getTracks();
+    setStorage("tracks", list.filter((t) => t.id !== id));
+    return true;
+  },
+
   // ── Participants CRUD ────────────────────────────────────
   getParticipants(): Participant[] {
     return getStorage<Participant>("participants", INITIAL_PARTICIPANTS);
@@ -1498,6 +1504,20 @@ export const tracksService = {
     });
     setStorage("participants", next);
     return updated;
+  },
+
+  deleteParticipant(id: string): boolean {
+    const list = this.getParticipants();
+    setStorage("participants", list.filter((p) => p.id !== id));
+    const enrs = this.getEnrollments();
+    setStorage("enrollments", enrs.filter((e) => e.participant_id !== id));
+    const atts = this.getAttendanceRecords();
+    setStorage("attendance", atts.filter((a) => a.participant_id !== id));
+    const subs = this.getSubmissions();
+    setStorage("submissions", subs.filter((s) => s.participant_id !== id));
+    const bons = this.getBonusRecords();
+    setStorage("bonuses", bons.filter((b) => b.participant_id !== id));
+    return true;
   },
 
   // ── Enrollments CRUD ─────────────────────────────────────
@@ -1556,6 +1576,17 @@ export const tracksService = {
     return { success: true, enrollment: newEnr };
   },
 
+  deleteEnrollment(id: string): boolean {
+    const list = this.getEnrollments();
+    const target = list.find((e) => e.id === id);
+    if (target) {
+      setStorage("enrollments", list.filter((e) => e.id !== id));
+      const atts = this.getAttendanceRecords();
+      setStorage("attendance", atts.filter((a) => !(a.track_id === target.track_id && a.participant_id === target.participant_id)));
+    }
+    return true;
+  },
+
   updateEnrollmentStatus(
     id: string,
     status: TrackEnrollment["status"],
@@ -1573,6 +1604,28 @@ export const tracksService = {
           }
         : e
     );
+    setStorage("enrollments", next);
+    return true;
+  },
+
+  transferParticipantTrack(
+    participantId: string,
+    currentTrackId: string,
+    newTrackId: string,
+    newCohort: string
+  ): boolean {
+    const list = this.getEnrollments();
+    const next = list.map((e) => {
+      if (e.participant_id === participantId && e.track_id === currentTrackId) {
+        return {
+          ...e,
+          track_id: newTrackId,
+          cohort: newCohort,
+          updated_at: new Date().toISOString(),
+        };
+      }
+      return e;
+    });
     setStorage("enrollments", next);
     return true;
   },
@@ -1612,6 +1665,14 @@ export const tracksService = {
     });
     setStorage("sessions", next);
     return updated;
+  },
+
+  deleteSession(id: string): boolean {
+    const list = this.getSessions();
+    setStorage("sessions", list.filter((s) => s.id !== id));
+    const atts = this.getAttendanceRecords();
+    setStorage("attendance", atts.filter((a) => a.session_id !== id));
+    return true;
   },
 
   getAttendanceRecords(): TrackAttendanceRecord[] {
@@ -1732,6 +1793,14 @@ export const tracksService = {
     });
     setStorage("assignments", next);
     return updated;
+  },
+
+  deleteAssignment(id: string): boolean {
+    const list = this.getAssignments();
+    setStorage("assignments", list.filter((a) => a.id !== id));
+    const subs = this.getSubmissions();
+    setStorage("submissions", subs.filter((s) => s.assignment_id !== id));
+    return true;
   },
 
   getSubmissions(): TrackSubmission[] {

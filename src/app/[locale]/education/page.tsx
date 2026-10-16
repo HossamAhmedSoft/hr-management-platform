@@ -31,6 +31,9 @@ import {
   Sparkles,
   ArrowUpRight,
   TrendingUp,
+  Trash2,
+  Pencil,
+  Archive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -138,6 +141,48 @@ export default function EducationPage() {
   const [activeSubmissionForAttempts, setActiveSubmissionForAttempts] = useState<TrackSubmission | null>(null);
   const [activeAssignmentForAttempts, setActiveAssignmentForAttempts] = useState<TrackAssignment | null>(null);
   const [isAttemptsManagerOpen, setIsAttemptsManagerOpen] = useState(false);
+
+  // Edit Trainee State
+  const [isEditParticipantModalOpen, setIsEditParticipantModalOpen] = useState(false);
+  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
+  const [editingParticipantTrackId, setEditingParticipantTrackId] = useState<string>("");
+  const [originalParticipantTrackId, setOriginalParticipantTrackId] = useState<string>("");
+  const [editParticipantFormData, setEditParticipantFormData] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    university: "",
+    faculty_department: "",
+    academic_year: "",
+    notes: "",
+  });
+
+  // Edit Session State
+  const [isEditSessionModalOpen, setIsEditSessionModalOpen] = useState(false);
+  const [editingSession, setEditingSession] = useState<TrackSession | null>(null);
+  const [editSessionFormData, setEditSessionFormData] = useState({
+    title: "",
+    description: "",
+    date: "",
+    start_time: "18:00",
+    end_time: "20:30",
+    instructor_name: "",
+    location_or_link: "",
+  });
+
+  // Edit Track State
+  const [isEditTrackModalOpen, setIsEditTrackModalOpen] = useState(false);
+  const [editingTrack, setEditingTrack] = useState<TechnicalTrack | null>(null);
+  const [editTrackFormData, setEditTrackFormData] = useState({
+    name: "",
+    name_ar: "",
+    description: "",
+    category: "web" as TechnicalTrack["category"],
+    cohort: "Season 2026 - Cohort 1",
+    lead_name: "",
+    max_capacity: 40,
+    attendance_requirements: 75,
+  });
 
   // Form State Buffers
   const [trackFormData, setTrackFormData] = useState({
@@ -633,6 +678,46 @@ export default function EducationPage() {
     reloadData();
   };
 
+  const handleDeleteParticipant = (p: Participant) => {
+    const confirmMsg = isAr
+      ? `هل أنت متأكد من حذف المتدرب "${p.full_name}"؟ سيتم حذف كافة سجلات الحضور والتسليمات الخاصة به نهائياً.`
+      : `Are you sure you want to delete trainee "${p.full_name}"? All associated attendance and submissions will be removed.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    tracksService.deleteParticipant(p.id);
+    if (logUserAction) {
+      logUserAction({
+        action: "PARTICIPANT_DELETED",
+        entity_type: "participant",
+        entity_id: p.id,
+        reason: `حذف المتدرب: "${p.full_name}"`,
+        details: `Deleted by ${currentUser?.full_name || "Admin"}.`,
+        after_value: { full_name: p.full_name },
+      });
+    }
+    reloadData();
+  };
+
+  const handleDeleteSession = (s: TrackSession) => {
+    const confirmMsg = isAr
+      ? `هل أنت متأكد من حذف الجلسة "${s.title}"؟`
+      : `Are you sure you want to delete session "${s.title}"?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    tracksService.deleteSession(s.id);
+    reloadData();
+  };
+
+  const handleDeleteAssignment = (a: TrackAssignment) => {
+    const confirmMsg = isAr
+      ? `هل أنت متأكد من حذف التكليف "${a.title}"؟`
+      : `Are you sure you want to delete assignment "${a.title}"?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    tracksService.deleteAssignment(a.id);
+    reloadData();
+  };
+
   const handleGrantExtension = () => {
     if (!activeSubmissionForGrading) return;
     tracksService.grantDeadlineExtension(
@@ -707,6 +792,145 @@ export default function EducationPage() {
     const pEnrs = tracksService.getEnrollmentsByParticipant(participant.id);
     setInspectedParticipantTrackId(trackId || (pEnrs[0]?.track_id || tracks[0]?.id || ""));
     setIsProfileModalOpen(true);
+  };
+
+  const handleOpenEditParticipant = (p: Participant, currentTrackId?: string) => {
+    setEditingParticipant(p);
+    const pEnrs = tracksService.getEnrollmentsByParticipant(p.id);
+    const trkId = currentTrackId || pEnrs[0]?.track_id || "";
+    setEditingParticipantTrackId(trkId);
+    setOriginalParticipantTrackId(trkId);
+    setEditParticipantFormData({
+      full_name: p.full_name || "",
+      email: p.email || "",
+      phone: p.phone || "",
+      university: p.university || "جامعة مصر التكنولوجية الدولية (NCTU)",
+      faculty_department: p.faculty_department || "كلية تكنولوجيا الصناعة والطاقة",
+      academic_year: p.academic_year || "الفرقة الثانية",
+      notes: p.notes || "",
+    });
+    setIsEditParticipantModalOpen(true);
+  };
+
+  const handleUpdateParticipant = () => {
+    if (!editingParticipant) return;
+    if (!editParticipantFormData.full_name.trim() || !editParticipantFormData.email.trim()) {
+      alert(isAr ? "يرجى ملء الاسم والبريد الإلكتروني." : "Please enter full name and email.");
+      return;
+    }
+
+    tracksService.updateParticipant(editingParticipant.id, {
+      full_name: editParticipantFormData.full_name.trim(),
+      email: editParticipantFormData.email.trim(),
+      phone: editParticipantFormData.phone.trim(),
+      university: editParticipantFormData.university.trim(),
+      faculty_department: editParticipantFormData.faculty_department.trim(),
+      academic_year: editParticipantFormData.academic_year.trim(),
+      notes: editParticipantFormData.notes.trim(),
+    });
+
+    // Check if track changed
+    if (editingParticipantTrackId !== originalParticipantTrackId) {
+      if (originalParticipantTrackId && editingParticipantTrackId) {
+        const targetTrack = tracks.find((t) => t.id === editingParticipantTrackId);
+        tracksService.transferParticipantTrack(
+          editingParticipant.id,
+          originalParticipantTrackId,
+          editingParticipantTrackId,
+          targetTrack?.cohort || "Season 2026 - Cohort 1"
+        );
+      } else if (!originalParticipantTrackId && editingParticipantTrackId) {
+        const targetTrack = tracks.find((t) => t.id === editingParticipantTrackId);
+        tracksService.createEnrollment(
+          editingParticipant.id,
+          editingParticipantTrackId,
+          targetTrack?.cohort || "Season 2026 - Cohort 1"
+        );
+      }
+    }
+
+    if (logUserAction) {
+      logUserAction({
+        action: "PARTICIPANT_UPDATED",
+        entity_type: "participant",
+        entity_id: editingParticipant.id,
+        reason: `تعديل وتحديث بيانات المتدرب: "${editParticipantFormData.full_name}"`,
+        details: `Email: ${editParticipantFormData.email}, Track: ${editingParticipantTrackId || "None"}.`,
+        after_value: { full_name: editParticipantFormData.full_name },
+      });
+    }
+
+    setIsEditParticipantModalOpen(false);
+    reloadData();
+  };
+
+  const handleOpenEditSession = (s: TrackSession) => {
+    setEditingSession(s);
+    setEditSessionFormData({
+      title: s.title || "",
+      description: s.description || "",
+      date: s.date || "",
+      start_time: s.start_time || "18:00",
+      end_time: s.end_time || "20:30",
+      instructor_name: s.instructor_name || "",
+      location_or_link: s.location_or_link || "",
+    });
+    setIsEditSessionModalOpen(true);
+  };
+
+  const handleUpdateSession = () => {
+    if (!editingSession || !editSessionFormData.title) return;
+    tracksService.updateSession(editingSession.id, {
+      title: editSessionFormData.title,
+      description: editSessionFormData.description,
+      date: editSessionFormData.date,
+      start_time: editSessionFormData.start_time,
+      end_time: editSessionFormData.end_time,
+      instructor_name: editSessionFormData.instructor_name,
+      location_or_link: editSessionFormData.location_or_link,
+    });
+    setIsEditSessionModalOpen(false);
+    reloadData();
+  };
+
+  const handleOpenEditTrack = (t: TechnicalTrack) => {
+    setEditingTrack(t);
+    setEditTrackFormData({
+      name: t.name,
+      name_ar: t.name_ar,
+      description: t.description,
+      category: t.category,
+      cohort: t.cohort,
+      lead_name: t.lead_name || "",
+      max_capacity: t.max_capacity,
+      attendance_requirements: t.attendance_requirements,
+    });
+    setIsEditTrackModalOpen(true);
+  };
+
+  const handleUpdateTrack = () => {
+    if (!editingTrack || !editTrackFormData.name || !editTrackFormData.name_ar) return;
+    tracksService.updateTrack(editingTrack.id, {
+      name: editTrackFormData.name,
+      name_ar: editTrackFormData.name_ar,
+      description: editTrackFormData.description,
+      category: editTrackFormData.category,
+      cohort: editTrackFormData.cohort,
+      lead_name: editTrackFormData.lead_name,
+      max_capacity: Number(editTrackFormData.max_capacity) || 40,
+      attendance_requirements: Number(editTrackFormData.attendance_requirements) || 75,
+    });
+    setIsEditTrackModalOpen(false);
+    reloadData();
+  };
+
+  const handleDeleteTrack = (t: TechnicalTrack) => {
+    const confirmMsg = isAr
+      ? `هل أنت متأكد من حذف المسار التقني "${t.name_ar}"؟`
+      : `Are you sure you want to delete track "${t.name}"?`;
+    if (!window.confirm(confirmMsg)) return;
+    tracksService.deleteTrack(t.id);
+    reloadData();
   };
 
   const handleDownloadCSV = (type: "roster" | "attendance" | "grades") => {
@@ -1084,19 +1308,41 @@ export default function EducationPage() {
                       </Button>
 
                       {isHRorAdmin && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setSessionFormData({ ...sessionFormData, track_id: track.id });
-                            setIsNewSessionModalOpen(true);
-                          }}
-                          className="text-xs font-bold gap-1 text-[#1a73e8] rounded-xl h-8 px-2.5"
-                          title={isAr ? "إضافة جلسة تدريبية" : "Schedule session"}
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>{isAr ? "جلسة" : "Session"}</span>
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSessionFormData({ ...sessionFormData, track_id: track.id });
+                              setIsNewSessionModalOpen(true);
+                            }}
+                            className="text-xs font-bold gap-1 text-[#1a73e8] rounded-xl h-8 px-2"
+                            title={isAr ? "إضافة جلسة تدريبية" : "Schedule session"}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">{isAr ? "جلسة" : "Session"}</span>
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleOpenEditTrack(track)}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground rounded-xl"
+                            title={isAr ? "تعديل المسار" : "Edit track"}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteTrack(track)}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
+                            title={isAr ? "حذف المسار" : "Delete track"}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </Card>
@@ -1157,9 +1403,26 @@ export default function EducationPage() {
               </div>
             </div>
 
-            {/* Quick Actions */}
-            {isHRorAdmin && (
-              <div className="flex items-center gap-2">
+            {/* Quick Actions & Trainee Count */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-muted/60 text-muted-foreground">
+                {isAr
+                  ? `عرض ${filteredTrainees.length} من أصل ${participants.length} متدرب`
+                  : `Showing ${filteredTrainees.length} of ${participants.length} trainees`}
+              </span>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleDownloadCSV("roster")}
+                className="gap-1.5 text-xs font-bold rounded-xl h-8.5"
+                title={isAr ? "تصدير القائمة لملف CSV" : "Export roster to CSV"}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{isAr ? "تصدير CSV" : "Export CSV"}</span>
+              </Button>
+
+              {isHRorAdmin && (
                 <Button
                   size="sm"
                   onClick={() => setIsEnrollModalOpen(true)}
@@ -1168,8 +1431,8 @@ export default function EducationPage() {
                   <Plus className="w-3.5 h-3.5" />
                   {isAr ? "تنسيب متدرب" : "Enroll"}
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -1323,6 +1586,19 @@ export default function EducationPage() {
                                 {isHRorAdmin && (
                                   <Button
                                     size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleOpenEditParticipant(p, enr.track_id)}
+                                    className="h-8 text-xs font-bold gap-1 rounded-xl text-foreground hover:text-[#1a73e8]"
+                                    title={isAr ? "تعديل بيانات المتدرب والمسار" : "Edit trainee"}
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">{isAr ? "تعديل" : "Edit"}</span>
+                                  </Button>
+                                )}
+
+                                {isHRorAdmin && (
+                                  <Button
+                                    size="sm"
                                     variant="outline"
                                     onClick={() => {
                                       setBonusFormData({
@@ -1350,24 +1626,56 @@ export default function EducationPage() {
                                     <span>{isAr ? "إصدار الشهادة" : "Issue Cert"}</span>
                                   </Button>
                                 )}
+
+                                {isHRorAdmin && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDeleteParticipant(p)}
+                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
+                                    title={isAr ? "حذف المتدرب" : "Delete trainee"}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
                               </>
                             ) : (
                               isHRorAdmin && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    setEnrollFormData({
-                                      participant_id: p.id,
-                                      track_id: selectedTrackId !== "all" ? selectedTrackId : (activeTracksList[0]?.id || ""),
-                                      cohort: "Season 2026 - Cohort 1",
-                                    });
-                                    setIsEnrollModalOpen(true);
-                                  }}
-                                  className="h-8 text-xs font-bold gap-1 bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white rounded-xl shadow-2xs"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>{isAr ? "تنسيب لمسار" : "Enroll"}</span>
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      setEnrollFormData({
+                                        participant_id: p.id,
+                                        track_id: selectedTrackId !== "all" ? selectedTrackId : (activeTracksList[0]?.id || ""),
+                                        cohort: "Season 2026 - Cohort 1",
+                                      });
+                                      setIsEnrollModalOpen(true);
+                                    }}
+                                    className="h-8 text-xs font-bold gap-1 bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white rounded-xl shadow-2xs"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>{isAr ? "تنسيب لمسار" : "Enroll"}</span>
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleOpenEditParticipant(p)}
+                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground rounded-xl"
+                                    title={isAr ? "تعديل بيانات المتدرب" : "Edit trainee"}
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDeleteParticipant(p)}
+                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
+                                    title={isAr ? "حذف المتدرب" : "Delete trainee"}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
                               )
                             )}
                           </div>
@@ -1474,18 +1782,43 @@ export default function EducationPage() {
                         </td>
 
                         <td className="p-3.5 text-end">
-                          <Button
-                            size="sm"
-                            onClick={() => handleOpenAttendanceModal(sess)}
-                            className={`h-8 text-xs font-bold gap-1.5 rounded-xl ${
-                              isDone
-                                ? "bg-muted text-foreground hover:bg-muted/80"
-                                : "bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white shadow-2xs"
-                            }`}
-                          >
-                            <Users className="w-3.5 h-3.5" />
-                            <span>{isDone ? (isAr ? "تعديل الحضور" : "Edit Attendance") : (isAr ? "رصد الحضور" : "Take Attendance")}</span>
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              onClick={() => handleOpenAttendanceModal(sess)}
+                              className={`h-8 text-xs font-bold gap-1.5 rounded-xl ${
+                                isDone
+                                  ? "bg-muted text-foreground hover:bg-muted/80"
+                                  : "bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white shadow-2xs"
+                              }`}
+                            >
+                              <Users className="w-3.5 h-3.5" />
+                              <span>{isDone ? (isAr ? "تعديل الحضور" : "Edit Attendance") : (isAr ? "رصد الحضور" : "Take Attendance")}</span>
+                            </Button>
+
+                            {isHRorAdmin && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleOpenEditSession(sess)}
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground rounded-xl"
+                                  title={isAr ? "تعديل بيانات الجلسة" : "Edit session"}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteSession(sess)}
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
+                                  title={isAr ? "حذف الجلسة" : "Delete session"}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1580,24 +1913,38 @@ export default function EducationPage() {
                         </td>
 
                         <td className="p-3.5 text-end">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const firstSub = asgSubs[0];
-                              if (firstSub) {
-                                setActiveAssignmentForAttempts(asg);
-                                setActiveSubmissionForAttempts(firstSub);
-                                setIsAttemptsManagerOpen(true);
-                              } else {
-                                alert(isAr ? "لا توجد تسليمات مسجلة بعد لهذا التكليف." : "No submissions recorded yet for this assignment.");
-                              }
-                            }}
-                            className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>{isAr ? "مراجعة التسليمات" : "Review Submissions"}</span>
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const firstSub = asgSubs[0];
+                                if (firstSub) {
+                                  setActiveAssignmentForAttempts(asg);
+                                  setActiveSubmissionForAttempts(firstSub);
+                                  setIsAttemptsManagerOpen(true);
+                                } else {
+                                  alert(isAr ? "لا توجد تسليمات مسجلة بعد لهذا التكليف." : "No submissions recorded yet for this assignment.");
+                                }
+                              }}
+                              className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>{isAr ? "مراجعة التسليمات" : "Review Submissions"}</span>
+                            </Button>
+
+                            {(isHRorAdmin || isInstructor) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteAssignment(asg)}
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
+                                title={isAr ? "حذف التكليف" : "Delete assignment"}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -2336,7 +2683,21 @@ export default function EducationPage() {
             </div>
           )}
 
-          <DialogFooter className="border-t border-border pt-3">
+          <DialogFooter className="border-t border-border pt-3 flex flex-row items-center justify-between sm:justify-between gap-2">
+            {isHRorAdmin && inspectedParticipant ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsProfileModalOpen(false);
+                  handleOpenEditParticipant(inspectedParticipant, inspectedParticipantTrackId);
+                }}
+                className="gap-1.5 text-xs font-bold rounded-xl"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>{isAr ? "تعديل بيانات المتدرب" : "Edit Trainee"}</span>
+              </Button>
+            ) : <div />}
             <Button size="sm" onClick={() => setIsProfileModalOpen(false)} className="rounded-xl">
               {isAr ? "إغلاق" : "Close"}
             </Button>
@@ -2680,6 +3041,256 @@ export default function EducationPage() {
           onClose={() => setIsAttemptsManagerOpen(false)}
         />
       )}
+      {/* 11. Edit Trainee Modal */}
+      <Dialog open={isEditParticipantModalOpen} onOpenChange={setIsEditParticipantModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">
+              {isAr ? "تعديل بيانات المتدرب" : "Edit Trainee Information"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {isAr ? "تحديث البيانات الأكاديمية أو نقل المتدرب لمسار تقني آخر." : "Update trainee profile or transfer track."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <Label>{isAr ? "الاسم الرباعي" : "Full Name"}</Label>
+              <Input
+                value={editParticipantFormData.full_name}
+                onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, full_name: e.target.value })}
+                className="h-8.5 text-xs rounded-xl"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{isAr ? "البريد الإلكتروني" : "Email"}</Label>
+                <Input
+                  type="email"
+                  value={editParticipantFormData.email}
+                  onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, email: e.target.value })}
+                  className="h-8.5 text-xs rounded-xl"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{isAr ? "رقم الهاتف" : "Phone"}</Label>
+                <Input
+                  value={editParticipantFormData.phone}
+                  onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, phone: e.target.value })}
+                  className="h-8.5 text-xs rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>{isAr ? "الجامعة والكلية" : "University"}</Label>
+              <Input
+                value={editParticipantFormData.university}
+                onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, university: e.target.value })}
+                className="h-8.5 text-xs rounded-xl"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{isAr ? "القسم / التخصص" : "Department"}</Label>
+                <Input
+                  value={editParticipantFormData.faculty_department}
+                  onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, faculty_department: e.target.value })}
+                  className="h-8.5 text-xs rounded-xl"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{isAr ? "الفرقة الدراسية" : "Academic Year"}</Label>
+                <Input
+                  value={editParticipantFormData.academic_year}
+                  onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, academic_year: e.target.value })}
+                  className="h-8.5 text-xs rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1 pt-1.5 border-t border-border/80">
+              <Label className="font-bold text-[#1a73e8] flex items-center justify-between">
+                <span>{isAr ? "المسار التقني المسجل به" : "Enrolled Technical Track"}</span>
+                <span className="text-[10px] text-muted-foreground font-normal">
+                  {isAr ? "تغيير المسار سينقل المتدرب فوراً" : "Transfer track"}
+                </span>
+              </Label>
+              <select
+                value={editingParticipantTrackId}
+                onChange={(e) => setEditingParticipantTrackId(e.target.value)}
+                className="w-full text-xs h-9 px-3 rounded-xl border border-border bg-background font-bold focus:ring-2 focus:ring-[#1a73e8]/30"
+              >
+                <option value="">{isAr ? "-- بدون مسار (إلغاء التنسيب) --" : "-- Unassigned --"}</option>
+                {activeTracksList.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {isAr ? t.name_ar : t.name} ({t.cohort})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsEditParticipantModalOpen(false)} className="rounded-xl">
+              {isAr ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button size="sm" onClick={handleUpdateParticipant} className="bg-[#1a73e8] text-white rounded-xl font-bold">
+              {isAr ? "حفظ التعديلات" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 12. Edit Session Modal */}
+      <Dialog open={isEditSessionModalOpen} onOpenChange={setIsEditSessionModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">
+              {isAr ? "تعديل بيانات الجلسة" : "Edit Session Details"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <Label>{isAr ? "عنوان وموضوع الجلسة" : "Session Title"}</Label>
+              <Input
+                value={editSessionFormData.title}
+                onChange={(e) => setEditSessionFormData({ ...editSessionFormData, title: e.target.value })}
+                className="h-8.5 text-xs rounded-xl"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label>{isAr ? "التاريخ" : "Date"}</Label>
+                <Input
+                  type="date"
+                  value={editSessionFormData.date}
+                  onChange={(e) => setEditSessionFormData({ ...editSessionFormData, date: e.target.value })}
+                  className="h-8.5 text-xs rounded-xl"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{isAr ? "البدء" : "Start"}</Label>
+                <Input
+                  type="time"
+                  value={editSessionFormData.start_time}
+                  onChange={(e) => setEditSessionFormData({ ...editSessionFormData, start_time: e.target.value })}
+                  className="h-8.5 text-xs rounded-xl"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{isAr ? "الانتهاء" : "End"}</Label>
+                <Input
+                  type="time"
+                  value={editSessionFormData.end_time}
+                  onChange={(e) => setEditSessionFormData({ ...editSessionFormData, end_time: e.target.value })}
+                  className="h-8.5 text-xs rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>{isAr ? "المحاضر / المدرب" : "Instructor"}</Label>
+              <Input
+                value={editSessionFormData.instructor_name}
+                onChange={(e) => setEditSessionFormData({ ...editSessionFormData, instructor_name: e.target.value })}
+                className="h-8.5 text-xs rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>{isAr ? "المكان أو رابط الحضور" : "Location or Link"}</Label>
+              <Input
+                value={editSessionFormData.location_or_link}
+                onChange={(e) => setEditSessionFormData({ ...editSessionFormData, location_or_link: e.target.value })}
+                className="h-8.5 text-xs rounded-xl"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsEditSessionModalOpen(false)} className="rounded-xl">
+              {isAr ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button size="sm" onClick={handleUpdateSession} className="bg-[#1a73e8] text-white rounded-xl font-bold">
+              {isAr ? "حفظ التعديلات" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 13. Edit Track Modal */}
+      <Dialog open={isEditTrackModalOpen} onOpenChange={setIsEditTrackModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">
+              {isAr ? "تعديل بيانات المسار التقني" : "Edit Technical Track"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <Label>{isAr ? "اسم المسار (بالعربية)" : "Track Name (Arabic)"}</Label>
+              <Input
+                value={editTrackFormData.name_ar}
+                onChange={(e) => setEditTrackFormData({ ...editTrackFormData, name_ar: e.target.value })}
+                className="h-8.5 text-xs rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>{isAr ? "اسم المسار (بالإنجليزية)" : "Track Name (English)"}</Label>
+              <Input
+                value={editTrackFormData.name}
+                onChange={(e) => setEditTrackFormData({ ...editTrackFormData, name: e.target.value })}
+                className="h-8.5 text-xs rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>{isAr ? "وصف المسار" : "Description"}</Label>
+              <Textarea
+                value={editTrackFormData.description}
+                onChange={(e) => setEditTrackFormData({ ...editTrackFormData, description: e.target.value })}
+                className="text-xs h-20 rounded-xl"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{isAr ? "المدرب المسؤول" : "Lead Instructor"}</Label>
+                <Input
+                  value={editTrackFormData.lead_name}
+                  onChange={(e) => setEditTrackFormData({ ...editTrackFormData, lead_name: e.target.value })}
+                  className="h-8.5 text-xs rounded-xl"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{isAr ? "السعة القصوى (متدرب)" : "Max Capacity"}</Label>
+                <Input
+                  type="number"
+                  value={editTrackFormData.max_capacity}
+                  onChange={(e) => setEditTrackFormData({ ...editTrackFormData, max_capacity: Number(e.target.value) })}
+                  className="h-8.5 text-xs rounded-xl"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsEditTrackModalOpen(false)} className="rounded-xl">
+              {isAr ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button size="sm" onClick={handleUpdateTrack} className="bg-[#1a73e8] text-white rounded-xl font-bold">
+              {isAr ? "حفظ التعديلات" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
