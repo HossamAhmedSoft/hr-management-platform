@@ -71,6 +71,8 @@ import {
 import { AssignmentAttemptsManager } from "@/components/education/assignment-attempts-manager";
 import { AtRiskDashboard } from "@/components/education/at-risk-dashboard";
 import { SmartRemindersPanel } from "@/components/education/smart-reminders-panel";
+import { CreateTraineeModal } from "@/components/education/create-trainee-modal";
+import { EditTraineeModal } from "@/components/education/edit-trainee-modal";
 
 export default function EducationPage() {
   const { locale, currentUser, logUserAction } = useApp();
@@ -2281,104 +2283,49 @@ export default function EducationPage() {
       </Dialog>
 
       {/* 2. New Trainee Modal */}
-      <Dialog open={isNewParticipantModalOpen} onOpenChange={setIsNewParticipantModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">
-              {isAr ? "تسجيل متدرب جديد" : "New Trainee"}
-            </DialogTitle>
-          </DialogHeader>
+      <CreateTraineeModal
+        isOpen={isNewParticipantModalOpen}
+        onClose={() => setIsNewParticipantModalOpen(false)}
+        tracks={tracks}
+        defaultTrackId={selectedTrackId !== "all" ? selectedTrackId : ""}
+        isAr={isAr}
+        onSave={async (formData) => {
+          const newPart = tracksService.createParticipant({
+            full_name: formData.full_name,
+            email: formData.email,
+            phone: formData.phone,
+            university: formData.university || "جامعة مصر التكنولوجية الدولية (NCTU)",
+            faculty_department: formData.faculty_department || "كلية تكنولوجيا الصناعة والطاقة",
+            academic_year: formData.academic_year || "الفرقة الثانية",
+            registration_date: new Date().toISOString().split("T")[0],
+            status: "active",
+            notes: formData.notes,
+          });
 
-          <div className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <Label>{isAr ? "الاسم الرباعي" : "Full Name"}</Label>
-              <Input
-                value={participantFormData.full_name}
-                onChange={(e) => setParticipantFormData({ ...participantFormData, full_name: e.target.value })}
-                placeholder="أحمد محمود حسن"
-                className="h-8.5 text-xs rounded-xl"
-              />
-            </div>
+          if (formData.track_id) {
+            const chosenTrack = tracks.find((t) => t.id === formData.track_id);
+            tracksService.createEnrollment(
+              newPart.id,
+              formData.track_id,
+              chosenTrack?.cohort || formData.cohort || "Season 2026 - Cohort 1"
+            );
+          }
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{isAr ? "البريد الإلكتروني" : "Email"}</Label>
-                <Input
-                  type="email"
-                  value={participantFormData.email}
-                  onChange={(e) => setParticipantFormData({ ...participantFormData, email: e.target.value })}
-                  placeholder="student@nctu.edu.eg"
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>{isAr ? "رقم الهاتف" : "Phone"}</Label>
-                <Input
-                  value={participantFormData.phone}
-                  onChange={(e) => setParticipantFormData({ ...participantFormData, phone: e.target.value })}
-                  placeholder="+20 100 ..."
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-            </div>
+          if (logUserAction) {
+            logUserAction({
+              action: "PARTICIPANT_REGISTERED",
+              entity_type: "participant",
+              entity_id: newPart.id,
+              reason: `تسجيل متدرب جديد: "${formData.full_name}"`,
+              details: `Email: ${formData.email}, Track: ${formData.track_id || "None"}.`,
+              after_value: { full_name: formData.full_name, email: formData.email },
+            });
+          }
 
-            <div className="space-y-1">
-              <Label>{isAr ? "الجامعة والكلية" : "University"}</Label>
-              <Input
-                value={participantFormData.university}
-                onChange={(e) => setParticipantFormData({ ...participantFormData, university: e.target.value })}
-                className="h-8.5 text-xs rounded-xl"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{isAr ? "التخصص / القسم" : "Department"}</Label>
-                <Input
-                  value={participantFormData.faculty_department}
-                  onChange={(e) => setParticipantFormData({ ...participantFormData, faculty_department: e.target.value })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>{isAr ? "الفرقة الدراسية" : "Academic Year"}</Label>
-                <Input
-                  value={participantFormData.academic_year}
-                  onChange={(e) => setParticipantFormData({ ...participantFormData, academic_year: e.target.value })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1 pt-1.5 border-t border-border/80">
-              <Label className="font-bold text-foreground">
-                {isAr ? "المسار التقني" : "Technical Track"}
-              </Label>
-              <select
-                value={participantFormData.track_id}
-                onChange={(e) => setParticipantFormData({ ...participantFormData, track_id: e.target.value })}
-                className="w-full text-xs h-9 px-3 rounded-xl border border-border bg-background font-bold focus:ring-2 focus:ring-[#1a73e8]/30"
-              >
-                <option value="">{isAr ? "-- بدون مسار --" : "-- None --"}</option>
-                {activeTracksList.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {isAr ? t.name_ar : t.name} ({t.cohort})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsNewParticipantModalOpen(false)} className="rounded-xl">
-              {isAr ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button size="sm" onClick={handleCreateParticipant} className="bg-[#34a853] text-white rounded-xl">
-              {isAr ? "حفظ المتدرب" : "Save Trainee"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          reloadData();
+          setActiveTab("participants");
+        }}
+      />
 
       {/* 3. Enroll Modal */}
       <Dialog open={isEnrollModalOpen} onOpenChange={setIsEnrollModalOpen}>
@@ -3258,101 +3205,59 @@ export default function EducationPage() {
         />
       )}
       {/* 11. Edit Trainee Modal */}
-      <Dialog open={isEditParticipantModalOpen} onOpenChange={setIsEditParticipantModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">
-              {isAr ? "تعديل بيانات المتدرب" : "Edit Trainee"}
-            </DialogTitle>
-          </DialogHeader>
+      <EditTraineeModal
+        isOpen={isEditParticipantModalOpen}
+        onClose={() => setIsEditParticipantModalOpen(false)}
+        participant={editingParticipant}
+        tracks={tracks}
+        currentTrackId={editingParticipantTrackId}
+        isAr={isAr}
+        onSave={async (participantId, formData, newTrackId, originalTrackId) => {
+          tracksService.updateParticipant(participantId, {
+            full_name: formData.full_name,
+            email: formData.email,
+            phone: formData.phone,
+            university: formData.university,
+            faculty_department: formData.faculty_department,
+            academic_year: formData.academic_year,
+            notes: formData.notes,
+          });
 
-          <div className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <Label>{isAr ? "الاسم الرباعي" : "Full Name"}</Label>
-              <Input
-                value={editParticipantFormData.full_name}
-                onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, full_name: e.target.value })}
-                className="h-8.5 text-xs rounded-xl"
-              />
-            </div>
+          if (newTrackId !== originalTrackId) {
+            if (originalTrackId && newTrackId) {
+              const targetTrack = tracks.find((t) => t.id === newTrackId);
+              tracksService.transferParticipantTrack(
+                participantId,
+                originalTrackId,
+                newTrackId,
+                targetTrack?.cohort || "Season 2026 - Cohort 1"
+              );
+            } else if (!originalTrackId && newTrackId) {
+              const targetTrack = tracks.find((t) => t.id === newTrackId);
+              tracksService.createEnrollment(
+                participantId,
+                newTrackId,
+                targetTrack?.cohort || "Season 2026 - Cohort 1"
+              );
+            } else if (originalTrackId && !newTrackId) {
+              tracksService.unenrollParticipant(participantId, originalTrackId);
+            }
+          }
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{isAr ? "البريد الإلكتروني" : "Email"}</Label>
-                <Input
-                  type="email"
-                  value={editParticipantFormData.email}
-                  onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, email: e.target.value })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>{isAr ? "رقم الهاتف" : "Phone"}</Label>
-                <Input
-                  value={editParticipantFormData.phone}
-                  onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, phone: e.target.value })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-            </div>
+          if (logUserAction) {
+            logUserAction({
+              action: "PARTICIPANT_UPDATED",
+              entity_type: "participant",
+              entity_id: participantId,
+              reason: `تعديل وتحديث بيانات المتدرب: "${formData.full_name}"`,
+              details: `Email: ${formData.email}, Track: ${newTrackId || "None"}.`,
+              after_value: { full_name: formData.full_name },
+            });
+          }
 
-            <div className="space-y-1">
-              <Label>{isAr ? "الجامعة والكلية" : "University"}</Label>
-              <Input
-                value={editParticipantFormData.university}
-                onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, university: e.target.value })}
-                className="h-8.5 text-xs rounded-xl"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{isAr ? "القسم / التخصص" : "Department"}</Label>
-                <Input
-                  value={editParticipantFormData.faculty_department}
-                  onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, faculty_department: e.target.value })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>{isAr ? "الفرقة الدراسية" : "Academic Year"}</Label>
-                <Input
-                  value={editParticipantFormData.academic_year}
-                  onChange={(e) => setEditParticipantFormData({ ...editParticipantFormData, academic_year: e.target.value })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1 pt-1.5 border-t border-border/80">
-              <Label className="font-bold text-[#1a73e8] block">
-                {isAr ? "المسار التقني" : "Technical Track"}
-              </Label>
-              <select
-                value={editingParticipantTrackId}
-                onChange={(e) => setEditingParticipantTrackId(e.target.value)}
-                className="w-full text-xs h-9 px-3 rounded-xl border border-border bg-background font-bold focus:ring-2 focus:ring-[#1a73e8]/30"
-              >
-                <option value="">{isAr ? "-- بدون مسار (إلغاء التنسيب) --" : "-- Unassigned --"}</option>
-                {activeTracksList.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {isAr ? t.name_ar : t.name} ({t.cohort})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsEditParticipantModalOpen(false)} className="rounded-xl">
-              {isAr ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button size="sm" onClick={handleUpdateParticipant} className="bg-[#1a73e8] text-white rounded-xl font-bold">
-              {isAr ? "حفظ التعديلات" : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          reloadData();
+        }}
+      />
 
       {/* 12. Edit Session Modal */}
       <Dialog open={isEditSessionModalOpen} onOpenChange={setIsEditSessionModalOpen}>
