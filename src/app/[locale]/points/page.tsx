@@ -383,24 +383,20 @@ export default function PointsPage() {
         title={
           isAr
             ? isMember
-              ? "سجل نقاطي ومستوى الأداء"
+              ? "سجل نقاطي"
               : filterMember !== "all"
-              ? `سجل نقاط العضو: ${getFilteredMemberName()}`
-              : "سجل النقاط الإيجابية والسلبية"
+              ? `نقاط: ${getFilteredMemberName()}`
+              : "سجل النقاط"
             : isMember
-            ? "My Points & Governance"
+            ? "My Points"
             : filterMember !== "all"
-            ? `Points for: ${getFilteredMemberName()}`
-            : "Points Ledger Governance"
+            ? `Points: ${getFilteredMemberName()}`
+            : "Points Ledger"
         }
         description={
           isAr
-            ? isMember
-              ? "متابعة رصيد نقاطك المعتمدة، والسقف الشهري لفئات النقاط الإيجابية، وسجل الإجراءات الخاص بك."
-              : "نظام النقاط المنفصل عن التقييم الشهري. يُحسب رصيد كل عضو بشكل مستقل تماماً من العمليات المعتمدة فقط."
-            : isMember
-            ? "Track your approved personal point balance, monthly positive caps, and individual event history."
-            : "Policy ledger strictly separate from monthly evaluation scores. Balances are calculated per member."
+            ? "رصيد النقاط المعتمدة وسقف الفئات الشهرية"
+            : "Approved point balance and monthly category caps"
         }
       >
         {canRecordPoints && (
@@ -410,7 +406,7 @@ export default function PointsPage() {
             className="gap-2 bg-primary hover:bg-primary/90"
           >
             <Plus className="w-4 h-4" />
-            {isAr ? "تسجيل واقعة نقاط" : "Record Point Event"}
+            {isAr ? "تسجيل نقاط" : "Record Points"}
           </Button>
         )}
       </PageHeader>
@@ -422,8 +418,8 @@ export default function PointsPage() {
             <User className="w-4 h-4 text-amber-600 shrink-0" />
             <span className="font-semibold text-foreground">
               {isAr
-                ? `يتم الآن عرض رصيد وسجل نقاط العضو (${getFilteredMemberName()}) فقط.`
-                : `Showing points strictly for: ${getFilteredMemberName()}`}
+                ? `عرض نقاط: ${getFilteredMemberName()}`
+                : `Points for: ${getFilteredMemberName()}`}
             </span>
           </div>
           <Button
@@ -436,7 +432,7 @@ export default function PointsPage() {
             className="h-7 text-xs gap-1 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
           >
             <X className="w-3.5 h-3.5" />
-            {isAr ? "إلغاء التصفية (عرض الكل)" : "Clear Filter"}
+            {isAr ? "عرض الكل" : "Clear Filter"}
           </Button>
         </div>
       )}
@@ -447,11 +443,11 @@ export default function PointsPage() {
           <span className="text-xs font-semibold text-muted-foreground uppercase">
             {isAr
               ? activeScopedMemberId
-                ? "النقاط الإيجابية المعتمدة للعضو"
-                : "إجمالي النقاط الإيجابية للمنظمة"
+                ? "نقاط إيجابية"
+                : "إجمالي الإيجابي"
               : activeScopedMemberId
-              ? "Member Positive Points"
-              : "Org Positive Points"}
+              ? "Positive Points"
+              : "Total Positive"}
           </span>
           <p className="text-2xl font-extrabold text-emerald-600 mt-1">
             +{approvedPositive} pts
@@ -462,11 +458,11 @@ export default function PointsPage() {
           <span className="text-xs font-semibold text-muted-foreground uppercase">
             {isAr
               ? activeScopedMemberId
-                ? "النقاط السلبية المعتمدة للعضو"
-                : "إجمالي النقاط السلبية للمنظمة"
+                ? "نقاط سلبية"
+                : "إجمالي السلبي"
               : activeScopedMemberId
-              ? "Member Negative Points"
-              : "Org Negative Points"}
+              ? "Negative Points"
+              : "Total Negative"}
           </span>
           <p className="text-2xl font-extrabold text-rose-600 mt-1">
             {approvedNegative} pts
@@ -477,11 +473,11 @@ export default function PointsPage() {
           <span className="text-xs font-semibold text-muted-foreground uppercase">
             {isAr
               ? activeScopedMemberId
-                ? "صافي رصيد العضو الفردي"
-                : "صافي رصيد المنظمة الإجمالي"
+                ? "صافي الرصيد"
+                : "إجمالي الصافي"
               : activeScopedMemberId
-              ? "Member Net Balance"
-              : "Org Overall Net Balance"}
+              ? "Net Balance"
+              : "Total Net"}
           </span>
           <div className="flex items-center justify-between mt-1">
             <p
@@ -512,7 +508,7 @@ export default function PointsPage() {
           }`}
         >
           <Layers className="w-4 h-4 text-primary" />
-          <span>{isAr ? "سجل الحركات" : "Ledger"}</span>
+          <span>{isAr ? "السجل" : "Ledger"}</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
             {filteredEvents.length}
           </span>
@@ -528,7 +524,7 @@ export default function PointsPage() {
           }`}
         >
           <User className="w-4 h-4 text-indigo-500" />
-          <span>{isAr ? (isMember ? "تفاصيل رصيدي" : "أرصدة الأعضاء") : (isMember ? "My Standing" : "Member Balances")}</span>
+          <span>{isAr ? (isMember ? "رصيدي" : "الأرصدة") : (isMember ? "My Balance" : "Balances")}</span>
           {!isMember && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 font-bold">
               {availableUsers.length}
@@ -546,7 +542,7 @@ export default function PointsPage() {
           }`}
         >
           <ShieldAlert className="w-4 h-4 text-amber-500" />
-          <span>{isAr ? "اللوائح والأسقف" : "Caps & Policy"}</span>
+          <span>{isAr ? "الأسقف الشهرية" : "Monthly Caps"}</span>
         </button>
       </div>
 
@@ -558,7 +554,7 @@ export default function PointsPage() {
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border/80">
               <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold">
                 <Filter className="w-4 h-4 text-primary" />
-                <span>{isAr ? "اختيار عضو لمعاينة رصيده وسجله الفردي:" : "Select Member to inspect individual balance:"}</span>
+                <span>{isAr ? "العضو:" : "Member:"}</span>
               </div>
 
               <div className="flex items-center gap-2 shrink-0 flex-wrap">
@@ -589,7 +585,7 @@ export default function PointsPage() {
                   className="h-8 px-3 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none min-w-[200px]"
                 >
                   <option value="all">
-                    {isAr ? "جميع الأعضاء (عرض عام)" : "All Members (Global View)"}
+                    {isAr ? "جميع الأعضاء" : "All Members"}
                   </option>
                   {availableUsers.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -605,10 +601,10 @@ export default function PointsPage() {
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
               {[
-                { key: "all", label: isAr ? "جميع الحركات" : "All Entries" },
-                { key: "pending", label: isAr ? "قيد المراجعة" : "Pending Review" },
-                { key: "positive", label: isAr ? "إيجابية فقط" : "Positive Only" },
-                { key: "negative", label: isAr ? "سلبية فقط" : "Negative Only" },
+                { key: "all", label: isAr ? "الكل" : "All" },
+                { key: "pending", label: isAr ? "قيد المراجعة" : "Pending" },
+                { key: "positive", label: isAr ? "إيجابي" : "Positive" },
+                { key: "negative", label: isAr ? "سلبي" : "Negative" },
               ].map((btn) => (
                 <Button
                   key={btn.key}
@@ -628,7 +624,7 @@ export default function PointsPage() {
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 font-medium transition-colors"
             >
               <Info className="w-3.5 h-3.5 text-amber-500" />
-              <span>{isAr ? (showPolicyGuardrail ? "إخفاء الضوابط" : "عرض ضوابط اللائحة") : (showPolicyGuardrail ? "Hide Policy Guide" : "Show Policy Guide")}</span>
+              <span>{isAr ? (showPolicyGuardrail ? "إخفاء الضوابط" : "ضوابط اللائحة") : (showPolicyGuardrail ? "Hide Guide" : "Policy Guide")}</span>
             </button>
           </div>
 

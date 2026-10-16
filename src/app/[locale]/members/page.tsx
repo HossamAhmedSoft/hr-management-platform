@@ -417,11 +417,11 @@ export default function MembersPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
-        title={isAr ? "دليل أعضاء GDG NCTU" : "GDG NCTU Members Directory"}
+        title={isAr ? "دليل الأعضاء" : "Members Directory"}
         description={
           isAr
-            ? "استعراض ملفات الأعضاء، الفرق التابعة، سجلات المهام والنقاط المعتمدة، وإدارة الحسابات وكلمات المرور."
-            : "Search and manage GDG committee members, team allocations, performance files, and credentials."
+            ? "إدارة ملفات الأعضاء، الصلاحيات، والمهام"
+            : "Team profiles, roles, and assignments"
         }
       >
         {canManageMembers && (
@@ -435,7 +435,7 @@ export default function MembersPage() {
             className="gap-2 bg-[#1a73e8] hover:bg-[#1765cc] text-white shadow-xs"
           >
             <UserPlus className="w-4 h-4" />
-            {isAr ? "إنشاء حساب جديد (Admin)" : "Create Account (Admin)"}
+            {isAr ? "حساب جديد" : "New Account"}
           </Button>
         )}
         {canManageMembers && (
@@ -457,7 +457,7 @@ export default function MembersPage() {
             className="gap-2"
           >
             <Download className="w-4 h-4 text-emerald-600" />
-            {isAr ? "تصدير البيانات" : "Export CSV"}
+            {isAr ? "تصدير" : "Export"}
           </Button>
         )}
       </PageHeader>
@@ -502,11 +502,6 @@ export default function MembersPage() {
             <Users className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
             <p className="text-sm font-semibold">
               {isAr ? "لا يوجد أعضاء مطابقين للبحث" : "No members found"}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {isAr
-                ? "يمكنك استخدام 'إنشاء حساب جديد' لإضافة أعضاء جدد إلى النظام."
-                : "You can click 'Create Account' above to provision members."}
             </p>
           </Card>
         ) : (
@@ -994,8 +989,8 @@ export default function MembersPage() {
               <DialogTitle className="text-base font-bold flex items-center gap-2">
                 <Key className="w-5 h-5 text-amber-500" />
                 {isAr
-                  ? `تغيير كلمة السر للعضو (${passwordTargetMember.full_name})`
-                  : `Reset Password for ${passwordTargetMember.full_name}`}
+                  ? `تغيير كلمة السر (${passwordTargetMember.full_name})`
+                  : `Reset Password (${passwordTargetMember.full_name})`}
               </DialogTitle>
             </DialogHeader>
 
@@ -1004,8 +999,8 @@ export default function MembersPage() {
                 <CheckCircle className="w-4 h-4 shrink-0" />
                 <span>
                   {isAr
-                    ? "تم تحديث كلمة السر بنجاح! يمكن للعضو استخدام كلمة السر الجديدة فوراً."
-                    : "Password updated successfully! Member can sign in with the new password immediately."}
+                    ? "تم تحديث كلمة السر بنجاح"
+                    : "Password updated successfully"}
                 </span>
               </div>
             )}
@@ -1138,8 +1133,8 @@ export default function MembersPage() {
               <DialogTitle className="text-base font-bold flex items-center gap-2">
                 <Edit className="w-5 h-5 text-primary" />
                 {isAr
-                  ? `تعديل بيانات العضو (${editingMember.full_name})`
-                  : `Edit Profile: ${editingMember.full_name}`}
+                  ? `تعديل بيانات (${editingMember.full_name})`
+                  : `Edit Profile (${editingMember.full_name})`}
               </DialogTitle>
             </DialogHeader>
 
@@ -1147,7 +1142,7 @@ export default function MembersPage() {
               <div className="p-3 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2 border border-emerald-500/30">
                 <CheckCircle className="w-4 h-4 shrink-0" />
                 <span>
-                  {isAr ? "تم حفظ التعديلات بنجاح!" : "Profile updated successfully!"}
+                  {isAr ? "تم حفظ التعديلات بنجاح" : "Profile updated successfully"}
                 </span>
               </div>
             )}
@@ -1333,21 +1328,21 @@ export default function MembersPage() {
             <DialogHeader>
               <DialogTitle className="text-base font-bold flex items-center gap-2 text-rose-600">
                 <Trash2 className="w-5 h-5 text-rose-600" />
-                {isAr ? "تأكيد حذف حساب العضو" : "Confirm Member Deletion"}
+                {isAr ? "تأكيد حذف الحساب" : "Confirm Deletion"}
               </DialogTitle>
             </DialogHeader>
 
             <div className="space-y-3 py-2 text-xs">
               <p className="text-foreground">
                 {isAr
-                  ? `هل أنت متأكد من رغبتك في حذف حساب العضو (${deletingMember.full_name}) نهائياً من النظام؟`
-                  : `Are you sure you want to permanently delete member ${deletingMember.full_name}?`}
+                  ? `هل أنت متأكد من رغبتك في حذف حساب (${deletingMember.full_name})؟`
+                  : `Are you sure you want to permanently delete ${deletingMember.full_name}?`}
               </p>
               <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300">
                 <p className="font-semibold">
                   {isAr
-                    ? "تنبيه: سيتم إزالة الحساب نهائياً مع تسجيل عملية الحذف في سجل التدقيق الإداري (Audit Log)."
-                    : "Warning: The profile will be removed and logged in the immutable audit trail."}
+                    ? "تنبيه: سيتم إزالة الحساب نهائياً من النظام."
+                    : "Warning: This account will be permanently removed."}
                 </p>
               </div>
 
@@ -1390,14 +1385,14 @@ export default function MembersPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="text-base font-bold">
-                {isAr ? "استيراد قائمة الأعضاء من CSV" : "Import Members CSV"}
+                {isAr ? "استيراد ملف CSV" : "Import CSV"}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4 text-xs">
               <p className="text-muted-foreground">
                 {isAr
-                  ? "يرجى اختيار ملف CSV يحتوي على الأعمدة: Full Name, Email, Role, Team."
-                  : "Upload a CSV file containing: Full Name, Email, Role, Team."}
+                  ? "الأعمدة المطلوبة: Full Name, Email, Role, Team"
+                  : "Required columns: Full Name, Email, Role, Team"}
               </p>
               <div className="p-8 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-center bg-muted/20">
                 <Upload className="w-8 h-8 text-primary mb-2" />
@@ -1441,7 +1436,7 @@ export default function MembersPage() {
             <DialogHeader>
               <DialogTitle className="text-base font-bold flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-[#1a73e8] dark:text-[#8ab4f8]" />
-                {isAr ? "إنشاء حساب وتعيين الصلاحيات (Admin)" : "Create & Provision Account (Admin)"}
+                {isAr ? "إنشاء حساب جديد" : "Create Account"}
               </DialogTitle>
             </DialogHeader>
 
@@ -1450,8 +1445,8 @@ export default function MembersPage() {
                 <CheckCircle className="w-4 h-4 shrink-0" />
                 <span>
                   {isAr
-                    ? "تم إنشاء الحساب وتفعيله بنجاح! يمكن للمستخدم الآن الدخول إلى المنصة."
-                    : "Account provisioned successfully! User can now sign in."}
+                    ? "تم إنشاء الحساب بنجاح"
+                    : "Account provisioned successfully"}
                 </span>
               </div>
             )}

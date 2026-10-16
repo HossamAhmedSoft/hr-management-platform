@@ -994,26 +994,19 @@ export default function EducationPage() {
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-300">
       {/* ── Top Header Bar ────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-5">
+      {/* ── Top Header Bar ────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-[#1a73e8]/10 text-[#1a73e8] dark:text-[#8ab4f8] inline-flex items-center gap-1.5 border border-[#1a73e8]/20">
-              <span className="w-2 h-2 rounded-full bg-[#1a73e8] animate-pulse" />
-              {isAr ? "أكاديمية المسارات التقنية المتخصصة" : "GDG NCTU Technical Academy"}
-            </span>
-            <span className="text-xs text-muted-foreground font-semibold">
-              {isAr ? "نظام مستقل ومعتمد للتدريب" : "Official Trainee & Track Hub"}
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#1a73e8]/10 text-[#1a73e8] dark:text-[#8ab4f8] inline-flex items-center gap-1.5 border border-[#1a73e8]/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1a73e8]" />
+              {isAr ? "المسارات التقنية" : "Technical Academy"}
             </span>
           </div>
 
-          <h1 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">
-            {isAr ? "إدارة المسارات التقنية والمتدربين" : "Technical Tracks & Trainees Management"}
+          <h1 className="text-xl md:text-2xl font-black text-foreground tracking-tight">
+            {isAr ? "المسارات والمتدربون" : "Tracks & Trainees"}
           </h1>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
-            {isAr
-              ? "متابعة ورش العمل، رصد الحضور التراكمي (40%)، المهام التطبيقية (30%)، التفاعل (20%)، السلوك (10%)، وإصدار الشهادات الرقمية المعتمدة (≥75%)."
-              : "Track sessions, log weighted attendance (40%), assignment delivery (30%), engagement (20%), conduct (10%), and issue digital certificates (≥75%)."}
-          </p>
         </div>
 
         {/* Quick Action Buttons */}
@@ -1024,29 +1017,29 @@ export default function EducationPage() {
                 size="sm"
                 variant="outline"
                 onClick={() => setIsNewParticipantModalOpen(true)}
-                className="gap-2 text-xs font-bold border-[#34a853]/40 text-[#34a853] hover:bg-[#34a853]/10 h-9 px-3.5 rounded-xl shadow-2xs"
+                className="gap-1.5 text-xs font-bold border-[#34a853]/40 text-[#34a853] hover:bg-[#34a853]/10 h-8.5 px-3 rounded-xl shadow-2xs"
               >
-                <Users className="w-4 h-4" />
-                {isAr ? "تسجيل متدرب جديد" : "New Trainee"}
+                <Users className="w-3.5 h-3.5" />
+                {isAr ? "متدرب جديد" : "New Trainee"}
               </Button>
 
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setIsEnrollModalOpen(true)}
-                className="gap-2 text-xs font-bold border-[#1a73e8]/40 text-[#1a73e8] hover:bg-[#1a73e8]/10 h-9 px-3.5 rounded-xl shadow-2xs"
+                className="gap-1.5 text-xs font-bold border-[#1a73e8]/40 text-[#1a73e8] hover:bg-[#1a73e8]/10 h-8.5 px-3 rounded-xl shadow-2xs"
               >
-                <Plus className="w-4 h-4" />
-                {isAr ? "تنسيب لمسار" : "Enroll Trainee"}
+                <Plus className="w-3.5 h-3.5" />
+                {isAr ? "تنسيب" : "Enroll"}
               </Button>
 
               <Button
                 size="sm"
                 onClick={() => setIsNewTrackModalOpen(true)}
-                className="gap-2 text-xs font-black bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white h-9 px-4 rounded-xl shadow-sm"
+                className="gap-1.5 text-xs font-black bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white h-8.5 px-3.5 rounded-xl shadow-sm"
               >
-                <Plus className="w-4 h-4" />
-                {isAr ? "إنشاء مسار تقني" : "Create Track"}
+                <Plus className="w-3.5 h-3.5" />
+                {isAr ? "مسار جديد" : "New Track"}
               </Button>
             </>
           )}
@@ -1055,87 +1048,75 @@ export default function EducationPage() {
             <Button
               size="sm"
               onClick={() => setIsNewAssignmentModalOpen(true)}
-              className="gap-2 text-xs font-black bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white h-9 px-4 rounded-xl"
+              className="gap-1.5 text-xs font-black bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white h-8.5 px-3.5 rounded-xl"
             >
-              <Plus className="w-4 h-4" />
-              {isAr ? "إضافة مهمة جديدة" : "New Assignment"}
+              <Plus className="w-3.5 h-3.5" />
+              {isAr ? "مهمة جديدة" : "New Task"}
             </Button>
           )}
         </div>
       </div>
 
       {/* ── 4 High-Impact KPI Summary Cards ───────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <Card className="p-4 border-border/80 bg-gradient-to-br from-card to-[#1a73e8]/5 rounded-2xl shadow-2xs">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1.5">
-            <span>{isAr ? "إجمالي المتدربين" : "Total Trainees"}</span>
-            <div className="w-7 h-7 rounded-lg bg-[#1a73e8]/15 text-[#1a73e8] flex items-center justify-center">
-              <Users className="w-4 h-4" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card className="p-3.5 border-border/80 bg-gradient-to-br from-card to-[#1a73e8]/5 rounded-2xl shadow-2xs">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1">
+            <span>{isAr ? "المتدربون" : "Trainees"}</span>
+            <div className="w-6 h-6 rounded-lg bg-[#1a73e8]/15 text-[#1a73e8] flex items-center justify-center">
+              <Users className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-foreground">
+          <div className="text-xl sm:text-2xl font-black text-foreground">
             {overallMetrics.totalParticipants}
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {isAr ? "طلاب ملتحقين بالمسارات" : "Active enrolled students"}
-          </p>
         </Card>
 
-        <Card className="p-4 border-border/80 bg-gradient-to-br from-card to-[#34a853]/5 rounded-2xl shadow-2xs">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1.5">
-            <span>{isAr ? "المسارات التقنية النشطة" : "Active Tracks"}</span>
-            <div className="w-7 h-7 rounded-lg bg-[#34a853]/15 text-[#34a853] flex items-center justify-center">
-              <BookOpen className="w-4 h-4" />
+        <Card className="p-3.5 border-border/80 bg-gradient-to-br from-card to-[#34a853]/5 rounded-2xl shadow-2xs">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1">
+            <span>{isAr ? "المسارات النشطة" : "Active Tracks"}</span>
+            <div className="w-6 h-6 rounded-lg bg-[#34a853]/15 text-[#34a853] flex items-center justify-center">
+              <BookOpen className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-[#34a853]">
+          <div className="text-xl sm:text-2xl font-black text-[#34a853]">
             {overallMetrics.activeTracksCount}
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Web, Flutter, Cyber, Embedded
-          </p>
         </Card>
 
-        <Card className="p-4 border-border/80 bg-gradient-to-br from-card to-[#fbbc04]/5 rounded-2xl shadow-2xs">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1.5">
-            <span>{isAr ? "متوسط الحضور العام" : "Avg Attendance"}</span>
-            <div className="w-7 h-7 rounded-lg bg-[#fbbc04]/15 text-[#b06000] dark:text-[#fbbc04] flex items-center justify-center">
-              <Calendar className="w-4 h-4" />
+        <Card className="p-3.5 border-border/80 bg-gradient-to-br from-card to-[#fbbc04]/5 rounded-2xl shadow-2xs">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1">
+            <span>{isAr ? "نسبة الحضور" : "Attendance"}</span>
+            <div className="w-6 h-6 rounded-lg bg-[#fbbc04]/15 text-[#b06000] dark:text-[#fbbc04] flex items-center justify-center">
+              <Calendar className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-foreground">
+          <div className="text-xl sm:text-2xl font-black text-foreground">
             {overallMetrics.avgAttendance}%
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {isAr ? "عبر كافة ورش العمل المنجزة" : "Across all logged sessions"}
-          </p>
         </Card>
 
-        <Card className="p-4 border-border/80 bg-gradient-to-br from-card to-[#34a853]/5 rounded-2xl shadow-2xs">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1.5">
-            <span>{isAr ? "مؤهلين للشهادة (≥75%)" : "Certificate Eligible"}</span>
-            <div className="w-7 h-7 rounded-lg bg-[#34a853]/15 text-[#34a853] flex items-center justify-center">
-              <Award className="w-4 h-4" />
+        <Card className="p-3.5 border-border/80 bg-gradient-to-br from-card to-[#34a853]/5 rounded-2xl shadow-2xs">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1">
+            <span>{isAr ? "مؤهلون للشهادة" : "Eligible"}</span>
+            <div className="w-6 h-6 rounded-lg bg-[#34a853]/15 text-[#34a853] flex items-center justify-center">
+              <Award className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-[#34a853]">
+          <div className="text-xl sm:text-2xl font-black text-[#34a853]">
             {overallMetrics.eligibleCount}
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {overallMetrics.certifiedCount} {isAr ? "شهادة تم إصدارها بالفعل" : "issued certificates"}
-          </p>
         </Card>
       </div>
 
       {/* ── Intuitive Navigation Tabs Bar ─────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 rounded-2xl border border-border/80 bg-muted/30">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1.5 rounded-2xl border border-border/80 bg-muted/30">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {[
-            { id: "tracks", label: isAr ? "المسارات التقنية" : "Tracks", count: activeTracksList.length, icon: BookOpen },
-            { id: "participants", label: isAr ? "سجل المتدربين" : "Trainees Directory", count: enrollments.length, icon: Users },
-            { id: "sessions", label: isAr ? "الجلسات والتحضير" : "Sessions & Attendance", count: sessions.length, icon: Calendar },
-            { id: "assignments", label: isAr ? "المهام والمشاريع" : "Assignments & Tasks", count: assignments.length, icon: FileCheck },
-            { id: "insights", label: isAr ? "المتابعة والشهادات" : "Certificates & Insights", count: certificates.length, icon: Award },
+            { id: "tracks", label: isAr ? "المسارات" : "Tracks", count: activeTracksList.length, icon: BookOpen },
+            { id: "participants", label: isAr ? "المتدربون" : "Trainees", count: enrollments.length, icon: Users },
+            { id: "sessions", label: isAr ? "الجلسات" : "Sessions", count: sessions.length, icon: Calendar },
+            { id: "assignments", label: isAr ? "المهام" : "Assignments", count: assignments.length, icon: FileCheck },
+            { id: "insights", label: isAr ? "الشهادات" : "Certificates", count: certificates.length, icon: Award },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -1389,7 +1370,7 @@ export default function EducationPage() {
                     participantStatusFilter === "eligible" ? "bg-[#34a853] text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {isAr ? "مؤهل للشهادة (≥75%)" : "Eligible"}
+                  {isAr ? "مؤهل (≥75%)" : "Eligible"}
                 </button>
                 <button
                   type="button"
@@ -1398,7 +1379,7 @@ export default function EducationPage() {
                     participantStatusFilter === "at_risk" ? "bg-[#ea4335] text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {isAr ? "بحاجة لمتابعة" : "At-Risk"}
+                  {isAr ? "متعثر" : "At-Risk"}
                 </button>
               </div>
             </div>
@@ -1407,8 +1388,8 @@ export default function EducationPage() {
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-muted/60 text-muted-foreground">
                 {isAr
-                  ? `عرض ${filteredTrainees.length} من أصل ${participants.length} متدرب`
-                  : `Showing ${filteredTrainees.length} of ${participants.length} trainees`}
+                  ? `${filteredTrainees.length} من ${participants.length}`
+                  : `${filteredTrainees.length} / ${participants.length}`}
               </span>
 
               <Button
@@ -1419,7 +1400,7 @@ export default function EducationPage() {
                 title={isAr ? "تصدير القائمة لملف CSV" : "Export roster to CSV"}
               >
                 <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{isAr ? "تصدير CSV" : "Export CSV"}</span>
+                <span className="hidden sm:inline">{isAr ? "تصدير" : "Export"}</span>
               </Button>
 
               {isHRorAdmin && (
@@ -1429,7 +1410,7 @@ export default function EducationPage() {
                   className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl h-8.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  {isAr ? "تنسيب متدرب" : "Enroll"}
+                  {isAr ? "تنسيب" : "Enroll"}
                 </Button>
               )}
             </div>
@@ -1440,10 +1421,7 @@ export default function EducationPage() {
               <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
                 <Users className="w-10 h-10 mx-auto text-muted-foreground/40" />
                 <p className="font-bold text-sm text-foreground">
-                  {isAr ? "لا يوجد متدربون يطابقون خيارات البحث" : "No trainees match current filters"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {isAr ? "جرّب تغيير مسار البحث أو إلغاء تصفية الحالة." : "Try clearing filters."}
+                  {isAr ? "لا توجد نتائج مطابقة" : "No trainees match filters"}
                 </p>
               </div>
             ) : (
@@ -1451,11 +1429,11 @@ export default function EducationPage() {
                 <thead>
                   <tr className="border-b border-border bg-muted/20 text-muted-foreground font-bold">
                     <th className="p-3.5 text-start">{isAr ? "المتدرب" : "Trainee"}</th>
-                    <th className="p-3.5 text-start">{isAr ? "المسار والدفعة" : "Track & Cohort"}</th>
-                    <th className="p-3.5 text-center">{isAr ? "الحضور (40%)" : "Attendance (40%)"}</th>
-                    <th className="p-3.5 text-center">{isAr ? "المشاريع (30%)" : "Projects (30%)"}</th>
-                    <th className="p-3.5 text-center">{isAr ? "الدرجة الرسمية (100)" : "Official Score"}</th>
-                    <th className="p-3.5 text-center">{isAr ? "حالة الشهادة" : "Certificate"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "المسار" : "Track"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "الحضور (40%)" : "Attendance"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "المشاريع (30%)" : "Projects"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "الدرجة (100)" : "Score"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "الشهادة" : "Cert"}</th>
                     <th className="p-3.5 text-end">{isAr ? "إجراءات" : "Actions"}</th>
                   </tr>
                 </thead>
@@ -1698,13 +1676,8 @@ export default function EducationPage() {
           <div className="p-4 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-black text-foreground">
-                {isAr ? "جدول الجلسات ورصد الحضور" : "Sessions & Attendance Roster"}
+                {isAr ? "الجلسات والتحضير" : "Sessions & Attendance"}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isAr
-                  ? "تسجيل حضور المتدربين (حاضر 100%، متأخر 75%، عذر مقبول، غياب)."
-                  : "Track sessions schedule and mark live roster attendance."}
-              </p>
             </div>
 
             {isHRorAdmin && (
@@ -1714,7 +1687,7 @@ export default function EducationPage() {
                 className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl h-8.5"
               >
                 <Plus className="w-3.5 h-3.5" />
-                {isAr ? "جدولة جلسة جديدة" : "Schedule Session"}
+                {isAr ? "جلسة جديدة" : "New Session"}
               </Button>
             )}
           </div>
@@ -1724,18 +1697,18 @@ export default function EducationPage() {
               <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
                 <Calendar className="w-10 h-10 mx-auto text-muted-foreground/40" />
                 <p className="font-bold text-sm text-foreground">
-                  {isAr ? "لا توجد جلسات مجدولة لهذا المسار" : "No sessions found for this track"}
+                  {isAr ? "لا توجد جلسات مجدولة" : "No sessions scheduled"}
                 </p>
               </div>
             ) : (
               <table className="w-full text-xs text-start border-collapse">
                 <thead>
                   <tr className="border-b border-border bg-muted/20 text-muted-foreground font-bold">
-                    <th className="p-3.5 text-start">{isAr ? "الجلسة والموضوع" : "Session & Topic"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "الجلسة" : "Session"}</th>
                     <th className="p-3.5 text-start">{isAr ? "المسار" : "Track"}</th>
-                    <th className="p-3.5 text-start">{isAr ? "التاريخ والتوقيت" : "Date & Time"}</th>
-                    <th className="p-3.5 text-start">{isAr ? "المدرب / المحاضر" : "Instructor"}</th>
-                    <th className="p-3.5 text-center">{isAr ? "حالة الرصد" : "Roster Status"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "الموعد" : "Date & Time"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "المدرب" : "Instructor"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "الحالة" : "Status"}</th>
                     <th className="p-3.5 text-end">{isAr ? "إجراءات" : "Actions"}</th>
                   </tr>
                 </thead>
@@ -1772,7 +1745,7 @@ export default function EducationPage() {
                           {isDone ? (
                             <Badge variant="success" className="text-[10px] font-bold gap-1">
                               <Check className="w-3 h-3" />
-                              {isAr ? "تم الرصد والتوثيق" : "Recorded"}
+                              {isAr ? "تم الرصد" : "Recorded"}
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="text-[10px] text-muted-foreground font-semibold">
@@ -1793,7 +1766,7 @@ export default function EducationPage() {
                               }`}
                             >
                               <Users className="w-3.5 h-3.5" />
-                              <span>{isDone ? (isAr ? "تعديل الحضور" : "Edit Attendance") : (isAr ? "رصد الحضور" : "Take Attendance")}</span>
+                              <span>{isDone ? (isAr ? "تعديل التحضير" : "Edit") : (isAr ? "تحضير" : "Attendance")}</span>
                             </Button>
 
                             {isHRorAdmin && (
@@ -1803,7 +1776,7 @@ export default function EducationPage() {
                                   variant="ghost"
                                   onClick={() => handleOpenEditSession(sess)}
                                   className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground rounded-xl"
-                                  title={isAr ? "تعديل بيانات الجلسة" : "Edit session"}
+                                  title={isAr ? "تعديل" : "Edit"}
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
@@ -1812,7 +1785,7 @@ export default function EducationPage() {
                                   variant="ghost"
                                   onClick={() => handleDeleteSession(sess)}
                                   className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
-                                  title={isAr ? "حذف الجلسة" : "Delete session"}
+                                  title={isAr ? "حذف" : "Delete"}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
@@ -1838,13 +1811,8 @@ export default function EducationPage() {
           <div className="p-4 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-black text-foreground">
-                {isAr ? "المهام التطبيقية ومشاريع التخرج" : "Assignments & Capstone Projects"}
+                {isAr ? "المهام والتكليفات" : "Assignments"}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isAr
-                  ? "متابعة تسليمات المتدربين، رصد الدرجات (30% من التقييم العام)، وإبداء الملاحظات التوجيهية."
-                  : "Review deliverables, grade capstone projects (30% of final score), and manage revisions."}
-              </p>
             </div>
 
             {(isHRorAdmin || isInstructor) && (
@@ -1854,7 +1822,7 @@ export default function EducationPage() {
                 className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl h-8.5"
               >
                 <Plus className="w-3.5 h-3.5" />
-                {isAr ? "إضافة تكليف جديد" : "New Assignment"}
+                {isAr ? "تكليف جديد" : "New Task"}
               </Button>
             )}
           </div>
@@ -1864,7 +1832,7 @@ export default function EducationPage() {
               <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
                 <FileCheck className="w-10 h-10 mx-auto text-muted-foreground/40" />
                 <p className="font-bold text-sm text-foreground">
-                  {isAr ? "لا توجد تكليفات منشورة لهذا المسار" : "No assignments published for this track"}
+                  {isAr ? "لا توجد تكليفات منشورة" : "No assignments published"}
                 </p>
               </div>
             ) : (
@@ -1873,8 +1841,8 @@ export default function EducationPage() {
                   <tr className="border-b border-border bg-muted/20 text-muted-foreground font-bold">
                     <th className="p-3.5 text-start">{isAr ? "التكليف" : "Assignment"}</th>
                     <th className="p-3.5 text-start">{isAr ? "المسار" : "Track"}</th>
-                    <th className="p-3.5 text-start">{isAr ? "الموعد النهائي" : "Deadline"}</th>
-                    <th className="p-3.5 text-center">{isAr ? "الدرجة القصوى" : "Max Score"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "الموعد" : "Deadline"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "الدرجة" : "Score"}</th>
                     <th className="p-3.5 text-center">{isAr ? "التسليمات" : "Submissions"}</th>
                     <th className="p-3.5 text-end">{isAr ? "إجراءات" : "Actions"}</th>
                   </tr>
@@ -1930,7 +1898,7 @@ export default function EducationPage() {
                               className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
                             >
                               <Eye className="w-3.5 h-3.5" />
-                              <span>{isAr ? "مراجعة التسليمات" : "Review Submissions"}</span>
+                              <span>{isAr ? "مراجعة" : "Review"}</span>
                             </Button>
 
                             {(isHRorAdmin || isInstructor) && (
@@ -1939,7 +1907,7 @@ export default function EducationPage() {
                                 variant="ghost"
                                 onClick={() => handleDeleteAssignment(asg)}
                                 className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
-                                title={isAr ? "حذف التكليف" : "Delete assignment"}
+                                title={isAr ? "حذف" : "Delete"}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
@@ -1964,10 +1932,10 @@ export default function EducationPage() {
           {/* Sub-Tabs Switcher */}
           <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto">
             {[
-              { id: "certificates", label: isAr ? "الشهادات الرقمية المعتمدة" : "Issued Certificates", icon: Award },
-              { id: "at_risk", label: isAr ? "المتعثرين ومؤشرات الخطر" : "At-Risk Support Hub", icon: AlertTriangle },
-              { id: "reminders", label: isAr ? "التنبيهات الذكية" : "Smart Reminders", icon: Bell },
-              { id: "reports", label: isAr ? "تصدير التقارير (CSV)" : "Exports & CSV", icon: Download },
+              { id: "certificates", label: isAr ? "الشهادات" : "Certificates", icon: Award },
+              { id: "at_risk", label: isAr ? "المتعثرون" : "At-Risk", icon: AlertTriangle },
+              { id: "reminders", label: isAr ? "التنبيهات" : "Reminders", icon: Bell },
+              { id: "reports", label: isAr ? "التقارير" : "Reports", icon: Download },
             ].map((sub) => {
               const Icon = sub.icon;
               const isSubActive = insightsSubTab === sub.id;
@@ -1975,7 +1943,7 @@ export default function EducationPage() {
                 <button
                   key={sub.id}
                   onClick={() => setInsightsSubTab(sub.id as any)}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                     isSubActive
                       ? "bg-foreground text-background shadow-xs"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
@@ -1993,13 +1961,8 @@ export default function EducationPage() {
             <Card className="border-border/80 rounded-2xl shadow-2xs overflow-hidden">
               <div className="p-4 border-b border-border bg-card">
                 <h3 className="font-black text-base text-foreground">
-                  {isAr ? "سجل الشهادات الرقمية الصادرة والمعتمدة" : "Official Issued Certificates"}
+                  {isAr ? "الشهادات المعتمدة" : "Issued Certificates"}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isAr
-                    ? "الشهادات الصادرة للمتدربين الذين حققوا نسبة نجاح ≥ 75% وحضور ≥ 75% وفقاً للائحة الرسمية."
-                    : "Digital credentials issued to qualifying trainees (≥75% score and ≥75% attendance)."}
-                </p>
               </div>
 
               <div className="overflow-x-auto">
@@ -2282,11 +2245,8 @@ export default function EducationPage() {
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              {isAr ? "تسجيل متدرب جديد" : "Register Trainee"}
+              {isAr ? "تسجيل متدرب جديد" : "New Trainee"}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {isAr ? "إضافة بيانات الطالب الأكاديمية بالأكاديمية التقنية." : "Add participant profile for technical tracks."}
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
@@ -2351,18 +2311,15 @@ export default function EducationPage() {
             </div>
 
             <div className="space-y-1 pt-1.5 border-t border-border/80">
-              <Label className="font-bold text-[#1a73e8] flex items-center justify-between">
-                <span>{isAr ? "المسار التقني (تنسيب فوري)" : "Assign Technical Track"}</span>
-                <span className="text-[10px] text-muted-foreground font-normal">
-                  {isAr ? "موصى به لظهور المتدرب مباشرة" : "Recommended for immediate enrollment"}
-                </span>
+              <Label className="font-bold text-foreground">
+                {isAr ? "المسار التقني" : "Technical Track"}
               </Label>
               <select
                 value={participantFormData.track_id}
                 onChange={(e) => setParticipantFormData({ ...participantFormData, track_id: e.target.value })}
                 className="w-full text-xs h-9 px-3 rounded-xl border border-border bg-background font-bold focus:ring-2 focus:ring-[#1a73e8]/30"
               >
-                <option value="">{isAr ? "-- بدون تنسيب حالياً (تسجيل عام فقط) --" : "-- Unassigned for now --"}</option>
+                <option value="">{isAr ? "-- بدون مسار --" : "-- None --"}</option>
                 {activeTracksList.map((t) => (
                   <option key={t.id} value={t.id}>
                     {isAr ? t.name_ar : t.name} ({t.cohort})
@@ -2388,22 +2345,19 @@ export default function EducationPage() {
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              {isAr ? "تنسيب متدرب لمسار تقني" : "Enroll Trainee to Track"}
+              {isAr ? "تنسيب متدرب" : "Enroll Trainee"}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {isAr ? "ربط المتدرب بمسار محدد (يمنع التكرار لنفس الدفعة)." : "Connect student to track cohort."}
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
             <div className="space-y-1">
-              <Label>{isAr ? "اختر المتدرب" : "Select Trainee"}</Label>
+              <Label>{isAr ? "المتدرب" : "Trainee"}</Label>
               <select
                 value={enrollFormData.participant_id}
                 onChange={(e) => setEnrollFormData({ ...enrollFormData, participant_id: e.target.value })}
                 className="w-full text-xs h-8.5 px-3 rounded-xl border border-border bg-background"
               >
-                <option value="">{isAr ? "-- اختر من القائمة --" : "-- Select trainee --"}</option>
+                <option value="">{isAr ? "-- اختر المتدرب --" : "-- Select trainee --"}</option>
                 {participants.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.full_name} ({p.email})
@@ -2967,11 +2921,8 @@ export default function EducationPage() {
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              {isAr ? "منح نقاط تميز للمتدرب" : "Award Trainee Bonus Points"}
+              {isAr ? "منح نقاط تميز" : "Award Bonus Points"}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {isAr ? "نقاط تميز خاصة بالمسار التقني (مستقلة تماماً عن نقاط اللجان الداخلية)." : "Track bonus points tracked separately."}
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
@@ -3046,11 +2997,8 @@ export default function EducationPage() {
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              {isAr ? "تعديل بيانات المتدرب" : "Edit Trainee Information"}
+              {isAr ? "تعديل بيانات المتدرب" : "Edit Trainee"}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {isAr ? "تحديث البيانات الأكاديمية أو نقل المتدرب لمسار تقني آخر." : "Update trainee profile or transfer track."}
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
@@ -3112,11 +3060,8 @@ export default function EducationPage() {
             </div>
 
             <div className="space-y-1 pt-1.5 border-t border-border/80">
-              <Label className="font-bold text-[#1a73e8] flex items-center justify-between">
-                <span>{isAr ? "المسار التقني المسجل به" : "Enrolled Technical Track"}</span>
-                <span className="text-[10px] text-muted-foreground font-normal">
-                  {isAr ? "تغيير المسار سينقل المتدرب فوراً" : "Transfer track"}
-                </span>
+              <Label className="font-bold text-[#1a73e8] block">
+                {isAr ? "المسار التقني" : "Technical Track"}
               </Label>
               <select
                 value={editingParticipantTrackId}
@@ -3149,13 +3094,13 @@ export default function EducationPage() {
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              {isAr ? "تعديل بيانات الجلسة" : "Edit Session Details"}
+              {isAr ? "تعديل الجلسة" : "Edit Session"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
             <div className="space-y-1">
-              <Label>{isAr ? "عنوان وموضوع الجلسة" : "Session Title"}</Label>
+              <Label>{isAr ? "عنوان الجلسة" : "Session Title"}</Label>
               <Input
                 value={editSessionFormData.title}
                 onChange={(e) => setEditSessionFormData({ ...editSessionFormData, title: e.target.value })}
@@ -3194,7 +3139,7 @@ export default function EducationPage() {
             </div>
 
             <div className="space-y-1">
-              <Label>{isAr ? "المحاضر / المدرب" : "Instructor"}</Label>
+              <Label>{isAr ? "المحاضر" : "Instructor"}</Label>
               <Input
                 value={editSessionFormData.instructor_name}
                 onChange={(e) => setEditSessionFormData({ ...editSessionFormData, instructor_name: e.target.value })}
@@ -3203,7 +3148,7 @@ export default function EducationPage() {
             </div>
 
             <div className="space-y-1">
-              <Label>{isAr ? "المكان أو رابط الحضور" : "Location or Link"}</Label>
+              <Label>{isAr ? "المكان أو الرابط" : "Location or Link"}</Label>
               <Input
                 value={editSessionFormData.location_or_link}
                 onChange={(e) => setEditSessionFormData({ ...editSessionFormData, location_or_link: e.target.value })}
@@ -3217,7 +3162,7 @@ export default function EducationPage() {
               {isAr ? "إلغاء" : "Cancel"}
             </Button>
             <Button size="sm" onClick={handleUpdateSession} className="bg-[#1a73e8] text-white rounded-xl font-bold">
-              {isAr ? "حفظ التعديلات" : "Save Changes"}
+              {isAr ? "حفظ" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3228,7 +3173,7 @@ export default function EducationPage() {
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              {isAr ? "تعديل بيانات المسار التقني" : "Edit Technical Track"}
+              {isAr ? "تعديل المسار" : "Edit Track"}
             </DialogTitle>
           </DialogHeader>
 
@@ -3286,7 +3231,7 @@ export default function EducationPage() {
               {isAr ? "إلغاء" : "Cancel"}
             </Button>
             <Button size="sm" onClick={handleUpdateTrack} className="bg-[#1a73e8] text-white rounded-xl font-bold">
-              {isAr ? "حفظ التعديلات" : "Save Changes"}
+              {isAr ? "حفظ" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>

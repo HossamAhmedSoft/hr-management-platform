@@ -273,20 +273,16 @@ export default function EvaluationsPage() {
         title={
           isAr
             ? isMember
-              ? "تقييمي الشهري الرسمي"
-              : "التقييم الشهري الرسمي (من 100)"
+              ? "تقييمي الشهري"
+              : "التقييم الشهري"
             : isMember
-            ? "My Monthly Evaluation"
-            : "Monthly Performance Evaluations (100 pts)"
+            ? "My Evaluation"
+            : "Monthly Evaluations"
         }
         description={
           isAr
-            ? isMember
-              ? "استعراض تقييمك الشهري المعتمد، والأوزان النسبية لكل معيار، ومستوى الأداء المحقق وفق اللائحة."
-              : "نظام التقييم الدوري وفق 6 معايير معتمدة (30/25/15/10/10/10) مع إمكانية تعديل وحذف التقييمات."
-            : isMember
-            ? "Review your official monthly score, category weighted breakdown, and accredited performance band."
-            : "Official 6-category weighted evaluation (100 pts) with full ability to conduct, edit, and delete."
+            ? "سجل التقييمات الشهرية المعتمدة وتوزيع الأوزان"
+            : "Accredited evaluations and weighted breakdown"
         }
       >
         {canConductEvaluation && (
@@ -296,7 +292,7 @@ export default function EvaluationsPage() {
             className="gap-2 bg-primary hover:bg-primary/90"
           >
             <Plus className="w-4 h-4" />
-            {isAr ? "إجراء تقييم جديد" : "Conduct Evaluation"}
+            {isAr ? "تقييم جديد" : "New Evaluation"}
           </Button>
         )}
       </PageHeader>
@@ -312,8 +308,8 @@ export default function EvaluationsPage() {
             <Calculator className="w-4 h-4 text-primary" />
             <span className="text-sm font-bold text-foreground">
               {isAr
-                ? "دليل معايير التقييم الستة المعتمدة باللائحة وأوزانها"
-                : "Official 6 Evaluation Criteria & Weight Breakdown"}
+                ? "معايير التقييم الستة والأوزان"
+                : "Evaluation Criteria & Weights"}
             </span>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
               100 pts
@@ -321,7 +317,7 @@ export default function EvaluationsPage() {
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-            <span>{isAr ? (showCriteriaGuide ? "إخفاء التفاصيل" : "عرض التفاصيل") : (showCriteriaGuide ? "Hide Guide" : "View Guide")}</span>
+            <span>{isAr ? (showCriteriaGuide ? "إخفاء" : "عرض") : (showCriteriaGuide ? "Hide" : "Show")}</span>
             {showCriteriaGuide ? (
               <ChevronUp className="w-4 h-4" />
             ) : (
@@ -358,19 +354,19 @@ export default function EvaluationsPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2 px-1">
           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-            {isAr ? "التقييمات المعتمدة للدورة الحالية" : "Finalized Evaluations"} ({visibleEvaluations.length})
+            {isAr ? "التقييمات المعتمدة" : "Evaluations"} ({visibleEvaluations.length})
           </h3>
           {!isMember && (
             <div className="flex items-center gap-1.5 bg-background border border-border rounded-xl px-2.5 h-8">
               <span className="text-xs text-muted-foreground font-semibold">
-                {isAr ? "تصفية حسب اللجنة:" : "Filter Committee:"}
+                {isAr ? "اللجنة:" : "Committee:"}
               </span>
               <select
                 value={filterTeam}
                 onChange={(e) => setFilterTeam(e.target.value)}
                 className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer"
               >
-                <option value="all">{isAr ? "جميع الفرق واللجان" : "All Committees"}</option>
+                <option value="all">{isAr ? "جميع اللجان" : "All Committees"}</option>
                 {teams.map((t) => (
                   <option key={t.id} value={t.id}>
                     {isAr ? t.name_ar : t.name}
@@ -388,20 +384,11 @@ export default function EvaluationsPage() {
               <p className="text-sm font-semibold">
                 {isAr
                   ? isMember
-                    ? "لم يتم تسجيل تقييم شهري معتمد لك حتى الآن"
-                    : "لا توجد تقييمات معتمدة مسجلة حالياً"
+                    ? "لم يتم تسجيل تقييم معتمد لك حتى الآن"
+                    : "لا توجد تقييمات مسجلة حالياً"
                   : isMember
-                  ? "No official monthly evaluation finalized for you yet"
+                  ? "No evaluation recorded yet"
                   : "No evaluations recorded yet"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isAr
-                  ? isMember
-                    ? "سيظهر تقييمك هنا فور اعتماده من قائد الفريق وإدارة الموارد البشرية."
-                    : "اضغط على 'إجراء تقييم جديد' بالأعلى لبدء تقييم أحد الأعضاء."
-                  : isMember
-                  ? "Your score will appear here once approved by your Team Lead and HR."
-                  : "Click 'Conduct Evaluation' above to evaluate a team member."}
               </p>
             </Card>
           ) : (
@@ -487,8 +474,8 @@ export default function EvaluationsPage() {
               <DialogTitle className="text-base font-bold flex items-center justify-between">
                 <span>
                   {isAr
-                    ? `تعديل التقييم الشهري: ${getMemberName(editingEval.member_id)}`
-                    : `Edit Evaluation: ${getMemberName(editingEval.member_id)}`}
+                    ? `تعديل تقييم: ${getMemberName(editingEval.member_id)}`
+                    : `Edit: ${getMemberName(editingEval.member_id)}`}
                 </span>
                 <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-bold">
                   {editLiveResult.band}
@@ -501,7 +488,7 @@ export default function EvaluationsPage() {
               <div className="space-y-4 pt-2">
                 <h4 className="font-bold text-foreground flex items-center gap-2">
                   <Calculator className="w-4 h-4 text-primary" />
-                  {isAr ? "تعديل تقييم المعايير (من 1 إلى 5):" : "Update Ratings (1.0 to 5.0):"}
+                  {isAr ? "الدرجات (1 - 5):" : "Ratings (1 - 5):"}
                 </h4>
 
                 {POLICY_EVALUATION_CATEGORIES.map((cat) => {
@@ -618,14 +605,14 @@ export default function EvaluationsPage() {
             <DialogHeader>
               <DialogTitle className="text-base font-bold flex items-center gap-2 text-rose-600">
                 <Trash2 className="w-5 h-5 text-rose-600" />
-                {isAr ? "تأكيد حذف التقييم الشهري" : "Confirm Evaluation Deletion"}
+                {isAr ? "تأكيد حذف التقييم" : "Confirm Deletion"}
               </DialogTitle>
             </DialogHeader>
 
             <div className="space-y-3 py-2 text-xs">
               <p className="text-foreground">
                 {isAr
-                  ? `هل أنت متأكد من رغبتك في حذف التقييم الشهري (${deletingEval.total_score}/100) المسجل للعضو (${getMemberName(deletingEval.member_id)})؟`
+                  ? `هل أنت متأكد من رغبتك في حذف التقييم (${deletingEval.total_score}/100) للعضو (${getMemberName(deletingEval.member_id)})؟`
                   : `Are you sure you want to delete the evaluation (${deletingEval.total_score}/100) for ${getMemberName(deletingEval.member_id)}?`}
               </p>
 
@@ -666,7 +653,7 @@ export default function EvaluationsPage() {
             <DialogHeader>
               <DialogTitle className="text-base font-bold flex items-center justify-between">
                 <span>
-                  {isAr ? "نموذج تقييم الأداء الشهري" : "Monthly Performance Evaluation"}
+                  {isAr ? "تقييم أداء جديد" : "New Performance Evaluation"}
                 </span>
                 <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-bold">
                   {liveResult.band}
@@ -679,7 +666,7 @@ export default function EvaluationsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div>
                   <label className="font-semibold text-foreground">
-                    {isAr ? "اللجنة / المسار (تصفية الأعضاء):" : "Committee / Track (Filter):"}
+                    {isAr ? "اللجنة:" : "Committee:"}
                   </label>
                   <select
                     value={evalTeamFilter}
@@ -704,7 +691,7 @@ export default function EvaluationsPage() {
 
                 <div>
                   <label className="font-semibold text-foreground">
-                    {isAr ? "العضو المُراد تقييمه:" : "Target Member:"}
+                    {isAr ? "العضو:" : "Target Member:"}
                   </label>
                   <select
                     value={selectedMemberId}

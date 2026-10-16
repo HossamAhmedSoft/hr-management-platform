@@ -255,8 +255,8 @@ export default function DashboardPage() {
           </div>
           <p className="text-xs text-muted-foreground">
             {isAr
-              ? "مركز قيادة الأداء والعمليات — ملخص سريع ومباشر لحالتك ومهامك اليوم."
-              : "Operations & Governance Cockpit — A clean executive summary of your focus today."}
+              ? "ملخص الأداء والمهام اليومية"
+              : "Daily tasks and performance overview"}
           </p>
         </div>
 
@@ -269,7 +269,7 @@ export default function DashboardPage() {
               className="h-8 gap-1.5 text-xs rounded-lg"
             >
               <Download className="w-3.5 h-3.5 text-[#137333]" />
-              <span>{isAr ? "تصدير السجل" : "Export CSV"}</span>
+              <span>{isAr ? "تصدير" : "Export"}</span>
             </Button>
           )}
 
@@ -280,7 +280,7 @@ export default function DashboardPage() {
               className="h-8 gap-1.5 text-xs rounded-lg bg-[#1a73e8] hover:bg-[#1765cc] text-white shadow-xs"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>{isAr ? "تسجيل نقاط" : "Record Points"}</span>
+              <span>{isAr ? "إضافة نقاط" : "Add Points"}</span>
             </Button>
           )}
 
@@ -322,11 +322,11 @@ export default function DashboardPage() {
           subtitle={
             isMember
               ? isAr
-                ? `+${personalApprovedPositive} إيجابي | ${personalApprovedNegative} سلبي (رصيدك الخاص)`
-                : `+${personalApprovedPositive} pos | ${personalApprovedNegative} neg (Your Balance)`
+                ? `+${personalApprovedPositive} | ${personalApprovedNegative}`
+                : `+${personalApprovedPositive} | ${personalApprovedNegative}`
               : isAr
-              ? `إجمالي كافة الأعضاء (${approvedPositive >= 0 ? "+" : ""}${approvedPositive} / ${approvedNegative}) • نقاطك: ${personalTotalNet}`
-              : `All members (${approvedPositive >= 0 ? "+" : ""}${approvedPositive} / ${approvedNegative}) • You: ${personalTotalNet}`
+              ? `الكل: ${approvedPositive >= 0 ? "+" : ""}${approvedPositive} / ${approvedNegative}`
+              : `All: ${approvedPositive >= 0 ? "+" : ""}${approvedPositive} / ${approvedNegative}`
           }
           icon={<Award className="w-4 h-4" />}
           delta={{
@@ -364,7 +364,7 @@ export default function DashboardPage() {
                 ? "لا توجد مهام متأخرة"
                 : "All tasks completed"
               : isAr
-              ? "مهام بانتظار إنجازك"
+              ? "مهام قيد التنفيذ"
               : "Pending deliverables"
           }
           icon={<CheckSquare className="w-4 h-4" />}
@@ -382,10 +382,10 @@ export default function DashboardPage() {
           subtitle={
             userEvaluations.length > 0
               ? isAr
-                ? `${userEvaluations.length} تقييمات معتمدة`
+                ? `${userEvaluations.length} تقييمات`
                 : `${userEvaluations.length} Finalized`
               : isAr
-              ? "في انتظار دورة التقييم"
+              ? "بانتظار التقييم"
               : "Awaiting cycle"
           }
           icon={<TrendingUp className="w-4 h-4" />}
@@ -401,12 +401,12 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2">
               <CheckSquare className="w-4 h-4 text-[#1a73e8]" />
               <CardTitle className="text-xs sm:text-sm font-bold text-foreground">
-                {isAr ? "ما يحتاج انتباهك الآن — التكليفات والمهام" : "Action Required — Active Tasks"}
+                {isAr ? "المهام العاجلة" : "Active Tasks"}
               </CardTitle>
             </div>
             <Link href={`/${locale}/tasks`}>
               <span className="text-xs font-semibold text-[#1a73e8] hover:underline flex items-center gap-1">
-                <span>{isAr ? "عرض كل المهام" : "View All Tasks"}</span>
+                <span>{isAr ? "عرض الكل" : "View All"}</span>
                 <ArrowRight className="w-3 h-3 rtl:rotate-180" />
               </span>
             </Link>
@@ -417,12 +417,12 @@ export default function DashboardPage() {
             <div className="py-6 text-center text-muted-foreground space-y-1">
               <CheckCircle className="w-7 h-7 mx-auto text-[#34a853] opacity-80" />
               <p className="text-xs font-bold text-foreground">
-                {isAr ? "أنت منجز لكافة مهامك!" : "You are completely up to date!"}
+                {isAr ? "كافة المهام منجزة" : "All tasks up to date"}
               </p>
               <p className="text-[11px] text-muted-foreground">
                 {isAr
-                  ? "لا توجد تكليفات عاجلة متأخرة أو بانتظار تسليمك اليوم."
-                  : "No pending or overdue deliverables waiting on you today."}
+                  ? "لا توجد تكليفات متأخرة حالياً"
+                  : "No pending deliverables today."}
               </p>
             </div>
           ) : (
@@ -478,7 +478,7 @@ export default function DashboardPage() {
               </div>
               <Link href={`/${locale}/points`}>
                 <span className="text-xs font-semibold text-[#1a73e8] hover:underline flex items-center gap-1">
-                  <span>{isAr ? "سجل النقاط الكامل" : "Full Ledger"}</span>
+                  <span>{isAr ? "السجل الكامل" : "Ledger"}</span>
                   <ArrowRight className="w-3 h-3 rtl:rotate-180" />
                 </span>
               </Link>
@@ -489,7 +489,7 @@ export default function DashboardPage() {
               <div className="py-8 text-center text-muted-foreground space-y-1">
                 <Award className="w-6 h-6 mx-auto opacity-40 text-primary" />
                 <p className="text-xs font-semibold">
-                  {isAr ? "لا توجد وقائع نقاط مسجلة حالياً" : "No point transactions recorded yet"}
+                  {isAr ? "لا توجد نقاط مسجلة حالياً" : "No point transactions recorded yet"}
                 </p>
               </div>
             ) : (
@@ -562,24 +562,18 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4 text-[#ea4335]" />
                 <CardTitle className="text-xs sm:text-sm font-bold text-foreground">
-                  {isAr ? "سلم المتابعة والتصعيد" : "Escalation & Support Ladder"}
+                  {isAr ? "مستويات المتابعة" : "Escalation Ladder"}
                 </CardTitle>
               </div>
               <Link href={`/${locale}/incidents`}>
                 <span className="text-xs font-semibold text-[#1a73e8] hover:underline flex items-center gap-1">
-                  <span>{isAr ? "التفاصيل والحالات" : "Details"}</span>
+                  <span>{isAr ? "التفاصيل" : "Details"}</span>
                   <ArrowRight className="w-3 h-3 rtl:rotate-180" />
                 </span>
               </Link>
             </div>
           </CardHeader>
           <CardContent className="p-4 sm:p-5 space-y-3">
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              {isAr
-                ? "تدرج تنظيمي لحماية العضو وضمان الشفافية: لا عقوبة دون إشعار مسبق وجلسة توجيه."
-                : "Transparent 4-tier progressive path ensuring alignment before any disciplinary escalation."}
-            </p>
-
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs pt-1">
               {/* Level 1 */}
               <div className="p-2.5 rounded-xl bg-[#e8f0fe] dark:bg-[#1a73e8]/15 border border-[#d2e3fc] dark:border-[#1a73e8]/30 space-y-1">
@@ -638,6 +632,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Dispute Modal (Preserved & Fully Functional) */}
+      {/* Dispute Modal (Preserved & Fully Functional) */}
       {isDisputeModalOpen && (
         <Dialog open={isDisputeModalOpen} onOpenChange={setIsDisputeModalOpen}>
           <DialogContent>
@@ -645,27 +640,27 @@ export default function DashboardPage() {
               <DialogTitle className="text-sm font-bold flex items-center gap-2">
                 <Scale className="w-4 h-4 text-[#1a73e8]" />
                 <span>
-                  {isAr ? "تقديم طعن / تظلم رسمي" : "Submit Point Dispute (7 Working Days)"}
+                  {isAr ? "تقديم طعن" : "Submit Dispute"}
                 </span>
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2 text-xs">
               <p className="text-muted-foreground">
                 {isAr
-                  ? "يُحال التظلم إلى مراجع محايد مستقل وفق مهلة الـ 7 أيام عمل المصرية (باستثناء الجمعة والسبت والعطلات الرسمية)."
-                  : "All appeals are assigned to an independent neutral reviewer under the 7 Egyptian working days policy guarantee."}
+                  ? "مهلة المراجعة المحايدة: 7 أيام عمل."
+                  : "Neutral review turnaround: 7 working days."}
               </p>
               <div>
                 <label className="font-bold text-foreground">
-                  {isAr ? "سبب ومبرر الطعن:" : "Factual Objection Grounds:"}
+                  {isAr ? "سبب الطعن:" : "Dispute Reason:"}
                 </label>
                 <Textarea
                   required
                   rows={3}
                   placeholder={
                     isAr
-                      ? "اشرح سبب عدم صحة تسجيل الخصم أو واقعة النقطة..."
-                      : "Describe why this entry contradicts evidence or policy..."
+                      ? "اشرح سبب عدم صحة تسجيل الخصم..."
+                      : "Describe why this entry contradicts policy..."
                   }
                   value={disputeReason}
                   onChange={(e) => setDisputeReason(e.target.value)}
@@ -699,7 +694,7 @@ export default function DashboardPage() {
                     setDisputeReason("");
                   }}
                 >
-                  {isAr ? "إرسال للمراجعة المحايدة" : "Submit to Neutral Review"}
+                  {isAr ? "إرسال الطعن" : "Submit Dispute"}
                 </Button>
               </div>
             </div>
@@ -714,13 +709,13 @@ export default function DashboardPage() {
             <DialogHeader>
               <DialogTitle className="text-sm font-bold flex items-center gap-2">
                 <Award className="w-4 h-4 text-[#1a73e8]" />
-                <span>{isAr ? "تسجيل حركة نقاط باللائحة" : "Record Point Event"}</span>
+                <span>{isAr ? "تسجيل نقاط" : "Record Points"}</span>
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2 text-xs">
               <div>
                 <label className="font-bold text-foreground">
-                  {isAr ? "العضو المستهدف باللائحة:" : "Target Member:"}
+                  {isAr ? "العضو:" : "Target Member:"}
                 </label>
                 <select
                   value={targetMemberId}
@@ -737,7 +732,7 @@ export default function DashboardPage() {
 
               <div>
                 <label className="font-bold text-foreground">
-                  {isAr ? "فئة النقطة المعتمدة باللائحة:" : "Policy Category:"}
+                  {isAr ? "فئة النقطة:" : "Point Category:"}
                 </label>
                 <select
                   value={newSelectedCategory}
@@ -755,15 +750,15 @@ export default function DashboardPage() {
 
               <div>
                 <label className="font-bold text-foreground">
-                  {isAr ? "بيان الواقعة والدليل المرفق:" : "Explanation & Factual Ground:"}
+                  {isAr ? "البيان / التوضيح:" : "Explanation:"}
                 </label>
                 <Textarea
                   required
                   rows={3}
                   placeholder={
                     isAr
-                      ? "تسليم مبكر / مبادرة إيجابية / مساعدة فريق آخر..."
-                      : "Detailed explanation matching policy specifications..."
+                      ? "تسليم مبكر / مبادرة إيجابية / مساعدة فريق..."
+                      : "Brief explanation..."
                   }
                   value={newExplanation}
                   onChange={(e) => setNewExplanation(e.target.value)}
@@ -808,7 +803,7 @@ export default function DashboardPage() {
                     setNewExplanation("");
                   }}
                 >
-                  {isAr ? "إرسال للمراجعة والاعتماد" : "Submit for Verification"}
+                  {isAr ? "حفظ النقاط" : "Save Points"}
                 </Button>
               </div>
             </div>
