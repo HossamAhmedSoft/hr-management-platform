@@ -13,32 +13,27 @@ import {
   Search,
   Filter,
   Plus,
-  Edit,
   ExternalLink,
   ShieldCheck,
   AlertTriangle,
-  AlertCircle,
-  FileText,
   Download,
   Check,
   X,
   Eye,
   Star,
-  Sparkles,
   ChevronRight,
-  TrendingUp,
-  Send,
-  Layers,
-  HelpCircle,
   Printer,
-  UserCheck,
-  CheckSquare,
   Bell,
-  History,
+  Code,
+  Smartphone,
+  Cpu,
+  Layers,
+  Sparkles,
+  ArrowUpRight,
+  TrendingUp,
 } from "lucide-react";
-import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,6 +74,12 @@ export default function EducationPage() {
   const isAr = locale === "ar";
   const userRole = currentUser?.role || "member";
 
+  // Prevent SSR Hydration Mismatch
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Check roles:
   const isHRorAdmin =
     userRole === "super_admin" ||
@@ -89,7 +90,6 @@ export default function EducationPage() {
     userRole === "track_lead" ||
     userRole === "lead_instructor" ||
     userRole === "ta_mentor";
-  const isAttendee = userRole === "attendee";
 
   // ── State Collections ────────────────────────────────────
   const [tracks, setTracks] = useState<TechnicalTrack[]>(() => tracksService.getTracks());
@@ -104,22 +104,16 @@ export default function EducationPage() {
   const [certificates, setCertificates] = useState<TrackCertificate[]>(() => tracksService.getCertificates());
   const [followUps, setFollowUps] = useState<TrackFollowUp[]>(() => tracksService.getFollowUps());
 
-  // ── UI Filters & Active Tabs ─────────────────────────────
+  // ── Simplified & Intuitive UI Tabs ───────────────────────
+  // We streamline into 5 clear, high-level workspaces instead of 10 fragmented tabs:
   const [activeTab, setActiveTab] = useState<
-    | "overview"
-    | "tracks"
-    | "participants"
-    | "sessions"
-    | "assignments"
-    | "bonus"
-    | "at_risk"
-    | "reminders"
-    | "certificates"
-    | "exports"
-  >("overview");
+    "tracks" | "participants" | "sessions" | "assignments" | "insights"
+  >("tracks");
 
   const [selectedTrackId, setSelectedTrackId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [participantStatusFilter, setParticipantStatusFilter] = useState<"all" | "eligible" | "at_risk">("all");
+  const [insightsSubTab, setInsightsSubTab] = useState<"certificates" | "at_risk" | "reminders" | "reports">("certificates");
 
   // ── Modals State ─────────────────────────────────────────
   const [isNewTrackModalOpen, setIsNewTrackModalOpen] = useState(false);
@@ -163,9 +157,9 @@ export default function EducationPage() {
     full_name: "",
     email: "",
     phone: "",
-    university: "New Cairo Technological University (NCTU)",
-    faculty_department: "Faculty of Industry & Energy",
-    academic_year: "Year 2",
+    university: "جامعة مصر التكنولوجية الدولية (NCTU)",
+    faculty_department: "كلية تكنولوجيا الصناعة والطاقة",
+    academic_year: "الفرقة الثانية",
     notes: "",
   });
 
@@ -255,28 +249,44 @@ export default function EducationPage() {
     return tracks.filter((t) => t.status !== "archived");
   }, [tracks]);
 
+  // Memoized Participant Metrics to prevent multiple recalculations in render cycles
+  const participantMetricsMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof tracksService.calculateParticipantMetrics>>();
+    enrollments.forEach((e) => {
+      const key = `${e.participant_id}_${e.track_id}`;
+      map.set(key, tracksService.calculateParticipantMetrics(e.participant_id, e.track_id));
+    });
+    return map;
+  }, [enrollments, sessions, attendance, assignments, submissions, bonuses]);
+
   const filteredEnrollments = useMemo(() => {
     return enrollments.filter((e) => {
       if (selectedTrackId !== "all" && e.track_id !== selectedTrackId) return false;
+      const metrics = participantMetricsMap.get(`${e.participant_id}_${e.track_id}`);
+      
+      if (participantStatusFilter === "eligible" && !metrics?.isEligibleForCertificate) return false;
+      if (participantStatusFilter === "at_risk" && !metrics?.isAtRisk) return false;
+
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const pName = e.participant?.full_name.toLowerCase() || "";
         const pEmail = e.participant?.email.toLowerCase() || "";
         const tName = e.track?.name.toLowerCase() || "";
-        if (!pName.includes(query) && !pEmail.includes(query) && !tName.includes(query)) {
+        const tNameAr = e.track?.name_ar.toLowerCase() || "";
+        if (!pName.includes(query) && !pEmail.includes(query) && !tName.includes(query) && !tNameAr.includes(query)) {
           return false;
         }
       }
       return true;
     });
-  }, [enrollments, selectedTrackId, searchQuery]);
+  }, [enrollments, selectedTrackId, searchQuery, participantStatusFilter, participantMetricsMap]);
 
   const filteredSessions = useMemo(() => {
     return sessions.filter((s) => {
       if (selectedTrackId !== "all" && s.track_id !== selectedTrackId) return false;
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
-        return s.title.toLowerCase().includes(query);
+        return s.title.toLowerCase().includes(query) || (s.instructor_name && s.instructor_name.toLowerCase().includes(query));
       }
       return true;
     });
@@ -299,10 +309,21 @@ export default function EducationPage() {
     const activeTracksCount = activeTracksList.length;
     const totalSessionsHeld = sessions.filter((s) => s.status === "completed").length;
     const certifiedCount = certificates.filter((c) => c.status === "issued").length;
-    const atRiskCount = enrollments.filter((e) => {
-      const m = tracksService.calculateParticipantMetrics(e.participant_id, e.track_id);
-      return m.isAtRisk;
-    }).length;
+
+    let totalAttendanceSum = 0;
+    let eligibleCount = 0;
+    let atRiskCount = 0;
+
+    enrollments.forEach((e) => {
+      const m = participantMetricsMap.get(`${e.participant_id}_${e.track_id}`);
+      if (m) {
+        totalAttendanceSum += m.attendancePercentage;
+        if (m.isEligibleForCertificate) eligibleCount++;
+        if (m.isAtRisk) atRiskCount++;
+      }
+    });
+
+    const avgAttendance = enrollments.length > 0 ? Math.round(totalAttendanceSum / enrollments.length) : 0;
     const pendingSubmissions = submissions.filter(
       (s) => s.status === "submitted" || s.status === "resubmitted" || s.status === "under_review"
     ).length;
@@ -312,10 +333,12 @@ export default function EducationPage() {
       activeTracksCount,
       totalSessionsHeld,
       certifiedCount,
+      eligibleCount,
       atRiskCount,
+      avgAttendance,
       pendingSubmissions,
     };
-  }, [participants, activeTracksList, sessions, certificates, enrollments, submissions]);
+  }, [participants, activeTracksList, sessions, certificates, enrollments, submissions, participantMetricsMap]);
 
   // ── Handlers ──────────────────────────────────────────────
 
@@ -393,7 +416,7 @@ export default function EducationPage() {
       enrollFormData.cohort
     );
     if (!res.success) {
-      alert(res.error || "Failed to enroll participant.");
+      alert(res.error || (isAr ? "فشل تسجيل المتدرب بالمسار." : "Failed to enroll participant."));
       return;
     }
 
@@ -565,44 +588,12 @@ export default function EducationPage() {
     reloadData();
   };
 
-  const handleReviewBonus = (bonusId: string, decision: "approved" | "rejected") => {
-    tracksService.reviewBonus(
-      bonusId,
-      decision,
-      currentUser?.full_name || "HR Admin",
-      decision === "approved" ? "Verified objective contribution." : "Does not meet policy guidelines."
-    );
-    reloadData();
-  };
-
-  const handleCreateFollowUp = () => {
-    if (!followUpFormData.participant_id || !followUpFormData.track_id) return;
-    const enr = enrollments.find(
-      (e) => e.participant_id === followUpFormData.participant_id && e.track_id === followUpFormData.track_id
-    );
-    if (!enr) return;
-
-    tracksService.createFollowUp({
-      enrollment_id: enr.id,
-      participant_id: followUpFormData.participant_id,
-      track_id: followUpFormData.track_id,
-      risk_factors: ["low_attendance", "academic_struggles"],
-      responsible_person_id: currentUser?.id || "mentor_nour",
-      responsible_person_name: followUpFormData.responsible_person_name,
-      action_plan: followUpFormData.action_plan,
-      due_date: followUpFormData.due_date,
-      status: "open",
-    });
-    setIsFollowUpModalOpen(false);
-    reloadData();
-  };
-
   const handleIssueCertificate = (e: TrackEnrollment) => {
-    const metrics = tracksService.calculateParticipantMetrics(e.participant_id, e.track_id);
-    if (!metrics.isEligibleForCertificate) {
+    const metrics = participantMetricsMap.get(`${e.participant_id}_${e.track_id}`);
+    if (!metrics?.isEligibleForCertificate) {
       alert(
         isAr
-          ? "المتدرب لم يستوفِ شروط الشهادة (درجة التقييم ≥ 75 ونسبة الحضور ≥ 75%)."
+          ? "المتدرب لم يستوفِ شروط الشهادة بعد (درجة التقييم ≥ 75 ونسبة الحضور ≥ 75%)."
           : "Participant is not eligible for certificate (requires score ≥ 75 and attendance ≥ 75%)."
       );
       return;
@@ -668,31 +659,62 @@ export default function EducationPage() {
     document.body.removeChild(link);
   };
 
+  // Helper icons per track category
+  const getTrackCategoryBadge = (category: TechnicalTrack["category"]) => {
+    switch (category) {
+      case "web":
+        return { icon: Code, color: "text-[#1a73e8]", bg: "bg-[#e8f0fe] dark:bg-[#1a73e8]/20 border-[#d2e3fc] dark:border-[#1a73e8]/30", label: isAr ? "تطوير الويب" : "Web Dev" };
+      case "mobile":
+        return { icon: Smartphone, color: "text-[#34a853]", bg: "bg-[#e6f4ea] dark:bg-[#34a853]/20 border-[#ceead6] dark:border-[#34a853]/30", label: isAr ? "تطبيقات الموبايل" : "Mobile Apps" };
+      case "cybersecurity":
+        return { icon: ShieldCheck, color: "text-[#ea4335]", bg: "bg-[#fce8e6] dark:bg-[#ea4335]/20 border-[#fad2cf] dark:border-[#ea4335]/30", label: isAr ? "الأمن السيبراني" : "Cybersecurity" };
+      case "embedded":
+        return { icon: Cpu, color: "text-[#fbbc04]", bg: "bg-[#fef7e0] dark:bg-[#fbbc04]/20 border-[#feefc3] dark:border-[#fbbc04]/30", label: isAr ? "الأنظمة المدمجة" : "Embedded / IoT" };
+      default:
+        return { icon: Layers, color: "text-[#1a73e8]", bg: "bg-muted/40 border-border", label: category };
+    }
+  };
+
+  if (!mounted) {
+    return (
+      <div className="space-y-6 p-6 animate-pulse">
+        <div className="h-10 bg-muted/60 rounded-xl w-1/3" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-24 bg-muted/40 rounded-2xl" />
+          ))}
+        </div>
+        <div className="h-96 bg-muted/30 rounded-2xl" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-16">
-      {/* ── Top Header Strip ────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-4">
+    <div className="space-y-6 pb-20 animate-in fade-in duration-300">
+      {/* ── Top Header Bar ────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-5">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#1a73e8]/10 text-[#1a73e8] dark:text-[#8ab4f8] flex items-center gap-1.5">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-[#1a73e8]/10 text-[#1a73e8] dark:text-[#8ab4f8] inline-flex items-center gap-1.5 border border-[#1a73e8]/20">
               <span className="w-2 h-2 rounded-full bg-[#1a73e8] animate-pulse" />
               {isAr ? "أكاديمية المسارات التقنية المتخصصة" : "GDG NCTU Technical Academy"}
             </span>
             <span className="text-xs text-muted-foreground font-semibold">
-              {isAr ? "منفصلة تماماً عن نقاط اللجان الداخلية" : "Separate from Core HR Ledger"}
+              {isAr ? "نظام مستقل ومعتمد للتدريب" : "Official Trainee & Track Hub"}
             </span>
           </div>
-          <h1 className="text-2xl font-black text-foreground tracking-tight">
-            {isAr ? "إدارة المسارات التقنية والمتدربين" : "Technical Tracks & Participants System"}
+
+          <h1 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">
+            {isAr ? "إدارة المسارات التقنية والمتدربين" : "Technical Tracks & Trainees Management"}
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
+          <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
             {isAr
-              ? "نظام تدريبي معتمد لإدارة ورش العمل، رصد الحضور التراكمي (40%)، المهام التطبيقية (30%)، التفاعل (20%)، السلوك (10%)، ومنح الشهادات الرقمية المعتمدة (≥75%)."
-              : "Comprehensive system for tracking technical tracks, weighted attendance (40 pts), project grading (30 pts), interaction (20 pts), conduct (10 pts), and certified credentials (≥75%)."}
+              ? "متابعة ورش العمل، رصد الحضور التراكمي (40%)، المهام التطبيقية (30%)، التفاعل (20%)، السلوك (10%)، وإصدار الشهادات الرقمية المعتمدة (≥75%)."
+              : "Track sessions, log weighted attendance (40%), assignment delivery (30%), engagement (20%), conduct (10%), and issue digital certificates (≥75%)."}
           </p>
         </div>
 
-        {/* Global Action Buttons */}
+        {/* Quick Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
           {isHRorAdmin && (
             <>
@@ -700,28 +722,28 @@ export default function EducationPage() {
                 size="sm"
                 variant="outline"
                 onClick={() => setIsNewParticipantModalOpen(true)}
-                className="gap-1.5 text-xs font-semibold shadow-2xs"
+                className="gap-2 text-xs font-bold border-[#34a853]/40 text-[#34a853] hover:bg-[#34a853]/10 h-9 px-3.5 rounded-xl shadow-2xs"
               >
-                <Users className="w-3.5 h-3.5 text-[#34a853]" />
-                {isAr ? "تسجيل متدرب جديد" : "New Participant"}
+                <Users className="w-4 h-4" />
+                {isAr ? "تسجيل متدرب جديد" : "New Trainee"}
               </Button>
 
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setIsEnrollModalOpen(true)}
-                className="gap-1.5 text-xs font-semibold shadow-2xs"
+                className="gap-2 text-xs font-bold border-[#1a73e8]/40 text-[#1a73e8] hover:bg-[#1a73e8]/10 h-9 px-3.5 rounded-xl shadow-2xs"
               >
-                <Plus className="w-3.5 h-3.5 text-[#1a73e8]" />
-                {isAr ? "تنسيب لمسار" : "Enroll to Track"}
+                <Plus className="w-4 h-4" />
+                {isAr ? "تنسيب لمسار" : "Enroll Trainee"}
               </Button>
 
               <Button
                 size="sm"
                 onClick={() => setIsNewTrackModalOpen(true)}
-                className="gap-1.5 text-xs font-bold bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white shadow-2xs"
+                className="gap-2 text-xs font-black bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white h-9 px-4 rounded-xl shadow-sm"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4" />
                 {isAr ? "إنشاء مسار تقني" : "Create Track"}
               </Button>
             </>
@@ -731,177 +753,87 @@ export default function EducationPage() {
             <Button
               size="sm"
               onClick={() => setIsNewAssignmentModalOpen(true)}
-              className="gap-1.5 text-xs font-bold bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white"
+              className="gap-2 text-xs font-black bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white h-9 px-4 rounded-xl"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
               {isAr ? "إضافة مهمة جديدة" : "New Assignment"}
             </Button>
           )}
         </div>
       </div>
 
-      {/* ── KPI Metrics Cards Strip ─────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card className="p-3.5 border-border/70 bg-card/60 backdrop-blur-2xs shadow-2xs">
-          <div className="flex items-center justify-between text-muted-foreground text-[11px] font-semibold mb-1">
-            <span>{isAr ? "إجمالي المتدربين" : "Participants"}</span>
-            <Users className="w-4 h-4 text-[#1a73e8]" />
+      {/* ── 4 High-Impact KPI Summary Cards ───────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <Card className="p-4 border-border/80 bg-gradient-to-br from-card to-[#1a73e8]/5 rounded-2xl shadow-2xs">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1.5">
+            <span>{isAr ? "إجمالي المتدربين" : "Total Trainees"}</span>
+            <div className="w-7 h-7 rounded-lg bg-[#1a73e8]/15 text-[#1a73e8] flex items-center justify-center">
+              <Users className="w-4 h-4" />
+            </div>
           </div>
           <div className="text-2xl font-black text-foreground">
             {overallMetrics.totalParticipants}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            {isAr ? "طلاب بجامعة NCTU" : "Enrolled NCTU Students"}
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {isAr ? "طلاب ملتحقين بالمسارات" : "Active enrolled students"}
           </p>
         </Card>
 
-        <Card className="p-3.5 border-border/70 bg-card/60 backdrop-blur-2xs shadow-2xs">
-          <div className="flex items-center justify-between text-muted-foreground text-[11px] font-semibold mb-1">
-            <span>{isAr ? "المسارات النشطة" : "Active Tracks"}</span>
-            <Layers className="w-4 h-4 text-[#34a853]" />
+        <Card className="p-4 border-border/80 bg-gradient-to-br from-card to-[#34a853]/5 rounded-2xl shadow-2xs">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1.5">
+            <span>{isAr ? "المسارات التقنية النشطة" : "Active Tracks"}</span>
+            <div className="w-7 h-7 rounded-lg bg-[#34a853]/15 text-[#34a853] flex items-center justify-center">
+              <BookOpen className="w-4 h-4" />
+            </div>
           </div>
           <div className="text-2xl font-black text-[#34a853]">
             {overallMetrics.activeTracksCount}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            Web, Flutter, Cyber, etc.
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Web, Flutter, Cyber, Embedded
           </p>
         </Card>
 
-        <Card className="p-3.5 border-border/70 bg-card/60 backdrop-blur-2xs shadow-2xs">
-          <div className="flex items-center justify-between text-muted-foreground text-[11px] font-semibold mb-1">
-            <span>{isAr ? "جلسات منجزة" : "Completed Sessions"}</span>
-            <Calendar className="w-4 h-4 text-[#fbbc04]" />
+        <Card className="p-4 border-border/80 bg-gradient-to-br from-card to-[#fbbc04]/5 rounded-2xl shadow-2xs">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1.5">
+            <span>{isAr ? "متوسط الحضور العام" : "Avg Attendance"}</span>
+            <div className="w-7 h-7 rounded-lg bg-[#fbbc04]/15 text-[#b06000] dark:text-[#fbbc04] flex items-center justify-center">
+              <Calendar className="w-4 h-4" />
+            </div>
           </div>
           <div className="text-2xl font-black text-foreground">
-            {overallMetrics.totalSessionsHeld}
+            {overallMetrics.avgAttendance}%
           </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            {isAr ? "حضور ورصد موثق" : "Logged in Roster"}
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {isAr ? "عبر كافة ورش العمل المنجزة" : "Across all logged sessions"}
           </p>
         </Card>
 
-        <Card className="p-3.5 border-border/70 bg-card/60 backdrop-blur-2xs shadow-2xs">
-          <div className="flex items-center justify-between text-muted-foreground text-[11px] font-semibold mb-1">
-            <span>{isAr ? "تصحيحات معلقة" : "Pending Reviews"}</span>
-            <Clock className="w-4 h-4 text-[#ea4335]" />
-          </div>
-          <div className="text-2xl font-black text-[#ea4335]">
-            {overallMetrics.pendingSubmissions}
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            {isAr ? "تسليمات بانتظار التقييم" : "Awaiting Feedback"}
-          </p>
-        </Card>
-
-        <Card className="p-3.5 border-border/70 bg-card/60 backdrop-blur-2xs shadow-2xs">
-          <div className="flex items-center justify-between text-muted-foreground text-[11px] font-semibold mb-1">
-            <span>{isAr ? "شهادات صادرة" : "Certificates Issued"}</span>
-            <Award className="w-4 h-4 text-[#34a853]" />
+        <Card className="p-4 border-border/80 bg-gradient-to-br from-card to-[#34a853]/5 rounded-2xl shadow-2xs">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-bold mb-1.5">
+            <span>{isAr ? "مؤهلين للشهادة (≥75%)" : "Certificate Eligible"}</span>
+            <div className="w-7 h-7 rounded-lg bg-[#34a853]/15 text-[#34a853] flex items-center justify-center">
+              <Award className="w-4 h-4" />
+            </div>
           </div>
           <div className="text-2xl font-black text-[#34a853]">
-            {overallMetrics.certifiedCount}
+            {overallMetrics.eligibleCount}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            {isAr ? "معدل استحقاق ≥ 75%" : "Passing (≥ 75%)"}
-          </p>
-        </Card>
-
-        <Card className="p-3.5 border-border/70 bg-card/60 backdrop-blur-2xs shadow-2xs">
-          <div className="flex items-center justify-between text-muted-foreground text-[11px] font-semibold mb-1">
-            <span>{isAr ? "بحاجة لمتابعة" : "At-Risk Support"}</span>
-            <AlertTriangle className="w-4 h-4 text-[#ea4335]" />
-          </div>
-          <div className="text-2xl font-black text-[#ea4335]">
-            {overallMetrics.atRiskCount}
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            {isAr ? "غياب أو تعثر تسليمات" : "Attendance / Task Alerts"}
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {overallMetrics.certifiedCount} {isAr ? "شهادة تم إصدارها بالفعل" : "issued certificates"}
           </p>
         </Card>
       </div>
 
-      {/* ── Official Evaluation Rubric Banner ───────────────────── */}
-      <Card className="border-border/80 bg-muted/20">
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-sm text-foreground">
-                  {isAr
-                    ? "معايير التقييم الرسمية المعتمدة للشهادة (100 درجة)"
-                    : "Official 100-Point Evaluation Rubric & Certificate Threshold"}
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  {isAr
-                    ? "وفقاً للائحة الرسمية لـ GDG on Campus NCTU: الحضور (40%) + التطبيقات (30%) + التفاعل (20%) + السلوك (10%) — شرط الشهادة ≥ 75%"
-                    : "Strictly aligned with official policy: Attendance (40%) + Projects (30%) + Interaction (20%) + Conduct (10%) — Passing ≥ 75%"}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full text-xs font-black bg-[#34a853]/10 text-[#34a853] border border-[#34a853]/20">
-                {isAr ? "حد الاعتماد ≥ 75%" : "Passing Score ≥ 75%"}
-              </span>
-              <span className="px-3 py-1 rounded-full text-xs font-black bg-[#1a73e8]/10 text-[#1a73e8] border border-[#1a73e8]/20">
-                {isAr ? "حد الحضور ≥ 75%" : "Attendance ≥ 75%"}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Interactive Workspace Controls Strip ───────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card/80">
-        {/* Track Selector & Search */}
-        <div className="flex flex-wrap items-center gap-2 flex-1">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
-            <select
-              value={selectedTrackId}
-              onChange={(e) => setSelectedTrackId(e.target.value)}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-border bg-background focus:outline-hidden focus:ring-1 focus:ring-primary"
-            >
-              <option value="all">
-                {isAr ? "جميع المسارات التقنية (All Tracks)" : "All Technical Tracks"}
-              </option>
-              {activeTracksList.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {isAr ? t.name_ar : t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="w-3.5 h-3.5 absolute right-3 top-2.5 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder={isAr ? "بحث بالاسم، البريد، أو الموضوع..." : "Search name, email, or topic..."}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="text-xs h-8 pl-3 pr-8"
-            />
-          </div>
-        </div>
-
-        {/* Workspace Sub-Tabs Switcher */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
+      {/* ── Intuitive Navigation Tabs Bar ─────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 rounded-2xl border border-border/80 bg-muted/30">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {[
-            { id: "overview", label: isAr ? "لوحة المتابعة" : "Overview", icon: Layers },
-            { id: "tracks", label: isAr ? "دليل المسارات" : "Tracks Catalog", icon: BookOpen },
-            { id: "participants", label: isAr ? "سجل المتدربين" : "Participants", icon: Users },
-            { id: "sessions", label: isAr ? "الجلسات والتحضير" : "Sessions & Attendance", icon: Calendar },
-            { id: "assignments", label: isAr ? "المهام والتصحيح" : "Assignments & Grading", icon: FileCheck },
-            { id: "bonus", label: isAr ? "نقاط التميز" : "Track Bonus", icon: Star },
-            { id: "at_risk", label: isAr ? "المتابعة والدعم" : "At-Risk Support", icon: AlertTriangle },
-            { id: "reminders", label: isAr ? "التنبيهات الذكية" : "Smart Reminders", icon: Bell },
-            { id: "certificates", label: isAr ? "الشهادات والاعتماد" : "Certificates", icon: Award },
-            { id: "exports", label: isAr ? "التقارير والتصدير" : "Reports & Exports", icon: Download },
+            { id: "tracks", label: isAr ? "المسارات التقنية" : "Tracks", count: activeTracksList.length, icon: BookOpen },
+            { id: "participants", label: isAr ? "سجل المتدربين" : "Trainees Directory", count: enrollments.length, icon: Users },
+            { id: "sessions", label: isAr ? "الجلسات والتحضير" : "Sessions & Attendance", count: sessions.length, icon: Calendar },
+            { id: "assignments", label: isAr ? "المهام والمشاريع" : "Assignments & Tasks", count: assignments.length, icon: FileCheck },
+            { id: "insights", label: isAr ? "المتابعة والشهادات" : "Certificates & Insights", count: certificates.length, icon: Award },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -909,1129 +841,905 @@ export default function EducationPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                   isActive
-                    ? "bg-[#1a73e8] text-white shadow-2xs font-bold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    ? "bg-[#1a73e8] text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-card/70"
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    isActive ? "bg-white/25 text-white" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {tab.count}
+                </span>
               </button>
             );
           })}
         </div>
+
+        {/* Global Track Selector Filter */}
+        <div className="flex items-center gap-2 shrink-0 px-2 sm:px-0">
+          <Filter className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <select
+            value={selectedTrackId}
+            onChange={(e) => setSelectedTrackId(e.target.value)}
+            className="text-xs font-bold px-3 py-1.5 rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="all">
+              {isAr ? "🌟 جميع المسارات (All Tracks)" : "All Technical Tracks"}
+            </option>
+            {activeTracksList.map((t) => (
+              <option key={t.id} value={t.id}>
+                {isAr ? t.name_ar : t.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* TAB 1: OVERVIEW & TRACK HEALTH DASHBOARD                   */}
-      {/* ────────────────────────────────────────────────────────── */}
-      {activeTab === "overview" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {activeTracksList.map((track) => {
-              const trackEnrs = tracksService.getEnrollmentsByTrack(track.id);
-              const trackSess = tracksService.getSessionsByTrack(track.id);
-              const trackAsgs = tracksService.getAssignmentsByTrack(track.id);
-
-              let avgAttendance = 0;
-              let avgScore = 0;
-              let eligibleCerts = 0;
-
-              if (trackEnrs.length > 0) {
-                const totalAtt = trackEnrs.reduce((acc, e) => {
-                  const m = tracksService.calculateParticipantMetrics(e.participant_id, track.id);
-                  return acc + m.attendancePercentage;
-                }, 0);
-                avgAttendance = Math.round(totalAtt / trackEnrs.length);
-
-                const totalSc = trackEnrs.reduce((acc, e) => {
-                  const m = tracksService.calculateParticipantMetrics(e.participant_id, track.id);
-                  if (m.isEligibleForCertificate) eligibleCerts++;
-                  return acc + m.finalOfficialScore;
-                }, 0);
-                avgScore = Math.round((totalSc / trackEnrs.length) * 10) / 10;
-              }
-
-              return (
-                <Card
-                  key={track.id}
-                  className="p-5 border-border/80 hover:shadow-md transition-all flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary">
-                          {track.category.toUpperCase()}
-                        </span>
-                        <h3 className="font-bold text-base text-foreground mt-1">
-                          {isAr ? track.name_ar : track.name}
-                        </h3>
-                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                          {track.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-muted/20 border border-border/60 grid grid-cols-3 gap-2 text-center text-xs">
-                      <div>
-                        <span className="text-[10px] text-muted-foreground block font-medium">
-                          {isAr ? "المسجلين" : "Enrolled"}
-                        </span>
-                        <span className="font-black text-sm text-foreground">
-                          {trackEnrs.length} / {track.max_capacity}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-muted-foreground block font-medium">
-                          {isAr ? "متوسط الحضور" : "Avg Attendance"}
-                        </span>
-                        <span className="font-black text-sm text-[#34a853]">
-                          {avgAttendance}%
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-muted-foreground block font-medium">
-                          {isAr ? "متوسط الدرجة" : "Avg Score"}
-                        </span>
-                        <span className="font-black text-sm text-[#1a73e8]">
-                          {avgScore} / 100
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs text-muted-foreground">
-                      <div className="flex items-center justify-between">
-                        <span>{isAr ? "المدرب المسؤول:" : "Lead Instructor:"}</span>
-                        <span className="font-semibold text-foreground">
-                          {track.lead_name || "Lead Instructor"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>{isAr ? "الدفعة / الموسم:" : "Cohort:"}</span>
-                        <span className="font-semibold text-foreground">{track.cohort}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>{isAr ? "الجلسات المجدولة:" : "Sessions:"}</span>
-                        <span className="font-semibold text-foreground">
-                          {trackSess.length} sessions
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>{isAr ? "المهام والمشاريع:" : "Assignments:"}</span>
-                        <span className="font-semibold text-foreground">
-                          {trackAsgs.length} projects
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 mt-4 border-t border-border/60 flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-[#34a853] flex items-center gap-1">
-                      <Award className="w-3.5 h-3.5" />
-                      {eligibleCerts} {isAr ? "مؤهل للشهادة" : "Eligible"}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedTrackId(track.id);
-                        setActiveTab("participants");
-                      }}
-                      className="text-xs h-7 gap-1"
-                    >
-                      <span>{isAr ? "عرض المشاركين" : "View Roster"}</span>
-                      <ChevronRight className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* TAB 2: TRACKS CATALOG & CONFIGURATION                      */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* ──────────────────────────────────────────────────────────── */}
+      {/* TAB 1: TRACKS OVERVIEW CARDS (EASY & INTUITIVE)             */}
+      {/* ──────────────────────────────────────────────────────────── */}
       {activeTab === "tracks" && (
-        <Card className="border-border/80">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-bold">
-                {isAr ? "دليل المسارات التقنية وهيكل المنهج" : "Technical Tracks Catalog & Syllabus"}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isAr
-                  ? "إدارة اللجان التقنية، أوزان التقييم (40/30/20/10)، المدربين المعينين، والسعة القصوى."
-                  : "Manage technical tracks, evaluation weighting (40/30/20/10), instructors, and capacities."}
-              </CardDescription>
-            </div>
-            {isHRorAdmin && (
-              <Button
-                size="sm"
-                onClick={() => setIsNewTrackModalOpen(true)}
-                className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                {isAr ? "إضافة مسار جديد" : "New Track"}
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-start border-collapse">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30 text-muted-foreground font-semibold">
-                    <th className="p-3 text-start">{isAr ? "المسار" : "Track Name"}</th>
-                    <th className="p-3 text-start">{isAr ? "الفئة" : "Category"}</th>
-                    <th className="p-3 text-start">{isAr ? "الدفعة" : "Cohort"}</th>
-                    <th className="p-3 text-start">{isAr ? "المدرب المسؤول" : "Lead Instructor"}</th>
-                    <th className="p-3 text-center">{isAr ? "السعة" : "Capacity"}</th>
-                    <th className="p-3 text-center">{isAr ? "أوزان التقييم" : "Weighting (100)"}</th>
-                    <th className="p-3 text-center">{isAr ? "الحالة" : "Status"}</th>
-                    <th className="p-3 text-end">{isAr ? "إجراءات" : "Actions"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {activeTracksList.map((tr) => (
-                    <tr key={tr.id} className="hover:bg-muted/10 transition-colors">
-                      <td className="p-3">
-                        <span className="font-bold text-foreground block">
-                          {isAr ? tr.name_ar : tr.name}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground line-clamp-1">
-                          {tr.description}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <Badge variant="outline" className="text-[10px] uppercase font-mono">
-                          {tr.category}
-                        </Badge>
-                      </td>
-                      <td className="p-3 font-medium text-foreground">{tr.cohort}</td>
-                      <td className="p-3 font-semibold text-foreground">
-                        {tr.lead_name || "Assigned Instructor"}
-                      </td>
-                      <td className="p-3 text-center font-bold text-foreground">
-                        {tr.max_capacity} seats
-                      </td>
-                      <td className="p-3 text-center">
-                        <div className="inline-flex items-center gap-1 text-[10px] font-bold">
-                          <span className="px-1.5 py-0.5 rounded bg-[#1a73e8]/10 text-[#1a73e8]" title="Attendance">
-                            40% حضـور
-                          </span>
-                          <span className="px-1.5 py-0.5 rounded bg-[#34a853]/10 text-[#34a853]" title="Projects">
-                            30% مشاريع
-                          </span>
-                          <span className="px-1.5 py-0.5 rounded bg-[#fbbc04]/10 text-[#fbbc04]" title="Interaction">
-                            20% تفاعل
-                          </span>
-                          <span className="px-1.5 py-0.5 rounded bg-muted text-foreground" title="Conduct">
-                            10% سلوك
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {activeTracksList
+              .filter((t) => selectedTrackId === "all" || t.id === selectedTrackId)
+              .map((track) => {
+                const badge = getTrackCategoryBadge(track.category);
+                const IconComponent = badge.icon;
+                const trackEnrs = enrollments.filter((e) => e.track_id === track.id);
+                const trackSess = sessions.filter((s) => s.track_id === track.id);
+                const trackAsgs = assignments.filter((a) => a.track_id === track.id);
+
+                let avgAtt = 0;
+                let avgScore = 0;
+                let passCount = 0;
+
+                if (trackEnrs.length > 0) {
+                  let totalAtt = 0;
+                  let totalSc = 0;
+                  trackEnrs.forEach((e) => {
+                    const m = participantMetricsMap.get(`${e.participant_id}_${track.id}`);
+                    if (m) {
+                      totalAtt += m.attendancePercentage;
+                      totalSc += m.finalOfficialScore;
+                      if (m.isEligibleForCertificate) passCount++;
+                    }
+                  });
+                  avgAtt = Math.round(totalAtt / trackEnrs.length);
+                  avgScore = Math.round((totalSc / trackEnrs.length) * 10) / 10;
+                }
+
+                const capacityPct = Math.min(100, Math.round((trackEnrs.length / track.max_capacity) * 100));
+
+                return (
+                  <Card
+                    key={track.id}
+                    className="p-5 border-border/80 hover:border-[#1a73e8]/40 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between group"
+                  >
+                    <div className="space-y-3.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${badge.bg} ${badge.color}`}>
+                            <IconComponent className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <Badge variant="outline" className="text-[10px] font-bold px-2 py-0">
+                              {badge.label}
+                            </Badge>
+                            <h3 className="font-black text-base text-foreground mt-0.5 group-hover:text-[#1a73e8] transition-colors">
+                              {isAr ? track.name_ar : track.name}
+                            </h3>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                        {track.description}
+                      </p>
+
+                      {/* Capacity & Progress Bar */}
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between text-xs font-bold">
+                          <span className="text-muted-foreground">{isAr ? "المسجلين في الدفعة" : "Enrolled Trainees"}</span>
+                          <span className="text-foreground">
+                            {trackEnrs.length} / {track.max_capacity} ({capacityPct}%)
                           </span>
                         </div>
-                      </td>
-                      <td className="p-3 text-center">
-                        <Badge variant="success" className="text-[10px]">
-                          {tr.status}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-end">
+                        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              capacityPct >= 90 ? "bg-[#ea4335]" : "bg-[#1a73e8]"
+                            }`}
+                            style={{ width: `${capacityPct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Track Stats Grid */}
+                      <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-muted/30 border border-border/60 text-center text-xs">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-semibold">{isAr ? "الحضور" : "Attendance"}</span>
+                          <span className="font-black text-sm text-[#34a853]">{avgAtt}%</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-semibold">{isAr ? "متوسط التقييم" : "Avg Score"}</span>
+                          <span className="font-black text-sm text-[#1a73e8]">{avgScore}/100</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-semibold">{isAr ? "المؤهلين" : "Passing"}</span>
+                          <span className="font-black text-sm text-foreground">{passCount}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-xs space-y-1 text-muted-foreground pt-1">
+                        <div className="flex items-center justify-between">
+                          <span>{isAr ? "المدرب المسؤول:" : "Lead Instructor:"}</span>
+                          <span className="font-bold text-foreground">{track.lead_name || "Instructor"}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>{isAr ? "الجلسات / المهام:" : "Sessions / Tasks:"}</span>
+                          <span className="font-semibold text-foreground">
+                            {trackSess.length} {isAr ? "جلسة" : "sessions"} • {trackAsgs.length} {isAr ? "مهمة" : "tasks"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-border/60 flex items-center justify-between gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedTrackId(track.id);
+                          setActiveTab("participants");
+                        }}
+                        className="text-xs font-bold gap-1.5 flex-1 rounded-xl h-8"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>{isAr ? "عرض المتدربين" : "View Trainees"}</span>
+                      </Button>
+
+                      {isHRorAdmin && (
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => {
-                            setSelectedTrackId(tr.id);
-                            setActiveTab("participants");
+                            setSessionFormData({ ...sessionFormData, track_id: track.id });
+                            setIsNewSessionModalOpen(true);
                           }}
-                          className="h-7 text-xs font-semibold text-primary"
+                          className="text-xs font-bold gap-1 text-[#1a73e8] rounded-xl h-8 px-2.5"
+                          title={isAr ? "إضافة جلسة تدريبية" : "Schedule session"}
                         >
-                          {isAr ? "إدارة المسار" : "Manage"}
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>{isAr ? "جلسة" : "Session"}</span>
                         </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+          </div>
+        </div>
       )}
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* TAB 3: PARTICIPANTS DIRECTORY & PROFILES                   */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* ──────────────────────────────────────────────────────────── */}
+      {/* TAB 2: TRAINEES DIRECTORY (CLEAN & POWERFUL SEARCH)         */}
+      {/* ──────────────────────────────────────────────────────────── */}
       {activeTab === "participants" && (
-        <Card className="border-border/80">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-bold">
-                {isAr ? "دليل المتدربين والملفات الأكاديمية" : "Participants Roster & Academic Profiles"}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isAr
-                  ? "متابعة مسار كل متدرب، سجل الحضور، تقييم المشاريع، ونقاط التميز المستقلة (غير مرتبطة بـ HR core team)."
-                  : "Inspect each participant's track journey, attendance rate, project scores, and independent bonus points."}
-              </CardDescription>
+        <Card className="border-border/80 rounded-2xl shadow-2xs overflow-hidden">
+          <div className="p-4 border-b border-border bg-card flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {/* Search Input & Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2.5 flex-1">
+              <div className="relative min-w-[220px] max-w-sm flex-1">
+                <Search className="w-4 h-4 absolute right-3 top-2.5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder={isAr ? "بحث باسم المتدرب، البريد، أو التخصص..." : "Search trainee name or email..."}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="text-xs h-9 pl-3 pr-9 rounded-xl"
+                />
+              </div>
+
+              {/* Status Filter Pills */}
+              <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl border border-border/60 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setParticipantStatusFilter("all")}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                    participantStatusFilter === "all" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {isAr ? "الكل" : "All"} ({enrollments.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setParticipantStatusFilter("eligible")}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                    participantStatusFilter === "eligible" ? "bg-[#34a853] text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {isAr ? "مؤهل للشهادة (≥75%)" : "Eligible"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setParticipantStatusFilter("at_risk")}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                    participantStatusFilter === "at_risk" ? "bg-[#ea4335] text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {isAr ? "بحاجة لمتابعة" : "At-Risk"}
+                </button>
+              </div>
             </div>
+
+            {/* Quick Actions */}
             {isHRorAdmin && (
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={() => setIsNewParticipantModalOpen(true)}
-                  className="gap-1 text-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  {isAr ? "متدرب جديد" : "New Participant"}
-                </Button>
-                <Button
-                  size="sm"
                   onClick={() => setIsEnrollModalOpen(true)}
-                  className="gap-1 text-xs bg-[#1a73e8] text-white"
+                  className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl h-8.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  {isAr ? "تنسيب لمسار" : "Enroll"}
+                  {isAr ? "تنسيب متدرب" : "Enroll"}
                 </Button>
               </div>
             )}
-          </CardHeader>
-          <CardContent>
+          </div>
+
+          <div className="overflow-x-auto">
             {filteredEnrollments.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground text-xs">
-                <Users className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
-                <p className="font-semibold">
-                  {isAr ? "لا توجد تسجيلات مطابقة للمسار أو البحث المحدد" : "No enrollments found for current filters"}
+              <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
+                <Users className="w-10 h-10 mx-auto text-muted-foreground/40" />
+                <p className="font-bold text-sm text-foreground">
+                  {isAr ? "لا يوجد متدربون يطابقون خيارات البحث" : "No trainees match current filters"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {isAr ? "جرّب تغيير مسار البحث أو إلغاء تصفية الحالة." : "Try clearing filters."}
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-start border-collapse">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/30 text-muted-foreground font-semibold">
-                      <th className="p-3 text-start">{isAr ? "المتدرب" : "Participant"}</th>
-                      <th className="p-3 text-start">{isAr ? "الكلية / الجامعة" : "University / Faculty"}</th>
-                      <th className="p-3 text-start">{isAr ? "المسار التقني" : "Track"}</th>
-                      <th className="p-3 text-center">{isAr ? "نسبة الحضور (40%)" : "Attendance (40%)"}</th>
-                      <th className="p-3 text-center">{isAr ? "المشاريع (30%)" : "Assignments (30%)"}</th>
-                      <th className="p-3 text-center">{isAr ? "الدرجة الرسمية (100)" : "Official Score (100)"}</th>
-                      <th className="p-3 text-center">{isAr ? "نقاط التميز" : "Bonus Pts"}</th>
-                      <th className="p-3 text-center">{isAr ? "حالة الشهادة" : "Certificate"}</th>
-                      <th className="p-3 text-end">{isAr ? "إجراءات" : "Actions"}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {filteredEnrollments.map((enr) => {
-                      const p = enr.participant;
-                      if (!p) return null;
-                      const metrics = tracksService.calculateParticipantMetrics(p.id, enr.track_id);
-                      const isCert = metrics.isEligibleForCertificate;
+              <table className="w-full text-xs text-start border-collapse">
+                <thead>
+                  <tr className="border-b border-border bg-muted/20 text-muted-foreground font-bold">
+                    <th className="p-3.5 text-start">{isAr ? "المتدرب" : "Trainee"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "المسار والدفعة" : "Track & Cohort"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "الحضور (40%)" : "Attendance (40%)"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "المشاريع (30%)" : "Projects (30%)"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "الدرجة الرسمية (100)" : "Official Score"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "حالة الشهادة" : "Certificate"}</th>
+                    <th className="p-3.5 text-end">{isAr ? "إجراءات" : "Actions"}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredEnrollments.map((enr) => {
+                    const p = enr.participant;
+                    if (!p) return null;
+                    const metrics = participantMetricsMap.get(`${p.id}_${enr.track_id}`);
+                    if (!metrics) return null;
+                    const isCert = metrics.isEligibleForCertificate;
 
-                      return (
-                        <tr key={enr.id} className="hover:bg-muted/10 transition-colors">
-                          <td className="p-3">
-                            <div className="font-bold text-foreground">{p.full_name}</div>
-                            <div className="text-[10px] text-muted-foreground">{p.email}</div>
-                          </td>
-                          <td className="p-3">
-                            <span className="text-foreground font-medium block">
-                              {p.faculty_department || "Faculty of Industry & Energy"}
+                    return (
+                      <tr key={enr.id} className="hover:bg-muted/15 transition-colors">
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-[#1a73e8]/10 text-[#1a73e8] font-black flex items-center justify-center shrink-0 text-xs">
+                              {p.full_name.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="font-black text-foreground">{p.full_name}</div>
+                              <div className="text-[11px] text-muted-foreground font-mono">{p.email}</div>
+                              <div className="text-[10px] text-muted-foreground">{p.university} • {p.academic_year}</div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="p-3.5">
+                          <Badge variant="outline" className="text-[11px] font-bold">
+                            {isAr ? enr.track?.name_ar || enr.track?.name : enr.track?.name}
+                          </Badge>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">{enr.cohort}</div>
+                        </td>
+
+                        <td className="p-3.5 text-center">
+                          <div className="font-black text-sm text-foreground">
+                            {metrics.attendancePercentage}%
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">
+                            ({metrics.attendanceScore} / 40 {isAr ? "درجة" : "pts"})
+                          </span>
+                        </td>
+
+                        <td className="p-3.5 text-center">
+                          <div className="font-black text-sm text-foreground">
+                            {metrics.assignmentAveragePct}%
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">
+                            ({metrics.assignmentScore} / 30 {isAr ? "درجة" : "pts"})
+                          </span>
+                        </td>
+
+                        <td className="p-3.5 text-center">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black ${
+                              metrics.finalOfficialScore >= 75
+                                ? "bg-[#34a853]/15 text-[#34a853] border border-[#34a853]/30"
+                                : "bg-[#ea4335]/15 text-[#ea4335] border border-[#ea4335]/30"
+                            }`}
+                          >
+                            {metrics.finalOfficialScore} / 100
+                          </span>
+                          {metrics.totalBonus > 0 && (
+                            <span className="block text-[10px] font-bold text-amber-600 mt-0.5">
+                              +{metrics.totalBonus} {isAr ? "تميز" : "bonus"}
                             </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              {p.academic_year || "Undergraduate"}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <Badge variant="outline" className="text-[10px] font-semibold">
-                              {isAr ? enr.track?.name_ar || enr.track?.name : enr.track?.name}
+                          )}
+                        </td>
+
+                        <td className="p-3.5 text-center">
+                          {isCert ? (
+                            <Badge variant="success" className="text-[10px] gap-1 font-bold">
+                              <CheckCircle2 className="w-3 h-3" />
+                              {isAr ? "مؤهل للاعتماد" : "Eligible"}
                             </Badge>
-                          </td>
-                          <td className="p-3 text-center">
-                            <div className="font-bold text-foreground">
-                              {metrics.attendancePercentage}%
-                            </div>
-                            <span className="text-[10px] text-muted-foreground">
-                              ({metrics.attendanceScore} / 40 pts)
-                            </span>
-                          </td>
-                          <td className="p-3 text-center">
-                            <div className="font-bold text-foreground">
-                              {metrics.assignmentAveragePct}%
-                            </div>
-                            <span className="text-[10px] text-muted-foreground">
-                              ({metrics.assignmentScore} / 30 pts)
-                            </span>
-                          </td>
-                          <td className="p-3 text-center">
-                            <span
-                              className={`text-sm font-black px-2 py-0.5 rounded-full ${
-                                metrics.finalOfficialScore >= 75
-                                  ? "bg-[#34a853]/10 text-[#34a853]"
-                                  : "bg-[#ea4335]/10 text-[#ea4335]"
-                              }`}
+                          ) : (
+                            <Badge variant="warning" className="text-[10px]">
+                              {isAr ? "قيد المتطلبات" : "In Progress"}
+                            </Badge>
+                          )}
+                        </td>
+
+                        <td className="p-3.5 text-end">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleOpenParticipantProfile(p, enr.track_id)}
+                              className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
+                              title={isAr ? "عرض الملف الأكاديمي المفصل" : "View profile"}
                             >
-                              {metrics.finalOfficialScore} / 100
-                            </span>
-                          </td>
-                          <td className="p-3 text-center">
-                            {metrics.totalBonus > 0 ? (
-                              <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-500/10 text-amber-600">
-                                +{metrics.totalBonus} pts
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="p-3 text-center">
-                            {isCert ? (
-                              <Badge variant="success" className="text-[10px] gap-1 font-bold">
-                                <CheckCircle2 className="w-3 h-3" />
-                                {isAr ? "مؤهل للشهادة" : "Eligible"}
-                              </Badge>
-                            ) : (
-                              <Badge variant="warning" className="text-[10px]">
-                                {isAr ? "قيد المتطلبات" : "In Progress"}
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="p-3 text-end">
-                            <div className="flex items-center justify-end gap-1">
+                              <Eye className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">{isAr ? "الملف" : "Profile"}</span>
+                            </Button>
+
+                            {isHRorAdmin && (
                               <Button
                                 size="sm"
-                                variant="ghost"
-                                onClick={() => handleOpenParticipantProfile(p, enr.track_id)}
-                                className="h-7 text-xs font-semibold"
-                                title="View detailed profile"
+                                variant="outline"
+                                onClick={() => {
+                                  setBonusFormData({
+                                    ...bonusFormData,
+                                    participant_id: p.id,
+                                    track_id: enr.track_id,
+                                  });
+                                  setIsBonusModalOpen(true);
+                                }}
+                                className="h-8 text-xs font-bold gap-1 text-amber-600 border-amber-500/30 rounded-xl"
+                                title={isAr ? "منح نقاط تميز" : "Award bonus"}
                               >
-                                <Eye className="w-3.5 h-3.5 text-primary" />
+                                <Star className="w-3 h-3" />
+                                <span className="hidden sm:inline">{isAr ? "تميز" : "Bonus"}</span>
                               </Button>
+                            )}
 
-                              {isHRorAdmin && isCert && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleIssueCertificate(enr)}
-                                  className="h-7 text-[10px] gap-1 text-[#34a853] border-[#34a853]/30"
-                                >
-                                  <Award className="w-3 h-3" />
-                                  {isAr ? "إصدار الشهادة" : "Issue Cert"}
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            {isHRorAdmin && isCert && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleIssueCertificate(enr)}
+                                className="h-8 text-xs font-bold gap-1 bg-[#34a853] hover:bg-[#34a853]/90 text-white rounded-xl shadow-2xs"
+                              >
+                                <Award className="w-3.5 h-3.5" />
+                                <span>{isAr ? "إصدار الشهادة" : "Issue Cert"}</span>
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
-          </CardContent>
+          </div>
         </Card>
       )}
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* TAB 4: SESSIONS & ATTENDANCE ROSTER                        */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* ──────────────────────────────────────────────────────────── */}
+      {/* TAB 3: SESSIONS & ATTENDANCE ROSTER                         */}
+      {/* ──────────────────────────────────────────────────────────── */}
       {activeTab === "sessions" && (
-        <Card className="border-border/80">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <Card className="border-border/80 rounded-2xl shadow-2xs overflow-hidden">
+          <div className="p-4 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-base font-bold">
-                {isAr ? "جدول الجلسات وسجل رصد الحضور التراكمي" : "Sessions Schedule & Roster Attendance"}
-              </CardTitle>
-              <CardDescription className="text-xs">
+              <h2 className="text-base font-black text-foreground">
+                {isAr ? "جدول الجلسات ورصد الحضور" : "Sessions & Attendance Roster"}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {isAr
-                  ? "تسجيل حضور المتدربين (حاضر 100%، متأخر 75%، غياب بعذر لا يؤثر سلباً، غياب بدون عذر)."
-                  : "Record roster attendance per session with weighted punctual rates and excused absence handling."}
-              </CardDescription>
+                  ? "تسجيل حضور المتدربين (حاضر 100%، متأخر 75%، عذر مقبول، غياب)."
+                  : "Track sessions schedule and mark live roster attendance."}
+              </p>
             </div>
+
             {isHRorAdmin && (
               <Button
                 size="sm"
                 onClick={() => setIsNewSessionModalOpen(true)}
-                className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white"
+                className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl h-8.5"
               >
                 <Plus className="w-3.5 h-3.5" />
                 {isAr ? "جدولة جلسة جديدة" : "Schedule Session"}
               </Button>
             )}
-          </CardHeader>
-          <CardContent>
+          </div>
+
+          <div className="overflow-x-auto">
             {filteredSessions.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground text-xs">
-                <Calendar className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
-                <p className="font-semibold">
-                  {isAr ? "لا توجد جلسات مجدولة لهذا المسار حالياً" : "No sessions found"}
+              <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
+                <Calendar className="w-10 h-10 mx-auto text-muted-foreground/40" />
+                <p className="font-bold text-sm text-foreground">
+                  {isAr ? "لا توجد جلسات مجدولة لهذا المسار" : "No sessions found for this track"}
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredSessions.map((sess) => {
-                  const trackObj = tracks.find((t) => t.id === sess.track_id);
-                  const sessAttendance = tracksService.getAttendanceBySession(sess.id);
-                  const presentCnt = sessAttendance.filter((a) => a.status === "present").length;
-                  const lateCnt = sessAttendance.filter((a) => a.status === "late").length;
-                  const excusedCnt = sessAttendance.filter((a) => a.status === "excused").length;
-                  const absentCnt = sessAttendance.filter((a) => a.status === "absent").length;
+              <table className="w-full text-xs text-start border-collapse">
+                <thead>
+                  <tr className="border-b border-border bg-muted/20 text-muted-foreground font-bold">
+                    <th className="p-3.5 text-start">{isAr ? "الجلسة والموضوع" : "Session & Topic"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "المسار" : "Track"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "التاريخ والتوقيت" : "Date & Time"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "المدرب / المحاضر" : "Instructor"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "حالة الرصد" : "Roster Status"}</th>
+                    <th className="p-3.5 text-end">{isAr ? "إجراءات" : "Actions"}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredSessions.map((sess) => {
+                    const trk = tracks.find((t) => t.id === sess.track_id);
+                    const isDone = sess.status === "completed";
 
-                  return (
-                    <div
-                      key={sess.id}
-                      className="p-4 rounded-xl border border-border/80 bg-card/60 hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary">
-                            {isAr ? trackObj?.name_ar || trackObj?.name : trackObj?.name}
-                          </span>
-                          <span className="text-xs font-bold text-foreground">
-                            {sess.title}
-                          </span>
-                          <Badge
-                            variant={sess.status === "completed" ? "success" : "outline"}
-                            className="text-[10px]"
-                          >
-                            {sess.status}
+                    return (
+                      <tr key={sess.id} className="hover:bg-muted/15 transition-colors">
+                        <td className="p-3.5">
+                          <span className="font-black text-foreground text-sm block">{sess.title}</span>
+                          <span className="text-[11px] text-muted-foreground line-clamp-1">{sess.location_or_link}</span>
+                        </td>
+
+                        <td className="p-3.5">
+                          <Badge variant="outline" className="text-[10px] font-bold">
+                            {isAr ? trk?.name_ar || trk?.name : trk?.name}
                           </Badge>
-                        </div>
+                        </td>
 
-                        <p className="text-xs text-muted-foreground">
-                          {sess.description}
-                        </p>
+                        <td className="p-3.5">
+                          <div className="font-bold text-foreground">{sess.date}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {sess.start_time} - {sess.end_time}
+                          </div>
+                        </td>
 
-                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground pt-1">
-                          <span className="flex items-center gap-1 font-medium text-foreground">
-                            <Calendar className="w-3.5 h-3.5 text-[#1a73e8]" />
-                            {sess.date} ({sess.start_time} - {sess.end_time})
-                          </span>
-                          <span>•</span>
-                          <span>{sess.location_or_link}</span>
-                          <span>•</span>
-                          <span>{sess.instructor_name || "Instructor"}</span>
-                        </div>
-                      </div>
+                        <td className="p-3.5 font-bold text-foreground">
+                          {sess.instructor_name}
+                        </td>
 
-                      {/* Attendance Breakdown & Action */}
-                      <div className="flex items-center gap-3 shrink-0">
-                        <div className="flex items-center gap-2 text-center text-[10px]">
-                          <span className="px-2 py-1 rounded bg-[#34a853]/10 text-[#34a853] font-bold">
-                            {presentCnt} حاضر
-                          </span>
-                          <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-600 font-bold">
-                            {lateCnt} متأخر
-                          </span>
-                          <span className="px-2 py-1 rounded bg-blue-500/10 text-blue-600 font-bold">
-                            {excusedCnt} بعذر
-                          </span>
-                          <span className="px-2 py-1 rounded bg-red-500/10 text-red-600 font-bold">
-                            {absentCnt} غياب
-                          </span>
-                        </div>
+                        <td className="p-3.5 text-center">
+                          {isDone ? (
+                            <Badge variant="success" className="text-[10px] font-bold gap-1">
+                              <Check className="w-3 h-3" />
+                              {isAr ? "تم الرصد والتوثيق" : "Recorded"}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground font-semibold">
+                              {isAr ? "مجدولة" : "Scheduled"}
+                            </Badge>
+                          )}
+                        </td>
 
-                        {(isHRorAdmin || isInstructor) && (
+                        <td className="p-3.5 text-end">
                           <Button
                             size="sm"
                             onClick={() => handleOpenAttendanceModal(sess)}
-                            className="h-8 text-xs font-bold bg-[#1a73e8] text-white gap-1"
+                            className={`h-8 text-xs font-bold gap-1.5 rounded-xl ${
+                              isDone
+                                ? "bg-muted text-foreground hover:bg-muted/80"
+                                : "bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white shadow-2xs"
+                            }`}
                           >
-                            <CheckSquare className="w-3.5 h-3.5" />
-                            {isAr ? "رصد الحضور" : "Mark Roster"}
+                            <Users className="w-3.5 h-3.5" />
+                            <span>{isDone ? (isAr ? "تعديل الحضور" : "Edit Attendance") : (isAr ? "رصد الحضور" : "Take Attendance")}</span>
                           </Button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
-          </CardContent>
+          </div>
         </Card>
       )}
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* TAB 5: ASSIGNMENTS, SUBMISSIONS & GRADING                  */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* ──────────────────────────────────────────────────────────── */}
+      {/* TAB 4: ASSIGNMENTS & GRADING                                */}
+      {/* ──────────────────────────────────────────────────────────── */}
       {activeTab === "assignments" && (
-        <div className="space-y-6">
-          <Card className="border-border/80">
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-bold">
-                  {isAr ? "المهام والمشاريع التطبيقية (30 درجة)" : "Assignments & Deliverables (30 pts)"}
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  {isAr
-                    ? "إدارة مواعيد التسليم، تمديد المهل، التصحيح وإعطاء التغذية الراجعة البناءة."
-                    : "Manage deadlines, extensions, submissions grading, and constructive feedback."}
-                </CardDescription>
-              </div>
-              {(isHRorAdmin || isInstructor) && (
-                <Button
-                  size="sm"
-                  onClick={() => setIsNewAssignmentModalOpen(true)}
-                  className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  {isAr ? "نشر تكليف جديد" : "New Assignment"}
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {filteredAssignments.map((asg) => {
-                  const asgSubmissions = submissions.filter((s) => s.assignment_id === asg.id);
-                  const gradedCount = asgSubmissions.filter((s) => s.status === "graded").length;
-
-                  return (
-                    <div
-                      key={asg.id}
-                      className="p-4 rounded-xl border border-border/80 bg-muted/10 space-y-3"
-                    >
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-foreground">{asg.title}</span>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#1a73e8]/10 text-[#1a73e8]">
-                              Max {asg.max_score} pts
-                            </span>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#34a853]/10 text-[#34a853]">
-                              Policy: {asg.final_grade_policy || "highest_approved"}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{asg.description}</p>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-muted-foreground font-semibold">
-                            {isAr ? "الموعد النهائي:" : "Deadline:"}
-                          </span>
-                          <span className="font-bold text-[#ea4335]">{asg.deadline}</span>
-                        </div>
-                      </div>
-
-                      {/* Submissions Table for this assignment */}
-                      <div className="pt-2 border-t border-border/60">
-                        <div className="flex items-center justify-between text-xs mb-2">
-                          <span className="font-bold text-foreground">
-                            {isAr ? "تسليمات المتدربين" : "Participant Submissions"} ({asgSubmissions.length} submitted, {gradedCount} graded)
-                          </span>
-                        </div>
-
-                        {asgSubmissions.length === 0 ? (
-                          <p className="text-[11px] text-muted-foreground py-2">
-                            {isAr ? "لا توجد تسليمات مسجلة حتى الآن." : "No submissions logged yet."}
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {asgSubmissions.map((sub) => {
-                              const part = participants.find((p) => p.id === sub.participant_id);
-                              return (
-                                <div
-                                  key={sub.id}
-                                  className="p-2.5 rounded-lg border border-border/60 bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
-                                >
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-bold text-foreground">
-                                        {part?.full_name}
-                                      </span>
-                                      <Badge
-                                        variant={
-                                          sub.status === "graded" || sub.status === "accepted"
-                                            ? "success"
-                                            : sub.status === "revision_requested"
-                                            ? "warning"
-                                            : sub.status === "submitted_late"
-                                            ? "danger"
-                                            : "outline"
-                                        }
-                                        className="text-[10px]"
-                                      >
-                                        {sub.status}
-                                      </Badge>
-                                    </div>
-                                    <a
-                                      href={sub.submission_url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-[11px] text-primary hover:underline flex items-center gap-1 mt-0.5 font-mono"
-                                    >
-                                      {sub.submission_url}
-                                      <ExternalLink className="w-2.5 h-2.5" />
-                                    </a>
-                                  </div>
-
-                                  <div className="flex items-center gap-3">
-                                    {sub.score !== null && (
-                                      <span className="font-black text-sm text-[#34a853]">
-                                        {sub.score} / {asg.max_score}
-                                      </span>
-                                    )}
-
-                                    {/* Attempt History & Review Workflow Button */}
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
-                                        setActiveAssignmentForAttempts(asg);
-                                        setActiveSubmissionForAttempts(sub);
-                                        setIsAttemptsManagerOpen(true);
-                                      }}
-                                      className="h-7 text-[10px] font-bold text-[#1a73e8] border-[#1a73e8]/30 gap-1"
-                                    >
-                                      <History className="w-3 h-3" />
-                                      {isAr ? "سجل المحاولات والملاحظات" : "Attempts & History"}
-                                    </Button>
-
-                                    {(isHRorAdmin || isInstructor) && (
-                                      <div className="flex items-center gap-1.5">
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => {
-                                            setActiveSubmissionForGrading(sub);
-                                            setIsExtensionModalOpen(true);
-                                          }}
-                                          className="h-7 text-[10px] text-amber-600"
-                                        >
-                                          {isAr ? "مهلة إضافية" : "Extension"}
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          onClick={() => {
-                                            setActiveSubmissionForGrading(sub);
-                                            setGradingFormData({
-                                              score: sub.score !== null ? sub.score : 90,
-                                              feedback: sub.reviewer_feedback || "",
-                                            });
-                                            setIsGradeModalOpen(true);
-                                          }}
-                                          className="h-7 text-[10px] font-bold bg-[#1a73e8] text-white"
-                                        >
-                                          {sub.status === "graded" || sub.status === "accepted"
-                                            ? isAr
-                                              ? "تعديل الدرجة"
-                                              : "Edit Grade"
-                                            : isAr
-                                            ? "تصحيح واعتماد"
-                                            : "Grade"}
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* TAB 6: TRACK BONUS MANAGEMENT (SEPARATE MODULE)            */}
-      {/* ────────────────────────────────────────────────────────── */}
-      {activeTab === "bonus" && (
-        <Card className="border-border/80">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <Card className="border-border/80 rounded-2xl shadow-2xs overflow-hidden">
+          <div className="p-4 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-base font-bold">
-                  {isAr ? "وحدة نقاط التميز للمسارات التقنية" : "Dedicated Track Bonus Points Module"}
-                </CardTitle>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600">
-                  {isAr ? "منفصلة تماماً عن تقييم HR" : "Separate from HR Points"}
-                </span>
-              </div>
-              <CardDescription className="text-xs">
+              <h2 className="text-base font-black text-foreground">
+                {isAr ? "المهام التطبيقية ومشاريع التخرج" : "Assignments & Capstone Projects"}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {isAr
-                  ? "تُمنح للمشاريع الاستثنائية، مساعدة الزملاء، والجهد الإضافي وفق مسار اعتماد ومراجعة موثق."
-                  : "Awarded for exceptional project quality, peer support, or competitions through approval workflow."}
-              </CardDescription>
+                  ? "متابعة تسليمات المتدربين، رصد الدرجات (30% من التقييم العام)، وإبداء الملاحظات التوجيهية."
+                  : "Review deliverables, grade capstone projects (30% of final score), and manage revisions."}
+              </p>
             </div>
+
             {(isHRorAdmin || isInstructor) && (
               <Button
                 size="sm"
-                onClick={() => setIsBonusModalOpen(true)}
-                className="gap-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={() => setIsNewAssignmentModalOpen(true)}
+                className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl h-8.5"
               >
-                <Star className="w-3.5 h-3.5" />
-                {isAr ? "اقتراح نقاط تميز" : "Recommend Bonus"}
+                <Plus className="w-3.5 h-3.5" />
+                {isAr ? "إضافة تكليف جديد" : "New Assignment"}
               </Button>
             )}
-          </CardHeader>
-          <CardContent>
-            {bonuses.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground text-xs">
-                <Star className="w-8 h-8 mx-auto mb-2 opacity-40 text-amber-500" />
-                <p className="font-semibold">
-                  {isAr ? "لا توجد سجلات نقاط تميز حالياً" : "No bonus records found"}
+          </div>
+
+          <div className="overflow-x-auto">
+            {filteredAssignments.length === 0 ? (
+              <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
+                <FileCheck className="w-10 h-10 mx-auto text-muted-foreground/40" />
+                <p className="font-bold text-sm text-foreground">
+                  {isAr ? "لا توجد تكليفات منشورة لهذا المسار" : "No assignments published for this track"}
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-start border-collapse">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/30 text-muted-foreground font-semibold">
-                      <th className="p-3 text-start">{isAr ? "المتدرب" : "Participant"}</th>
-                      <th className="p-3 text-start">{isAr ? "المسار" : "Track"}</th>
-                      <th className="p-3 text-center">{isAr ? "النقاط" : "Amount"}</th>
-                      <th className="p-3 text-start">{isAr ? "الفئة والسبب" : "Category & Description"}</th>
-                      <th className="p-3 text-start">{isAr ? "الموثق" : "Recorded By"}</th>
-                      <th className="p-3 text-center">{isAr ? "الحالة" : "Status"}</th>
-                      <th className="p-3 text-end">{isAr ? "إجراءات الاعتماد" : "Decision"}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {bonuses.map((b) => {
-                      const part = participants.find((p) => p.id === b.participant_id);
-                      const trk = tracks.find((t) => t.id === b.track_id);
-                      return (
-                        <tr key={b.id} className="hover:bg-muted/10 transition-colors">
-                          <td className="p-3">
-                            <span className="font-bold text-foreground block">{part?.full_name}</span>
-                            <span className="text-[10px] text-muted-foreground">{part?.email}</span>
-                          </td>
-                          <td className="p-3">
-                            <Badge variant="outline" className="text-[10px]">
-                              {isAr ? trk?.name_ar || trk?.name : trk?.name}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-center">
-                            <span className="text-sm font-black text-amber-600 bg-amber-500/10 px-2.5 py-0.5 rounded-full">
-                              +{b.amount} pts
-                            </span>
-                          </td>
-                          <td className="p-3 max-w-xs">
-                            <span className="font-bold text-foreground block capitalize">
-                              {b.category.replace(/_/g, " ")}
-                            </span>
-                            <span className="text-[11px] text-muted-foreground block">
-                              {b.description}
-                            </span>
-                            {b.evidence_url && (
-                              <a
-                                href={b.evidence_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[10px] text-primary hover:underline flex items-center gap-1 mt-0.5"
-                              >
-                                {isAr ? "رابط الإثبات" : "Evidence Link"}
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                          </td>
-                          <td className="p-3 text-muted-foreground font-medium">
-                            {b.recorded_by}
-                          </td>
-                          <td className="p-3 text-center">
-                            <Badge
-                              variant={
-                                b.approval_status === "approved"
-                                  ? "success"
-                                  : b.approval_status === "rejected"
-                                  ? "danger"
-                                  : "warning"
+              <table className="w-full text-xs text-start border-collapse">
+                <thead>
+                  <tr className="border-b border-border bg-muted/20 text-muted-foreground font-bold">
+                    <th className="p-3.5 text-start">{isAr ? "التكليف" : "Assignment"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "المسار" : "Track"}</th>
+                    <th className="p-3.5 text-start">{isAr ? "الموعد النهائي" : "Deadline"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "الدرجة القصوى" : "Max Score"}</th>
+                    <th className="p-3.5 text-center">{isAr ? "التسليمات" : "Submissions"}</th>
+                    <th className="p-3.5 text-end">{isAr ? "إجراءات" : "Actions"}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredAssignments.map((asg) => {
+                    const trk = tracks.find((t) => t.id === asg.track_id);
+                    const asgSubs = submissions.filter((s) => s.assignment_id === asg.id);
+                    const gradedSubs = asgSubs.filter((s) => s.status === "graded");
+
+                    return (
+                      <tr key={asg.id} className="hover:bg-muted/15 transition-colors">
+                        <td className="p-3.5">
+                          <span className="font-black text-foreground text-sm block">{asg.title}</span>
+                          <span className="text-[11px] text-muted-foreground line-clamp-1">{asg.required_deliverables}</span>
+                        </td>
+
+                        <td className="p-3.5">
+                          <Badge variant="outline" className="text-[10px] font-bold">
+                            {isAr ? trk?.name_ar || trk?.name : trk?.name}
+                          </Badge>
+                        </td>
+
+                        <td className="p-3.5 font-bold text-foreground">
+                          {asg.deadline.replace("T", " ")}
+                        </td>
+
+                        <td className="p-3.5 text-center font-black text-sm text-[#1a73e8]">
+                          {asg.max_score} {isAr ? "درجة" : "pts"}
+                        </td>
+
+                        <td className="p-3.5 text-center">
+                          <span className="font-bold text-foreground">
+                            {gradedSubs.length} / {asgSubs.length} {isAr ? "تم تصحيحه" : "graded"}
+                          </span>
+                        </td>
+
+                        <td className="p-3.5 text-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const firstSub = asgSubs[0];
+                              if (firstSub) {
+                                setActiveAssignmentForAttempts(asg);
+                                setActiveSubmissionForAttempts(firstSub);
+                                setIsAttemptsManagerOpen(true);
+                              } else {
+                                alert(isAr ? "لا توجد تسليمات مسجلة بعد لهذا التكليف." : "No submissions recorded yet for this assignment.");
                               }
-                              className="text-[10px]"
-                            >
-                              {b.approval_status}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-end">
-                            {b.approval_status === "pending" && isHRorAdmin ? (
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleReviewBonus(b.id, "approved")}
-                                  className="h-6 text-[10px] text-[#34a853] border-[#34a853]/30"
-                                >
-                                  {isAr ? "قبول" : "Approve"}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleReviewBonus(b.id, "rejected")}
-                                  className="h-6 text-[10px] text-[#ea4335] border-[#ea4335]/30"
-                                >
-                                  {isAr ? "رفض" : "Reject"}
-                                </Button>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground font-semibold">
-                                {b.approved_by ? `By ${b.approved_by}` : "Finalized"}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            }}
+                            className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>{isAr ? "مراجعة التسليمات" : "Review Submissions"}</span>
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
-          </CardContent>
+          </div>
         </Card>
       )}
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* TAB 7: AT-RISK PARTICIPANTS & ACADEMIC SUPPORT             */}
-      {/* ────────────────────────────────────────────────────────── */}
-      {activeTab === "at_risk" && (
-        <AtRiskDashboard
-          isAr={isAr}
-          canManage={isHRorAdmin || isInstructor}
-          currentUser={currentUser}
-          selectedTrackId={selectedTrackId}
-          onRefresh={reloadData}
-        />
-      )}
+      {/* ──────────────────────────────────────────────────────────── */}
+      {/* TAB 5: CERTIFICATES, INSIGHTS & REPORTS HUB                 */}
+      {/* ──────────────────────────────────────────────────────────── */}
+      {activeTab === "insights" && (
+        <div className="space-y-4">
+          {/* Sub-Tabs Switcher */}
+          <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto">
+            {[
+              { id: "certificates", label: isAr ? "الشهادات الرقمية المعتمدة" : "Issued Certificates", icon: Award },
+              { id: "at_risk", label: isAr ? "المتعثرين ومؤشرات الخطر" : "At-Risk Support Hub", icon: AlertTriangle },
+              { id: "reminders", label: isAr ? "التنبيهات الذكية" : "Smart Reminders", icon: Bell },
+              { id: "reports", label: isAr ? "تصدير التقارير (CSV)" : "Exports & CSV", icon: Download },
+            ].map((sub) => {
+              const Icon = sub.icon;
+              const isSubActive = insightsSubTab === sub.id;
+              return (
+                <button
+                  key={sub.id}
+                  onClick={() => setInsightsSubTab(sub.id as any)}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    isSubActive
+                      ? "bg-foreground text-background shadow-xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{sub.label}</span>
+                </button>
+              );
+            })}
+          </div>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* TAB 8: SMART REMINDERS & NOTIFICATION POLICIES             */}
-      {/* ────────────────────────────────────────────────────────── */}
-      {activeTab === "reminders" && (
-        <SmartRemindersPanel
-          isAr={isAr}
-          canManage={isHRorAdmin || isInstructor}
-          onRefresh={reloadData}
-        />
-      )}
-
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* TAB 8: CERTIFICATES & CREDENTIAL VERIFICATION              */}
-      {/* ────────────────────────────────────────────────────────── */}
-      {activeTab === "certificates" && (
-        <Card className="border-border/80">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Award className="w-4 h-4 text-[#34a853]" />
-                <span>{isAr ? "سجل الشهادات الرقمية المعتمدة" : "Verified Credentials & Certification"}</span>
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isAr
-                  ? "إصدار الشهادات الرسمية لمن حققوا 75 درجة فأعلى مع كود تحقق مشفر."
-                  : "Issue and verify official certificates for students qualifying with ≥ 75% score."}
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {certificates.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground text-xs">
-                <Award className="w-8 h-8 mx-auto mb-2 opacity-40 text-[#34a853]" />
-                <p className="font-semibold">
-                  {isAr ? "لم تصدر شهادات رسمية بعد" : "No certificates issued yet"}
+          {/* SubTab 1: Issued Certificates */}
+          {insightsSubTab === "certificates" && (
+            <Card className="border-border/80 rounded-2xl shadow-2xs overflow-hidden">
+              <div className="p-4 border-b border-border bg-card">
+                <h3 className="font-black text-base text-foreground">
+                  {isAr ? "سجل الشهادات الرقمية الصادرة والمعتمدة" : "Official Issued Certificates"}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isAr
+                    ? "الشهادات الصادرة للمتدربين الذين حققوا نسبة نجاح ≥ 75% وحضور ≥ 75% وفقاً للائحة الرسمية."
+                    : "Digital credentials issued to qualifying trainees (≥75% score and ≥75% attendance)."}
                 </p>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {certificates.map((cert) => {
-                  const part = participants.find((p) => p.id === cert.participant_id);
-                  const trk = tracks.find((t) => t.id === cert.track_id);
-                  return (
-                    <Card
-                      key={cert.id}
-                      className="p-4 border-[#34a853]/40 bg-card hover:shadow-md transition-all flex flex-col justify-between space-y-3"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#34a853]/10 text-[#34a853]">
-                            VERIFIED CREDENTIAL
-                          </span>
-                          <span className="text-[11px] font-mono font-bold text-muted-foreground">
-                            {cert.certificate_code}
-                          </span>
-                        </div>
 
-                        <div>
-                          <h4 className="font-bold text-sm text-foreground">{part?.full_name}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            {isAr ? trk?.name_ar : trk?.name}
-                          </p>
-                        </div>
+              <div className="overflow-x-auto">
+                {certificates.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
+                    <Award className="w-10 h-10 mx-auto text-muted-foreground/40" />
+                    <p className="font-bold text-sm text-foreground">
+                      {isAr ? "لم تصدر أي شهادات بعد" : "No certificates issued yet"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {isAr ? "يمكنك إصدار الشهادات مباشرة من سجل المتدربين للمستوفين للشروط." : "Issue certificates from the Trainees Directory."}
+                    </p>
+                  </div>
+                ) : (
+                  <table className="w-full text-xs text-start border-collapse">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/20 text-muted-foreground font-bold">
+                        <th className="p-3.5 text-start">{isAr ? "كود الشهادة" : "Certificate Code"}</th>
+                        <th className="p-3.5 text-start">{isAr ? "اسم المتدرب" : "Trainee"}</th>
+                        <th className="p-3.5 text-start">{isAr ? "المسار" : "Track"}</th>
+                        <th className="p-3.5 text-center">{isAr ? "الدرجة النهائية" : "Score"}</th>
+                        <th className="p-3.5 text-center">{isAr ? "تاريخ الإصدار" : "Date"}</th>
+                        <th className="p-3.5 text-end">{isAr ? "معاينة" : "Preview"}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {certificates.map((cert) => {
+                        const p = participants.find((part) => part.id === cert.participant_id);
+                        const t = tracks.find((trk) => trk.id === cert.track_id);
 
-                        <div className="p-2.5 rounded-lg bg-muted/30 border border-border/60 flex items-center justify-between text-xs">
-                          <span>{isAr ? "الدرجة النهائية:" : "Official Score:"}</span>
-                          <span className="font-black text-sm text-[#34a853]">
-                            {cert.official_score} / 100
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-border/60 flex items-center justify-between">
-                        <span className="text-[10px] text-muted-foreground">
-                          {isAr ? "تاريخ الإصدار:" : "Issued:"} {cert.issue_date}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setActiveCertificateToView(cert);
-                            setIsCertificatePreviewOpen(true);
-                          }}
-                          className="h-7 text-xs font-semibold gap-1 text-primary"
-                        >
-                          <Eye className="w-3 h-3" />
-                          {isAr ? "عرض الشهادة" : "Preview"}
-                        </Button>
-                      </div>
-                    </Card>
-                  );
-                })}
+                        return (
+                          <tr key={cert.id} className="hover:bg-muted/15 transition-colors">
+                            <td className="p-3.5 font-mono font-bold text-foreground">
+                              {cert.certificate_code}
+                            </td>
+                            <td className="p-3.5 font-black text-foreground">
+                              {p?.full_name || cert.participant_id}
+                            </td>
+                            <td className="p-3.5">
+                              <Badge variant="outline" className="text-[10px] font-bold">
+                                {isAr ? t?.name_ar || t?.name : t?.name}
+                              </Badge>
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <span className="font-black text-sm text-[#34a853]">
+                                {cert.official_score} / 100
+                              </span>
+                            </td>
+                            <td className="p-3.5 text-center text-muted-foreground">
+                              {cert.issue_date}
+                            </td>
+                            <td className="p-3.5 text-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setActiveCertificateToView(cert);
+                                  setIsCertificatePreviewOpen(true);
+                                }}
+                                className="h-8 text-xs font-bold gap-1 rounded-xl"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-primary" />
+                                <span>{isAr ? "معاينة الشهادة" : "Preview"}</span>
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            </Card>
+          )}
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* TAB 9: REPORTS & CSV EXPORTS                               */}
-      {/* ────────────────────────────────────────────────────────── */}
-      {activeTab === "exports" && (
-        <Card className="border-border/80">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold">
-              {isAr ? "تصدير التقارير الإدارية والأكاديمية (CSV / Excel)" : "Reports & Data Export Center"}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {isAr
-                ? "تصدير فوري لكشوف المتدربين، سجلات الحضور لكل جلسة، وجدول الدرجات مع احترام الفلتر المحدد."
-                : "Instant CSV downloads for roster, per-session attendance logs, and weighted grade sheets."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          {/* SubTab 2: At-Risk Hub Component */}
+          {insightsSubTab === "at_risk" && (
+            <AtRiskDashboard
+              isAr={isAr}
+              canManage={isHRorAdmin || isInstructor}
+              currentUser={currentUser}
+              selectedTrackId={selectedTrackId}
+              onRefresh={reloadData}
+            />
+          )}
+
+          {/* SubTab 3: Smart Reminders Component */}
+          {insightsSubTab === "reminders" && (
+            <SmartRemindersPanel
+              isAr={isAr}
+              canManage={isHRorAdmin || isInstructor}
+              currentUser={currentUser}
+              selectedTrackId={selectedTrackId}
+              onRefresh={reloadData}
+            />
+          )}
+
+          {/* SubTab 4: Reports & CSV Export */}
+          {insightsSubTab === "reports" && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="p-4 border-border/60 bg-muted/10 space-y-3">
-                <div className="p-2.5 w-fit rounded-xl bg-primary/10 text-primary">
-                  <Users className="w-5 h-5" />
+              <Card className="p-5 border-border/80 rounded-2xl shadow-2xs space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-[#1a73e8]/10 text-[#1a73e8] flex items-center justify-center">
+                  <Download className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="font-bold text-sm text-foreground">
-                    {isAr ? "كشف المتدربين والبيانات الأكاديمية" : "Participant Roster Export"}
+                    {isAr ? "سجل المتدربين (Roster CSV)" : "Participants Roster CSV"}
                   </h4>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {isAr
-                      ? "يتضمن الأسماء، البريد، الكلية، الحالة، ونسب الإنجاز."
-                      : "Includes full profile data, college info, and overall completion rate."}
+                    {isAr ? "تصدير بيانات المتدربين المسجلين، الكلية، والبريد." : "Export complete trainee directory for the track."}
                   </p>
                 </div>
                 <Button
                   size="sm"
+                  variant="outline"
                   onClick={() => handleDownloadCSV("roster")}
-                  className="w-full text-xs font-bold gap-1.5"
+                  className="w-full text-xs font-bold rounded-xl h-8.5 gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  {isAr ? "تحميل كشف المتدربين (CSV)" : "Download Roster CSV"}
+                  <span>{isAr ? "تحميل Roster.csv" : "Download CSV"}</span>
                 </Button>
               </Card>
 
-              <Card className="p-4 border-border/60 bg-muted/10 space-y-3">
-                <div className="p-2.5 w-fit rounded-xl bg-[#34a853]/10 text-[#34a853]">
-                  <Calendar className="w-5 h-5" />
+              <Card className="p-5 border-border/80 rounded-2xl shadow-2xs space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-[#34a853]/10 text-[#34a853] flex items-center justify-center">
+                  <Download className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="font-bold text-sm text-foreground">
-                    {isAr ? "سجل الحضور التفصيلي للجلسات" : "Attendance Matrix Export"}
+                    {isAr ? "تقرير الحضور والغياب (Attendance CSV)" : "Attendance Sheet CSV"}
                   </h4>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {isAr
-                      ? "جدول كامل بحالة كل متدرب في كل جلسة مع حساب النسبة المئوية."
-                      : "Matrix showing present, late, excused, absent per session with percentages."}
+                    {isAr ? "تقرير تفصيلي بنسب الحضور ورصد الورش (40%)." : "Export attendance records and punctuality rates."}
                   </p>
                 </div>
                 <Button
                   size="sm"
+                  variant="outline"
                   onClick={() => handleDownloadCSV("attendance")}
-                  className="w-full text-xs font-bold gap-1.5 bg-[#34a853] hover:bg-[#34a853]/90 text-white"
+                  className="w-full text-xs font-bold rounded-xl h-8.5 gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  {isAr ? "تحميل سجل الحضور (CSV)" : "Download Attendance CSV"}
+                  <span>{isAr ? "تحميل Attendance.csv" : "Download CSV"}</span>
                 </Button>
               </Card>
 
-              <Card className="p-4 border-border/60 bg-muted/10 space-y-3">
-                <div className="p-2.5 w-fit rounded-xl bg-[#ea4335]/10 text-[#ea4335]">
-                  <FileCheck className="w-5 h-5" />
+              <Card className="p-5 border-border/80 rounded-2xl shadow-2xs space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-[#fbbc04]/10 text-[#b06000] dark:text-[#fbbc04] flex items-center justify-center">
+                  <Download className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="font-bold text-sm text-foreground">
-                    {isAr ? "كشف الدرجات الرسمية والشهادات" : "Grades & Certification Export"}
+                    {isAr ? "كشف الدرجات الشامل (Grades 100pts CSV)" : "Official 100-Point Grades CSV"}
                   </h4>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {isAr
-                      ? "الدرجات وفق معادلة الـ 100 درجة (40/30/20/10) ونقاط التميز المستقلة."
-                      : "Official 100-pt formula outputs, separate bonus points, and eligibility."}
+                    {isAr ? "حساب درجات التقييم الرسمية واستحقاق الشهادات." : "Export calculated weighted grades and certificate eligibility."}
                   </p>
                 </div>
                 <Button
                   size="sm"
+                  variant="outline"
                   onClick={() => handleDownloadCSV("grades")}
-                  className="w-full text-xs font-bold gap-1.5 bg-[#ea4335] hover:bg-[#ea4335]/90 text-white"
+                  className="w-full text-xs font-bold rounded-xl h-8.5 gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  {isAr ? "تحميل كشف الدرجات (CSV)" : "Download Grades CSV"}
+                  <span>{isAr ? "تحميل Grades.csv" : "Download CSV"}</span>
                 </Button>
               </Card>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       )}
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 1: CREATE TECHNICAL TRACK                            */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* ──────────────────────────────────────────────────────────── */}
+      {/* MODALS SECTION (CLEAN, ACCESSIBLE, ERGONOMIC)              */}
+      {/* ──────────────────────────────────────────────────────────── */}
+
+      {/* 1. New Track Modal */}
       <Dialog open={isNewTrackModalOpen} onOpenChange={setIsNewTrackModalOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
               {isAr ? "إنشاء مسار تقني جديد" : "Create Technical Track"}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {isAr
-                ? "إضافة مسار تدريبي جديد بجدول مواعيد وسعة محددة."
-                : "Configure a new educational track and cohort requirements."}
+              {isAr ? "إضافة مسار تدريبي جديد وتحديد السعة والمدرب المسؤول." : "Configure a new educational track."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{isAr ? "اسم المسار (English)" : "Track Name (English)"}</Label>
-                <Input
-                  value={trackFormData.name}
-                  onChange={(e) => setTrackFormData({ ...trackFormData, name: e.target.value })}
-                  placeholder="e.g. Flutter Mobile Development"
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1">
                 <Label>{isAr ? "اسم المسار (عربي)" : "Track Name (Arabic)"}</Label>
                 <Input
                   value={trackFormData.name_ar}
                   onChange={(e) => setTrackFormData({ ...trackFormData, name_ar: e.target.value })}
-                  placeholder="مثال: تطوير تطبيقات الموبايل"
-                  className="h-8 text-xs"
+                  placeholder="تطوير الويب الحديث"
+                  className="h-8.5 text-xs rounded-xl"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{isAr ? "اسم المسار (English)" : "Track Name (English)"}</Label>
+                <Input
+                  value={trackFormData.name}
+                  onChange={(e) => setTrackFormData({ ...trackFormData, name: e.target.value })}
+                  placeholder="Web Development"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label>{isAr ? "الوصف ومحتوى التدريب" : "Description & Overview"}</Label>
+              <Label>{isAr ? "الوصف ومحتوى التدريب" : "Description"}</Label>
               <Textarea
                 value={trackFormData.description}
                 onChange={(e) => setTrackFormData({ ...trackFormData, description: e.target.value })}
-                placeholder="Overview of syllabus, tools, and outcomes..."
-                className="text-xs h-20"
+                placeholder="أهداف ومخرجات المسار..."
+                className="text-xs h-18 rounded-xl"
               />
             </div>
 
@@ -2041,15 +1749,14 @@ export default function EducationPage() {
                 <select
                   value={trackFormData.category}
                   onChange={(e) => setTrackFormData({ ...trackFormData, category: e.target.value as any })}
-                  className="w-full text-xs h-8 px-2 rounded-md border border-border bg-background"
+                  className="w-full text-xs h-8.5 px-3 rounded-xl border border-border bg-background"
                 >
                   <option value="web">Web Development</option>
                   <option value="mobile">Flutter / Mobile</option>
                   <option value="cybersecurity">Cybersecurity</option>
                   <option value="embedded">Embedded Systems</option>
                   <option value="uiux">UI/UX Design</option>
-                  <option value="ai_ml">AI / Machine Learning</option>
-                  <option value="other">Other Track</option>
+                  <option value="ai_ml">AI / Data Science</option>
                 </select>
               </div>
               <div className="space-y-1">
@@ -2057,7 +1764,7 @@ export default function EducationPage() {
                 <Input
                   value={trackFormData.cohort}
                   onChange={(e) => setTrackFormData({ ...trackFormData, cohort: e.target.value })}
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
             </div>
@@ -2068,7 +1775,7 @@ export default function EducationPage() {
                 <Input
                   value={trackFormData.lead_name}
                   onChange={(e) => setTrackFormData({ ...trackFormData, lead_name: e.target.value })}
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
               <div className="space-y-1">
@@ -2077,36 +1784,32 @@ export default function EducationPage() {
                   type="number"
                   value={trackFormData.max_capacity}
                   onChange={(e) => setTrackFormData({ ...trackFormData, max_capacity: Number(e.target.value) })}
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsNewTrackModalOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsNewTrackModalOpen(false)} className="rounded-xl">
               {isAr ? "إلغاء" : "Cancel"}
             </Button>
-            <Button size="sm" onClick={handleCreateTrack} className="bg-[#1a73e8] text-white">
-              {isAr ? "حفظ وإنشاء المسار" : "Create Track"}
+            <Button size="sm" onClick={handleCreateTrack} className="bg-[#1a73e8] text-white rounded-xl">
+              {isAr ? "حفظ المسار" : "Create Track"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 2: REGISTER NEW PARTICIPANT                          */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* 2. New Trainee Modal */}
       <Dialog open={isNewParticipantModalOpen} onOpenChange={setIsNewParticipantModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              {isAr ? "تسجيل متدرب جديد بالأكاديمية" : "Register Participant"}
+              {isAr ? "تسجيل متدرب جديد" : "Register Trainee"}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {isAr
-                ? "تسجيل طالب في قاعدة بيانات المشاركين بالمسارات (منفصل عن ميمبرز GDG)."
-                : "Add participant profile for technical tracks (independent of core team)."}
+              {isAr ? "إضافة بيانات الطالب الأكاديمية بالأكاديمية التقنية." : "Add participant profile for technical tracks."}
             </DialogDescription>
           </DialogHeader>
 
@@ -2116,8 +1819,8 @@ export default function EducationPage() {
               <Input
                 value={participantFormData.full_name}
                 onChange={(e) => setParticipantFormData({ ...participantFormData, full_name: e.target.value })}
-                placeholder="e.g. Karim Mahmoud Mostafa"
-                className="h-8 text-xs"
+                placeholder="أحمد محمود حسن"
+                className="h-8.5 text-xs rounded-xl"
               />
             </div>
 
@@ -2129,7 +1832,7 @@ export default function EducationPage() {
                   value={participantFormData.email}
                   onChange={(e) => setParticipantFormData({ ...participantFormData, email: e.target.value })}
                   placeholder="student@nctu.edu.eg"
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
               <div className="space-y-1">
@@ -2138,76 +1841,72 @@ export default function EducationPage() {
                   value={participantFormData.phone}
                   onChange={(e) => setParticipantFormData({ ...participantFormData, phone: e.target.value })}
                   placeholder="+20 100 ..."
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label>{isAr ? "الجامعة والكلية" : "University / Faculty"}</Label>
+              <Label>{isAr ? "الجامعة والكلية" : "University"}</Label>
               <Input
                 value={participantFormData.university}
                 onChange={(e) => setParticipantFormData({ ...participantFormData, university: e.target.value })}
-                className="h-8 text-xs"
+                className="h-8.5 text-xs rounded-xl"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{isAr ? "القسم أو التخصص" : "Department"}</Label>
+                <Label>{isAr ? "التخصص / القسم" : "Department"}</Label>
                 <Input
                   value={participantFormData.faculty_department}
                   onChange={(e) => setParticipantFormData({ ...participantFormData, faculty_department: e.target.value })}
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
               <div className="space-y-1">
-                <Label>{isAr ? "السنة الدراسية" : "Academic Year"}</Label>
+                <Label>{isAr ? "الفرقة الدراسية" : "Academic Year"}</Label>
                 <Input
                   value={participantFormData.academic_year}
                   onChange={(e) => setParticipantFormData({ ...participantFormData, academic_year: e.target.value })}
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsNewParticipantModalOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsNewParticipantModalOpen(false)} className="rounded-xl">
               {isAr ? "إلغاء" : "Cancel"}
             </Button>
-            <Button size="sm" onClick={handleCreateParticipant} className="bg-[#1a73e8] text-white">
-              {isAr ? "حفظ المتدرب" : "Save Participant"}
+            <Button size="sm" onClick={handleCreateParticipant} className="bg-[#34a853] text-white rounded-xl">
+              {isAr ? "حفظ المتدرب" : "Save Trainee"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 3: ENROLL PARTICIPANT TO TRACK                       */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* 3. Enroll Modal */}
       <Dialog open={isEnrollModalOpen} onOpenChange={setIsEnrollModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              {isAr ? "تنسيب متدرب لمسار تقني" : "Enroll Participant to Track"}
+              {isAr ? "تنسيب متدرب لمسار تقني" : "Enroll Trainee to Track"}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {isAr
-                ? "ربط المتدرب بمسار محدد. يُمنع التسجيل المزدوج في نفس المسار للدفعة ذاتها."
-                : "Connect student to track cohort. Enforces unique enrollment per cohort."}
+              {isAr ? "ربط المتدرب بمسار محدد (يمنع التكرار لنفس الدفعة)." : "Connect student to track cohort."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
             <div className="space-y-1">
-              <Label>{isAr ? "اختر المتدرب" : "Select Participant"}</Label>
+              <Label>{isAr ? "اختر المتدرب" : "Select Trainee"}</Label>
               <select
                 value={enrollFormData.participant_id}
                 onChange={(e) => setEnrollFormData({ ...enrollFormData, participant_id: e.target.value })}
-                className="w-full text-xs h-8 px-2 rounded-md border border-border bg-background"
+                className="w-full text-xs h-8.5 px-3 rounded-xl border border-border bg-background"
               >
-                <option value="">{isAr ? "-- اختر من القائمة --" : "-- Select participant --"}</option>
+                <option value="">{isAr ? "-- اختر من القائمة --" : "-- Select trainee --"}</option>
                 {participants.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.full_name} ({p.email})
@@ -2221,7 +1920,7 @@ export default function EducationPage() {
               <select
                 value={enrollFormData.track_id}
                 onChange={(e) => setEnrollFormData({ ...enrollFormData, track_id: e.target.value })}
-                className="w-full text-xs h-8 px-2 rounded-md border border-border bg-background"
+                className="w-full text-xs h-8.5 px-3 rounded-xl border border-border bg-background"
               >
                 <option value="">{isAr ? "-- اختر المسار --" : "-- Select track --"}</option>
                 {activeTracksList.map((t) => (
@@ -2237,40 +1936,39 @@ export default function EducationPage() {
               <Input
                 value={enrollFormData.cohort}
                 onChange={(e) => setEnrollFormData({ ...enrollFormData, cohort: e.target.value })}
-                className="h-8 text-xs"
+                className="h-8.5 text-xs rounded-xl"
               />
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsEnrollModalOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsEnrollModalOpen(false)} className="rounded-xl">
               {isAr ? "إلغاء" : "Cancel"}
             </Button>
-            <Button size="sm" onClick={handleEnrollParticipant} className="bg-[#1a73e8] text-white">
+            <Button size="sm" onClick={handleEnrollParticipant} className="bg-[#1a73e8] text-white rounded-xl">
               {isAr ? "تأكيد التنسيب" : "Confirm Enrollment"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 4: RECORD SESSION ATTENDANCE ROSTER                  */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* 4. Session Attendance Modal */}
       <Dialog open={isAttendanceModalOpen} onOpenChange={setIsAttendanceModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold">
-              {isAr ? "رصد حضور الجلسة" : "Record Session Attendance"}
+            <DialogTitle className="text-base font-bold flex items-center justify-between">
+              <span>{isAr ? "رصد حضور الجلسة" : "Record Session Attendance"}</span>
+              <span className="text-xs font-normal text-muted-foreground">{activeSessionForAttendance?.date}</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {activeSessionForAttendance?.title} ({activeSessionForAttendance?.date})
+            <DialogDescription className="text-xs font-bold text-foreground">
+              {activeSessionForAttendance?.title}
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto py-2 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-border text-xs">
-              <span className="font-semibold text-muted-foreground">
-                {isAr ? "قائمة المسجلين بالمسار" : "Enrolled Roster"}
+              <span className="font-bold text-muted-foreground">
+                {isAr ? "قائمة المتدربين المسجلين بالمسار" : "Enrolled Trainees"}
               </span>
               <Button
                 size="sm"
@@ -2284,9 +1982,9 @@ export default function EducationPage() {
                   });
                   setAttendanceSheet(newSheet);
                 }}
-                className="text-[10px] h-6 text-[#34a853]"
+                className="text-[11px] h-7 text-[#34a853] border-[#34a853]/40 rounded-lg font-bold"
               >
-                {isAr ? "تحديد الكل: حاضر (100%)" : "Mark All Present"}
+                {isAr ? "✓ تحديد الكل: حاضر (100%)" : "Mark All Present"}
               </Button>
             </div>
 
@@ -2298,11 +1996,11 @@ export default function EducationPage() {
                 return (
                   <div
                     key={e.id}
-                    className="p-2.5 rounded-lg border border-border/60 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    className="p-3 rounded-xl border border-border/70 bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                   >
                     <div>
                       <span className="font-bold text-foreground block">{p?.full_name}</span>
-                      <span className="text-[10px] text-muted-foreground">{p?.email}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">{p?.email}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -2319,33 +2017,25 @@ export default function EducationPage() {
                               },
                             });
                           }}
-                          className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             currentStatus === st
                               ? st === "present"
-                                ? "bg-[#34a853] text-white"
+                                ? "bg-[#34a853] text-white shadow-2xs"
                                 : st === "late"
-                                ? "bg-amber-600 text-white"
+                                ? "bg-amber-600 text-white shadow-2xs"
                                 : st === "excused"
-                                ? "bg-blue-600 text-white"
-                                : "bg-[#ea4335] text-white"
+                                ? "bg-blue-600 text-white shadow-2xs"
+                                : "bg-[#ea4335] text-white shadow-2xs"
                               : "bg-muted text-muted-foreground hover:bg-muted/80"
                           }`}
                         >
                           {st === "present"
-                            ? isAr
-                              ? "حاضر"
-                              : "Present"
+                            ? isAr ? "حاضر" : "Present"
                             : st === "late"
-                            ? isAr
-                              ? "متأخر"
-                              : "Late"
+                            ? isAr ? "متأخر" : "Late"
                             : st === "excused"
-                            ? isAr
-                              ? "بعذر"
-                              : "Excused"
-                            : isAr
-                            ? "غياب"
-                            : "Absent"}
+                            ? isAr ? "بعذر" : "Excused"
+                            : isAr ? "غياب" : "Absent"}
                         </button>
                       ))}
                     </div>
@@ -2354,250 +2044,24 @@ export default function EducationPage() {
               })}
           </div>
 
-          <DialogFooter className="border-t border-border pt-3">
-            <Button variant="outline" size="sm" onClick={() => setIsAttendanceModalOpen(false)}>
+          <DialogFooter className="border-t border-border pt-3 gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsAttendanceModalOpen(false)} className="rounded-xl">
               {isAr ? "إلغاء" : "Cancel"}
             </Button>
-            <Button size="sm" onClick={handleSaveAttendance} className="bg-[#34a853] text-white">
-              {isAr ? "حفظ واعتماد الكشف" : "Save Attendance"}
+            <Button size="sm" onClick={handleSaveAttendance} className="bg-[#34a853] text-white rounded-xl font-bold">
+              {isAr ? "حفظ واعتماد الحضور" : "Save Attendance"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 5: GRADE SUBMISSION & FEEDBACK                       */}
-      {/* ────────────────────────────────────────────────────────── */}
-      <Dialog open={isGradeModalOpen} onOpenChange={setIsGradeModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">
-              {isAr ? "تصحيح المهمة والتغذية الراجعة" : "Grade Submission & Feedback"}
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              {isAr
-                ? "تقييم المشروع وتقديم ملاحظات توجيهية للمتدرب."
-                : "Assign score and constructive reviewer notes."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2 text-xs">
-            <div className="p-2.5 rounded-lg bg-muted/30 border border-border/60">
-              <span className="text-[10px] text-muted-foreground block font-medium">
-                {isAr ? "رابط المشروع المسلّم:" : "Submitted Deliverable:"}
-              </span>
-              <a
-                href={activeSubmissionForGrading?.submission_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary font-mono hover:underline flex items-center gap-1 mt-0.5"
-              >
-                {activeSubmissionForGrading?.submission_url}
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "الدرجة المستحقة (من 100)" : "Score (out of 100)"}</Label>
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={gradingFormData.score}
-                onChange={(e) => setGradingFormData({ ...gradingFormData, score: Number(e.target.value) })}
-                className="h-8 text-xs font-bold"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "ملاحظات التقييم والتوجيه" : "Constructive Reviewer Feedback"}</Label>
-              <Textarea
-                value={gradingFormData.feedback}
-                onChange={(e) => setGradingFormData({ ...gradingFormData, feedback: e.target.value })}
-                placeholder="Highlight strengths, architecture advice, and areas for improvement..."
-                className="text-xs h-24"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsGradeModalOpen(false)}>
-              {isAr ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button size="sm" onClick={handleGradeSubmission} className="bg-[#1a73e8] text-white">
-              {isAr ? "اعتماد الدرجة" : "Save Grade"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 6: GRANT DEADLINE EXTENSION                          */}
-      {/* ────────────────────────────────────────────────────────── */}
-      <Dialog open={isExtensionModalOpen} onOpenChange={setIsExtensionModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">
-              {isAr ? "تمديد مهلة التسليم بموافقة المدرب" : "Grant Deadline Extension"}
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              {isAr
-                ? "تسجيل تمديد رسمي مع توثيق السبب لتجنب خصم التأخير."
-                : "Approve deadline extension with documented rationale."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <Label>{isAr ? "الموعد النهائي الجديد" : "New Deadline"}</Label>
-              <Input
-                type="datetime-local"
-                value={extensionFormData.new_deadline}
-                onChange={(e) => setExtensionFormData({ ...extensionFormData, new_deadline: e.target.value })}
-                className="h-8 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "مبرر التمديد المعتمد" : "Extension Rationale"}</Label>
-              <Textarea
-                value={extensionFormData.reason}
-                onChange={(e) => setExtensionFormData({ ...extensionFormData, reason: e.target.value })}
-                placeholder="Medical or academic university conflict..."
-                className="text-xs h-20"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsExtensionModalOpen(false)}>
-              {isAr ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button size="sm" onClick={handleGrantExtension} className="bg-[#1a73e8] text-white">
-              {isAr ? "اعتماد التمديد" : "Grant Extension"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 7: RECOMMEND TRACK BONUS                             */}
-      {/* ────────────────────────────────────────────────────────── */}
-      <Dialog open={isBonusModalOpen} onOpenChange={setIsBonusModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">
-              {isAr ? "اقتراح نقاط تميز للمتدرب" : "Recommend Track Bonus"}
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              {isAr
-                ? "نقاط تشجيعية منفصلة عن نقاط HR Core Team وتخضع لموافقة الإدارة."
-                : "Dedicated bonus points module subject to review workflow."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <Label>{isAr ? "المتدرب" : "Participant"}</Label>
-              <select
-                value={bonusFormData.participant_id}
-                onChange={(e) => setBonusFormData({ ...bonusFormData, participant_id: e.target.value })}
-                className="w-full text-xs h-8 px-2 rounded-md border border-border bg-background"
-              >
-                <option value="">{isAr ? "-- اختر المتدرب --" : "-- Select participant --"}</option>
-                {participants.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "المسار التقني" : "Track"}</Label>
-              <select
-                value={bonusFormData.track_id}
-                onChange={(e) => setBonusFormData({ ...bonusFormData, track_id: e.target.value })}
-                className="w-full text-xs h-8 px-2 rounded-md border border-border bg-background"
-              >
-                <option value="">{isAr ? "-- اختر المسار --" : "-- Select track --"}</option>
-                {activeTracksList.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {isAr ? t.name_ar : t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{isAr ? "مقدار النقاط (1-15)" : "Bonus Amount (1-15)"}</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="15"
-                  value={bonusFormData.amount}
-                  onChange={(e) => setBonusFormData({ ...bonusFormData, amount: Number(e.target.value) })}
-                  className="h-8 text-xs font-bold"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>{isAr ? "الفئة" : "Category"}</Label>
-                <select
-                  value={bonusFormData.category}
-                  onChange={(e) => setBonusFormData({ ...bonusFormData, category: e.target.value as any })}
-                  className="w-full text-xs h-8 px-2 rounded-md border border-border bg-background"
-                >
-                  <option value="exceptional_project">Exceptional Project</option>
-                  <option value="helping_peers">Helping Peers in Lab</option>
-                  <option value="additional_effort">Additional Effort</option>
-                  <option value="competition">Hackathon / Competition</option>
-                  <option value="voluntary_contribution">Voluntary Contribution</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "الوصف الموضوعي" : "Objective Description"}</Label>
-              <Textarea
-                value={bonusFormData.description}
-                onChange={(e) => setBonusFormData({ ...bonusFormData, description: e.target.value })}
-                placeholder="Explain the specific contribution..."
-                className="text-xs h-20"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "رابط الإثبات أو المشروع (اختياري)" : "Evidence URL (Optional)"}</Label>
-              <Input
-                value={bonusFormData.evidence_url}
-                onChange={(e) => setBonusFormData({ ...bonusFormData, evidence_url: e.target.value })}
-                placeholder="https://github.com/..."
-                className="h-8 text-xs"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsBonusModalOpen(false)}>
-              {isAr ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button size="sm" onClick={handleCreateBonus} className="bg-amber-600 text-white">
-              {isAr ? "إرسال للمراجعة" : "Submit Recommendation"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 8: PARTICIPANT PROFILE DETAILED INSPECTOR            */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* 5. Participant Profile Modal */}
       <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center justify-between">
               <span>{inspectedParticipant?.full_name}</span>
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-xs">
                 {inspectedParticipant?.status}
               </Badge>
             </DialogTitle>
@@ -2608,15 +2072,14 @@ export default function EducationPage() {
 
           {inspectedParticipant && (
             <div className="flex-1 overflow-y-auto space-y-4 py-2 text-xs">
-              {/* Multi-Track Selector Strip */}
               <div className="p-3 rounded-xl bg-muted/30 border border-border/60 flex items-center justify-between">
-                <span className="font-semibold text-foreground">
+                <span className="font-bold text-foreground">
                   {isAr ? "عرض نتائج المسار:" : "Inspect Track Enrollment:"}
                 </span>
                 <select
                   value={inspectedParticipantTrackId}
                   onChange={(e) => setInspectedParticipantTrackId(e.target.value)}
-                  className="text-xs font-bold px-3 py-1 rounded-md border border-border bg-background"
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl border border-border bg-background"
                 >
                   {tracksService
                     .getEnrollmentsByParticipant(inspectedParticipant.id)
@@ -2631,7 +2094,6 @@ export default function EducationPage() {
                 </select>
               </div>
 
-              {/* 100-Point Formula Metric Strip */}
               {(() => {
                 const metrics = tracksService.calculateParticipantMetrics(
                   inspectedParticipant.id,
@@ -2640,96 +2102,83 @@ export default function EducationPage() {
 
                 return (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                      <div className="p-3 rounded-xl border border-border/60 bg-card">
-                        <span className="text-[10px] text-muted-foreground block font-medium">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                      <div className="p-3.5 rounded-xl border border-border/60 bg-card">
+                        <span className="text-[10px] text-muted-foreground block font-bold">
                           {isAr ? "الحضور (40%)" : "Attendance (40%)"}
                         </span>
-                        <span className="text-lg font-black text-primary">
+                        <span className="text-xl font-black text-primary">
                           {metrics.attendanceScore} / 40
                         </span>
-                        <span className="text-[10px] text-muted-foreground block">
-                          {metrics.attendancePercentage}% ({metrics.presentCount} P / {metrics.lateCount} L)
+                        <span className="text-[10px] text-muted-foreground block mt-0.5">
+                          {metrics.attendancePercentage}% ({metrics.presentCount} حاضر / {metrics.lateCount} متأخر)
                         </span>
                       </div>
 
-                      <div className="p-3 rounded-xl border border-border/60 bg-card">
-                        <span className="text-[10px] text-muted-foreground block font-medium">
+                      <div className="p-3.5 rounded-xl border border-border/60 bg-card">
+                        <span className="text-[10px] text-muted-foreground block font-bold">
                           {isAr ? "المشاريع (30%)" : "Projects (30%)"}
                         </span>
-                        <span className="text-lg font-black text-[#34a853]">
+                        <span className="text-xl font-black text-[#34a853]">
                           {metrics.assignmentScore} / 30
                         </span>
-                        <span className="text-[10px] text-muted-foreground block">
+                        <span className="text-[10px] text-muted-foreground block mt-0.5">
                           Avg {metrics.assignmentAveragePct}%
                         </span>
                       </div>
 
-                      <div className="p-3 rounded-xl border border-border/60 bg-card">
-                        <span className="text-[10px] text-muted-foreground block font-medium">
+                      <div className="p-3.5 rounded-xl border border-border/60 bg-card">
+                        <span className="text-[10px] text-muted-foreground block font-bold">
                           {isAr ? "التفاعل (20%)" : "Participation (20%)"}
                         </span>
-                        <span className="text-lg font-black text-[#fbbc04]">
+                        <span className="text-xl font-black text-[#fbbc04]">
                           {metrics.participationScore} / 20
                         </span>
-                        <span className="text-[10px] text-muted-foreground block">
-                          Active Engagement
+                        <span className="text-[10px] text-muted-foreground block mt-0.5">
+                          تفاعل إيجابي
                         </span>
                       </div>
 
-                      <div className="p-3 rounded-xl border border-border/60 bg-card">
-                        <span className="text-[10px] text-muted-foreground block font-medium">
+                      <div className="p-3.5 rounded-xl border border-border/60 bg-card">
+                        <span className="text-[10px] text-muted-foreground block font-bold">
                           {isAr ? "السلوك (10%)" : "Conduct (10%)"}
                         </span>
-                        <span className="text-lg font-black text-[#1a73e8]">
+                        <span className="text-xl font-black text-[#1a73e8]">
                           {metrics.conductScore} / 10
                         </span>
-                        <span className="text-[10px] text-muted-foreground block">
-                          Collaboration
+                        <span className="text-[10px] text-muted-foreground block mt-0.5">
+                          التزام مهني
                         </span>
                       </div>
                     </div>
 
-                    {/* Official Score & Certificate Status Banner */}
                     <div className="p-4 rounded-xl border border-border bg-muted/20 flex items-center justify-between">
                       <div>
-                        <span className="text-[11px] text-muted-foreground block">
-                          {isAr ? "الدرجة الرسمية الإجمالية (من 100):" : "Final Official Score (out of 100):"}
+                        <span className="text-[11px] text-muted-foreground block font-bold">
+                          {isAr ? "الدرجة الرسمية الإجمالية (من 100):" : "Final Official Score (100 pts):"}
                         </span>
                         <span className="text-2xl font-black text-foreground">
                           {metrics.finalOfficialScore} / 100
                         </span>
                         {metrics.totalBonus > 0 && (
-                          <span className="text-[10px] font-bold text-amber-600 block">
-                            +{metrics.totalBonus} points Track Bonus awarded separately
+                          <span className="text-[10px] font-bold text-amber-600 block mt-0.5">
+                            +{metrics.totalBonus} {isAr ? "درجات تميز إضافية" : "bonus points"}
                           </span>
                         )}
                       </div>
 
                       <div className="text-end">
                         {metrics.isEligibleForCertificate ? (
-                          <div className="space-y-1">
-                            <Badge variant="success" className="text-xs font-bold gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              {isAr ? "مؤهل للاعتماد الرسمي" : "Certificate Eligible (≥75%)"}
-                            </Badge>
-                          </div>
+                          <Badge variant="success" className="text-xs font-bold gap-1 px-3 py-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {isAr ? "مؤهل للاعتماد الرسمي" : "Eligible for Certificate"}
+                          </Badge>
                         ) : (
-                          <Badge variant="warning" className="text-xs">
-                            {isAr ? "لم يستوفِ النسبة (75%)" : "Below 75% Passing Threshold"}
+                          <Badge variant="warning" className="text-xs px-3 py-1">
+                            {isAr ? "قيد استيفاء المتطلبات" : "In Progress"}
                           </Badge>
                         )}
                       </div>
-                    </div>
-
-                    {/* Instructor / Mentor Notes */}
-                    <div className="p-3 rounded-xl border border-border/60 bg-card space-y-1">
-                      <span className="font-bold text-foreground block">
-                        {isAr ? "ملاحظات التوجيه والمتابعة الأكاديمية:" : "Academic Mentorship Notes:"}
-                      </span>
-                      <p className="text-muted-foreground">
-                        {inspectedParticipant.notes || "No special notes recorded."}
-                      </p>
                     </div>
                   </div>
                 );
@@ -2738,18 +2187,16 @@ export default function EducationPage() {
           )}
 
           <DialogFooter className="border-t border-border pt-3">
-            <Button size="sm" onClick={() => setIsProfileModalOpen(false)}>
+            <Button size="sm" onClick={() => setIsProfileModalOpen(false)} className="rounded-xl">
               {isAr ? "إغلاق" : "Close"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 9: CERTIFICATE PREVIEW & PRINT                       */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* 6. Certificate Preview Modal */}
       <Dialog open={isCertificatePreviewOpen} onOpenChange={setIsCertificatePreviewOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
               {isAr ? "معاينة الشهادة الرقمية المعتمدة" : "Official Certificate Preview"}
@@ -2762,7 +2209,6 @@ export default function EducationPage() {
 
             return (
               <div className="p-8 rounded-2xl border-4 border-double border-[#1a73e8]/30 bg-gradient-to-b from-card to-muted/20 text-center space-y-4 shadow-xl">
-                {/* Google Developer Groups Symbol Dots */}
                 <div className="flex items-center justify-center gap-1.5 mb-1">
                   <span className="w-3.5 h-3.5 rounded-full bg-[#1a73e8]" />
                   <span className="w-3.5 h-3.5 rounded-full bg-[#ea4335]" />
@@ -2818,21 +2264,21 @@ export default function EducationPage() {
             );
           })()}
 
-          <DialogFooter className="flex items-center justify-between sm:justify-between">
+          <DialogFooter className="flex items-center justify-between sm:justify-between gap-2">
             <span className="text-[10px] text-muted-foreground">
-              Verified by GDG on Campus NCTU Academic Committee
+              GDG on Campus NCTU Academic Committee
             </span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => window.print()}
-                className="gap-1 text-xs"
+                className="gap-1 text-xs rounded-xl"
               >
                 <Printer className="w-3.5 h-3.5" />
                 {isAr ? "طباعة" : "Print"}
               </Button>
-              <Button size="sm" onClick={() => setIsCertificatePreviewOpen(false)}>
+              <Button size="sm" onClick={() => setIsCertificatePreviewOpen(false)} className="rounded-xl">
                 {isAr ? "إغلاق" : "Close"}
               </Button>
             </div>
@@ -2840,18 +2286,13 @@ export default function EducationPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 10: NEW SESSION CREATION                             */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* 7. New Session Creation Modal */}
       <Dialog open={isNewSessionModalOpen} onOpenChange={setIsNewSessionModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
               {isAr ? "جدولة جلسة تدريبية جديدة" : "Schedule New Session"}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {isAr ? "إضافة ورشة عمل أو جلسة للمسار." : "Add upcoming track session."}
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
@@ -2860,7 +2301,7 @@ export default function EducationPage() {
               <select
                 value={sessionFormData.track_id}
                 onChange={(e) => setSessionFormData({ ...sessionFormData, track_id: e.target.value })}
-                className="w-full text-xs h-8 px-2 rounded-md border border-border bg-background"
+                className="w-full text-xs h-8.5 px-3 rounded-xl border border-border bg-background"
               >
                 <option value="">{isAr ? "-- اختر المسار --" : "-- Select track --"}</option>
                 {activeTracksList.map((t) => (
@@ -2876,8 +2317,8 @@ export default function EducationPage() {
               <Input
                 value={sessionFormData.title}
                 onChange={(e) => setSessionFormData({ ...sessionFormData, title: e.target.value })}
-                placeholder="e.g. Session 5: Next.js App Router & SSR"
-                className="h-8 text-xs"
+                placeholder="Session 4: Responsive UI with Tailwind"
+                className="h-8.5 text-xs rounded-xl"
               />
             </div>
 
@@ -2888,7 +2329,7 @@ export default function EducationPage() {
                   type="date"
                   value={sessionFormData.date}
                   onChange={(e) => setSessionFormData({ ...sessionFormData, date: e.target.value })}
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
               <div className="space-y-1">
@@ -2897,7 +2338,7 @@ export default function EducationPage() {
                   type="time"
                   value={sessionFormData.start_time}
                   onChange={(e) => setSessionFormData({ ...sessionFormData, start_time: e.target.value })}
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
               <div className="space-y-1">
@@ -2906,44 +2347,39 @@ export default function EducationPage() {
                   type="time"
                   value={sessionFormData.end_time}
                   onChange={(e) => setSessionFormData({ ...sessionFormData, end_time: e.target.value })}
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label>{isAr ? "المكان أو رابط الاجتماع" : "Location or Meeting Link"}</Label>
+              <Label>{isAr ? "المكان أو رابط الاجتماع" : "Location or Link"}</Label>
               <Input
                 value={sessionFormData.location_or_link}
                 onChange={(e) => setSessionFormData({ ...sessionFormData, location_or_link: e.target.value })}
-                className="h-8 text-xs"
+                className="h-8.5 text-xs rounded-xl"
               />
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsNewSessionModalOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsNewSessionModalOpen(false)} className="rounded-xl">
               {isAr ? "إلغاء" : "Cancel"}
             </Button>
-            <Button size="sm" onClick={handleCreateSession} className="bg-[#1a73e8] text-white">
-              {isAr ? "جدولة الجلسة" : "Schedule Session"}
+            <Button size="sm" onClick={handleCreateSession} className="bg-[#1a73e8] text-white rounded-xl">
+              {isAr ? "جدولة الجلسة" : "Schedule"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 11: NEW ASSIGNMENT CREATION                          */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* 8. New Assignment Modal */}
       <Dialog open={isNewAssignmentModalOpen} onOpenChange={setIsNewAssignmentModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
               {isAr ? "نشر تكليف أو مشروع جديد" : "Create New Assignment"}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {isAr ? "تحديد مواصفات وموعد تسليم المشروع." : "Define assignment deliverables and deadline."}
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
@@ -2952,7 +2388,7 @@ export default function EducationPage() {
               <select
                 value={assignmentFormData.track_id}
                 onChange={(e) => setAssignmentFormData({ ...assignmentFormData, track_id: e.target.value })}
-                className="w-full text-xs h-8 px-2 rounded-md border border-border bg-background"
+                className="w-full text-xs h-8.5 px-3 rounded-xl border border-border bg-background"
               >
                 <option value="">{isAr ? "-- اختر المسار --" : "-- Select track --"}</option>
                 {activeTracksList.map((t) => (
@@ -2968,8 +2404,8 @@ export default function EducationPage() {
               <Input
                 value={assignmentFormData.title}
                 onChange={(e) => setAssignmentFormData({ ...assignmentFormData, title: e.target.value })}
-                placeholder="e.g. Capstone: E-Commerce Storefront"
-                className="h-8 text-xs"
+                placeholder="Capstone Project 1"
+                className="h-8.5 text-xs rounded-xl"
               />
             </div>
 
@@ -2980,7 +2416,7 @@ export default function EducationPage() {
                   type="datetime-local"
                   value={assignmentFormData.deadline}
                   onChange={(e) => setAssignmentFormData({ ...assignmentFormData, deadline: e.target.value })}
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
               <div className="space-y-1">
@@ -2989,7 +2425,7 @@ export default function EducationPage() {
                   type="number"
                   value={assignmentFormData.max_score}
                   onChange={(e) => setAssignmentFormData({ ...assignmentFormData, max_score: Number(e.target.value) })}
-                  className="h-8 text-xs"
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
             </div>
@@ -2999,113 +2435,85 @@ export default function EducationPage() {
               <Input
                 value={assignmentFormData.required_deliverables}
                 onChange={(e) => setAssignmentFormData({ ...assignmentFormData, required_deliverables: e.target.value })}
-                className="h-8 text-xs"
+                className="h-8.5 text-xs rounded-xl"
               />
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsNewAssignmentModalOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsNewAssignmentModalOpen(false)} className="rounded-xl">
               {isAr ? "إلغاء" : "Cancel"}
             </Button>
-            <Button size="sm" onClick={handleCreateAssignment} className="bg-[#1a73e8] text-white">
-              {isAr ? "نشر التكليف" : "Publish Assignment"}
+            <Button size="sm" onClick={handleCreateAssignment} className="bg-[#1a73e8] text-white rounded-xl">
+              {isAr ? "نشر التكليف" : "Publish"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* MODAL 12: CREATE AT-RISK FOLLOW-UP PLAN                    */}
-      {/* ────────────────────────────────────────────────────────── */}
-      <Dialog open={isFollowUpModalOpen} onOpenChange={setIsFollowUpModalOpen}>
-        <DialogContent className="max-w-md">
+      {/* 9. Bonus Recommendation Modal */}
+      <Dialog open={isBonusModalOpen} onOpenChange={setIsBonusModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              {isAr ? "إنشاء خطة متابعة ودعم أكاديمي" : "Create Support Follow-Up Plan"}
+              {isAr ? "منح نقاط تميز للمتدرب" : "Award Trainee Bonus Points"}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {isAr
-                ? "تدخل توجيهي لدعم المتدرب المتعثر وتفادي الانقطاع."
-                : "Supportive 1-on-1 intervention plan."}
+              {isAr ? "نقاط تميز خاصة بالمسار التقني (مستقلة تماماً عن نقاط اللجان الداخلية)." : "Track bonus points tracked separately."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <Label>{isAr ? "المتدرب" : "Participant"}</Label>
-              <select
-                value={followUpFormData.participant_id}
-                onChange={(e) => setFollowUpFormData({ ...followUpFormData, participant_id: e.target.value })}
-                className="w-full text-xs h-8 px-2 rounded-md border border-border bg-background"
-              >
-                <option value="">{isAr ? "-- اختر المتدرب --" : "-- Select participant --"}</option>
-                {participants.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "المسار التقني" : "Track"}</Label>
-              <select
-                value={followUpFormData.track_id}
-                onChange={(e) => setFollowUpFormData({ ...followUpFormData, track_id: e.target.value })}
-                className="w-full text-xs h-8 px-2 rounded-md border border-border bg-background"
-              >
-                <option value="">{isAr ? "-- اختر المسار --" : "-- Select track --"}</option>
-                {activeTracksList.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {isAr ? t.name_ar : t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "خطة التدخل والدعم" : "Intervention Action Plan"}</Label>
-              <Textarea
-                value={followUpFormData.action_plan}
-                onChange={(e) => setFollowUpFormData({ ...followUpFormData, action_plan: e.target.value })}
-                className="text-xs h-20"
-              />
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{isAr ? "المرشد المسؤول" : "Assigned Mentor"}</Label>
+                <Label>{isAr ? "النقاط الممنوحة (1-15)" : "Bonus Amount"}</Label>
                 <Input
-                  value={followUpFormData.responsible_person_name}
-                  onChange={(e) => setFollowUpFormData({ ...followUpFormData, responsible_person_name: e.target.value })}
-                  className="h-8 text-xs"
+                  type="number"
+                  min={1}
+                  max={15}
+                  value={bonusFormData.amount}
+                  onChange={(e) => setBonusFormData({ ...bonusFormData, amount: Number(e.target.value) })}
+                  className="h-8.5 text-xs rounded-xl"
                 />
               </div>
               <div className="space-y-1">
-                <Label>{isAr ? "تاريخ المتابعة" : "Follow-Up Due Date"}</Label>
-                <Input
-                  type="date"
-                  value={followUpFormData.due_date}
-                  onChange={(e) => setFollowUpFormData({ ...followUpFormData, due_date: e.target.value })}
-                  className="h-8 text-xs"
-                />
+                <Label>{isAr ? "سبب التميز" : "Category"}</Label>
+                <select
+                  value={bonusFormData.category}
+                  onChange={(e) => setBonusFormData({ ...bonusFormData, category: e.target.value as any })}
+                  className="w-full text-xs h-8.5 px-3 rounded-xl border border-border bg-background"
+                >
+                  <option value="exceptional_project">{isAr ? "مشروع تطبيقي متميز" : "Exceptional Project"}</option>
+                  <option value="peer_mentoring">{isAr ? "مساعدة وتوجيه الزملاء" : "Peer Mentoring"}</option>
+                  <option value="active_participation">{isAr ? "تفاعل استثنائي بالورش" : "Active Participation"}</option>
+                  <option value="hackathon_winner">{isAr ? "فوز في هاكاثون" : "Hackathon Achievement"}</option>
+                </select>
               </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>{isAr ? "تفاصيل الإنجاز" : "Description"}</Label>
+              <Textarea
+                value={bonusFormData.description}
+                onChange={(e) => setBonusFormData({ ...bonusFormData, description: e.target.value })}
+                placeholder="تفاصيل المساهمة المتميزة..."
+                className="text-xs h-20 rounded-xl"
+              />
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsFollowUpModalOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsBonusModalOpen(false)} className="rounded-xl">
               {isAr ? "إلغاء" : "Cancel"}
             </Button>
-            <Button size="sm" onClick={handleCreateFollowUp} className="bg-[#ea4335] text-white">
-              {isAr ? "حفظ خطة الدعم" : "Save Plan"}
+            <Button size="sm" onClick={handleCreateBonus} className="bg-amber-600 text-white rounded-xl">
+              {isAr ? "منح النقاط" : "Award Bonus"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Assignment Attempts & Review History Modal */}
+      {/* 10. Assignment Attempts & Review Manager */}
       {activeAssignmentForAttempts && activeSubmissionForAttempts && (
         <AssignmentAttemptsManager
           assignment={activeAssignmentForAttempts}
