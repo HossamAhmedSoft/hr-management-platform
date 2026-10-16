@@ -79,9 +79,6 @@ export default function EducationPage() {
 
   // Prevent SSR Hydration Mismatch
   const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Check roles:
   const isHRorAdmin =
@@ -141,6 +138,12 @@ export default function EducationPage() {
   const [activeSubmissionForAttempts, setActiveSubmissionForAttempts] = useState<TrackSubmission | null>(null);
   const [activeAssignmentForAttempts, setActiveAssignmentForAttempts] = useState<TrackAssignment | null>(null);
   const [isAttemptsManagerOpen, setIsAttemptsManagerOpen] = useState(false);
+
+  // Submissions List Modal for Instructor
+  const [isSubmissionsListModalOpen, setIsSubmissionsListModalOpen] = useState(false);
+  const [activeAssignmentForSubmissionsList, setActiveAssignmentForSubmissionsList] = useState<TrackAssignment | null>(null);
+  const [quickSubmittingPartId, setQuickSubmittingPartId] = useState<string | null>(null);
+  const [quickSubmissionUrl, setQuickSubmissionUrl] = useState<string>("");
 
   // Edit Trainee State
   const [isEditParticipantModalOpen, setIsEditParticipantModalOpen] = useState(false);
@@ -291,6 +294,11 @@ export default function EducationPage() {
     setFollowUps(tracksService.getFollowUps());
   };
 
+  useEffect(() => {
+    setMounted(true);
+    reloadData();
+  }, []);
+
   // ── Filtered Collections ──────────────────────────────────
   const activeTracksList = useMemo(() => {
     return tracks.filter((t) => t.status !== "archived");
@@ -321,14 +329,16 @@ export default function EducationPage() {
     const enrolledPartIds = new Set<string>();
 
     enrollments.forEach((e) => {
-      if (!e.participant) return;
+      const part = e.participant || participants.find((p) => p.id === e.participant_id);
+      if (!part) return;
       enrolledPartIds.add(e.participant_id);
       const metrics = participantMetricsMap.get(`${e.participant_id}_${e.track_id}`);
+      const trk = e.track || tracks.find((t) => t.id === e.track_id);
       items.push({
         id: e.id,
-        participant: e.participant,
+        participant: part,
         enrollment: e,
-        track: e.track,
+        track: trk,
         cohort: e.cohort,
         isEnrolled: true,
         metrics,
@@ -492,7 +502,7 @@ export default function EducationPage() {
     });
 
     // Auto-enroll if track selected
-    const chosenTrackId = participantFormData.track_id || (selectedTrackId !== "all" ? selectedTrackId : (activeTracksList[0]?.id || ""));
+    const chosenTrackId = participantFormData.track_id;
     if (chosenTrackId) {
       const chosenTrack = tracks.find((t) => t.id === chosenTrackId);
       tracksService.createEnrollment(
@@ -521,7 +531,7 @@ export default function EducationPage() {
       university: "جامعة مصر التكنولوجية الدولية (NCTU)",
       faculty_department: "كلية تكنولوجيا الصناعة والطاقة",
       academic_year: "الفرقة الثانية",
-      track_id: selectedTrackId !== "all" ? selectedTrackId : (activeTracksList[0]?.id || ""),
+      track_id: selectedTrackId !== "all" ? selectedTrackId : "",
       cohort: "Season 2026 - Cohort 1",
       notes: "",
     });
@@ -718,6 +728,24 @@ export default function EducationPage() {
     reloadData();
   };
 
+  const handleQuickSubmitAssignment = (participantId: string, enrollmentId: string) => {
+    if (!activeAssignmentForSubmissionsList) return;
+    const url = quickSubmissionUrl.trim() || `https://github.com/nctu-trainee/${activeAssignmentForSubmissionsList.title.toLowerCase().replace(/\s+/g, "-")}`;
+    const sub = tracksService.submitAssignment(
+      activeAssignmentForSubmissionsList.id,
+      enrollmentId,
+      participantId,
+      url,
+      "تسجيل تسليم من خلال قائمة التكليفات"
+    );
+    reloadData();
+    setQuickSubmittingPartId(null);
+    setQuickSubmissionUrl("");
+    setActiveAssignmentForAttempts(activeAssignmentForSubmissionsList);
+    setActiveSubmissionForAttempts(sub);
+    setIsAttemptsManagerOpen(true);
+  };
+
   const handleGrantExtension = () => {
     if (!activeSubmissionForGrading) return;
     tracksService.grantDeadlineExtension(
@@ -790,7 +818,7 @@ export default function EducationPage() {
   const handleOpenParticipantProfile = (participant: Participant, trackId?: string) => {
     setInspectedParticipant(participant);
     const pEnrs = tracksService.getEnrollmentsByParticipant(participant.id);
-    setInspectedParticipantTrackId(trackId || (pEnrs[0]?.track_id || tracks[0]?.id || ""));
+    setInspectedParticipantTrackId(trackId || (pEnrs[0]?.track_id || ""));
     setIsProfileModalOpen(true);
   };
 
@@ -845,6 +873,11 @@ export default function EducationPage() {
           editingParticipant.id,
           editingParticipantTrackId,
           targetTrack?.cohort || "Season 2026 - Cohort 1"
+        );
+      } else if (originalParticipantTrackId && !editingParticipantTrackId) {
+        tracksService.unenrollParticipant(
+          editingParticipant.id,
+          originalParticipantTrackId
         );
       }
     }
@@ -1618,43 +1651,56 @@ export default function EducationPage() {
                                 )}
                               </>
                             ) : (
-                              isHRorAdmin && (
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => {
-                                      setEnrollFormData({
-                                        participant_id: p.id,
-                                        track_id: selectedTrackId !== "all" ? selectedTrackId : (activeTracksList[0]?.id || ""),
-                                        cohort: "Season 2026 - Cohort 1",
-                                      });
-                                      setIsEnrollModalOpen(true);
-                                    }}
-                                    className="h-8 text-xs font-bold gap-1 bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white rounded-xl shadow-2xs"
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>{isAr ? "تنسيب لمسار" : "Enroll"}</span>
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleOpenEditParticipant(p)}
-                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground rounded-xl"
-                                    title={isAr ? "تعديل بيانات المتدرب" : "Edit trainee"}
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleDeleteParticipant(p)}
-                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
-                                    title={isAr ? "حذف المتدرب" : "Delete trainee"}
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </div>
-                              )
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleOpenParticipantProfile(p)}
+                                  className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
+                                  title={isAr ? "عرض الملف الأكاديمي" : "View profile"}
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">{isAr ? "الملف" : "Profile"}</span>
+                                </Button>
+
+                                {isHRorAdmin && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => {
+                                        setEnrollFormData({
+                                          participant_id: p.id,
+                                          track_id: selectedTrackId !== "all" ? selectedTrackId : (activeTracksList[0]?.id || ""),
+                                          cohort: "Season 2026 - Cohort 1",
+                                        });
+                                        setIsEnrollModalOpen(true);
+                                      }}
+                                      className="h-8 text-xs font-bold gap-1 bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white rounded-xl shadow-2xs"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                      <span>{isAr ? "تنسيب لمسار" : "Enroll"}</span>
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleOpenEditParticipant(p)}
+                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground rounded-xl"
+                                      title={isAr ? "تعديل بيانات المتدرب" : "Edit trainee"}
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleDeleteParticipant(p)}
+                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
+                                      title={isAr ? "حذف المتدرب" : "Delete trainee"}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             )}
                           </div>
                         </td>
@@ -1886,19 +1932,13 @@ export default function EducationPage() {
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                const firstSub = asgSubs[0];
-                                if (firstSub) {
-                                  setActiveAssignmentForAttempts(asg);
-                                  setActiveSubmissionForAttempts(firstSub);
-                                  setIsAttemptsManagerOpen(true);
-                                } else {
-                                  alert(isAr ? "لا توجد تسليمات مسجلة بعد لهذا التكليف." : "No submissions recorded yet for this assignment.");
-                                }
+                                setActiveAssignmentForSubmissionsList(asg);
+                                setIsSubmissionsListModalOpen(true);
                               }}
                               className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
                             >
                               <Eye className="w-3.5 h-3.5" />
-                              <span>{isAr ? "مراجعة" : "Review"}</span>
+                              <span>{isAr ? "مراجعة التسليمات" : "Review Submissions"}</span>
                             </Button>
 
                             {(isHRorAdmin || isInstructor) && (
@@ -2439,9 +2479,18 @@ export default function EducationPage() {
               </Button>
             </div>
 
-            {activeSessionForAttendance &&
-              tracksService.getEnrollmentsByTrack(activeSessionForAttendance.track_id).map((e) => {
-                const p = e.participant;
+            {activeSessionForAttendance && (() => {
+              const sessionEnrollments = tracksService.getEnrollmentsByTrack(activeSessionForAttendance.track_id);
+              if (sessionEnrollments.length === 0) {
+                return (
+                  <div className="p-8 text-center text-xs text-muted-foreground border border-dashed border-border rounded-xl">
+                    {isAr ? "لا يوجد متدربون مسجلون في هذا المسار حتى الآن." : "No trainees enrolled in this track yet."}
+                  </div>
+                );
+              }
+
+              return sessionEnrollments.map((e) => {
+                const p = e.participant || participants.find((part) => part.id === e.participant_id);
                 const currentStatus = attendanceSheet[e.participant_id]?.status || "present";
 
                 return (
@@ -2450,7 +2499,7 @@ export default function EducationPage() {
                     className="p-3 rounded-xl border border-border/70 bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                   >
                     <div>
-                      <span className="font-bold text-foreground block">{p?.full_name}</span>
+                      <span className="font-bold text-foreground block">{p?.full_name || e.participant_id}</span>
                       <span className="text-[10px] text-muted-foreground font-mono">{p?.email}</span>
                     </div>
 
@@ -2492,7 +2541,8 @@ export default function EducationPage() {
                     </div>
                   </div>
                 );
-              })}
+              });
+            })()}
           </div>
 
           <DialogFooter className="border-t border-border pt-3 gap-2">
@@ -2521,20 +2571,64 @@ export default function EducationPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {inspectedParticipant && (
-            <div className="flex-1 overflow-y-auto space-y-4 py-2 text-xs">
-              <div className="p-3 rounded-xl bg-muted/30 border border-border/60 flex items-center justify-between">
-                <span className="font-bold text-foreground">
-                  {isAr ? "عرض نتائج المسار:" : "Inspect Track Enrollment:"}
-                </span>
-                <select
-                  value={inspectedParticipantTrackId}
-                  onChange={(e) => setInspectedParticipantTrackId(e.target.value)}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl border border-border bg-background"
-                >
-                  {tracksService
-                    .getEnrollmentsByParticipant(inspectedParticipant.id)
-                    .map((enr) => {
+          {inspectedParticipant && (() => {
+            const pEnrs = tracksService.getEnrollmentsByParticipant(inspectedParticipant.id);
+
+            if (pEnrs.length === 0) {
+              return (
+                <div className="py-12 px-4 text-center space-y-4">
+                  <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center mx-auto text-muted-foreground border border-border">
+                    <GraduationCap className="w-7 h-7" />
+                  </div>
+                  <div className="max-w-md mx-auto">
+                    <h4 className="text-sm font-bold text-foreground">
+                      {isAr ? "المتدرب غير مسجل بأي مسار تقني حالياً" : "Trainee is not enrolled in any track"}
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {isAr
+                        ? "يمكنك تنسيبه لمسار أكاديمي لبدء متابعة سجل الحضور وتسليم المشاريع والتقييمات."
+                        : "You can assign this trainee to an academic track to track attendance and submissions."}
+                    </p>
+                  </div>
+                  {isHRorAdmin && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setIsProfileModalOpen(false);
+                        handleOpenEditParticipant(inspectedParticipant);
+                      }}
+                      className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{isAr ? "تنسيب لمسار الآن" : "Enroll in Track Now"}</span>
+                    </Button>
+                  )}
+                </div>
+              );
+            }
+
+            const activeTrkId =
+              inspectedParticipantTrackId && pEnrs.some((e) => e.track_id === inspectedParticipantTrackId)
+                ? inspectedParticipantTrackId
+                : pEnrs[0].track_id;
+
+            const metrics = tracksService.calculateParticipantMetrics(
+              inspectedParticipant.id,
+              activeTrkId
+            );
+
+            return (
+              <div className="flex-1 overflow-y-auto space-y-4 py-2 text-xs">
+                <div className="p-3 rounded-xl bg-muted/30 border border-border/60 flex items-center justify-between">
+                  <span className="font-bold text-foreground">
+                    {isAr ? "عرض نتائج المسار:" : "Inspect Track Enrollment:"}
+                  </span>
+                  <select
+                    value={activeTrkId}
+                    onChange={(e) => setInspectedParticipantTrackId(e.target.value)}
+                    className="text-xs font-bold px-3 py-1.5 rounded-xl border border-border bg-background"
+                  >
+                    {pEnrs.map((enr) => {
                       const t = tracks.find((tr) => tr.id === enr.track_id);
                       return (
                         <option key={enr.id} value={enr.track_id}>
@@ -2542,100 +2636,92 @@ export default function EducationPage() {
                         </option>
                       );
                     })}
-                </select>
-              </div>
+                  </select>
+                </div>
 
-              {(() => {
-                const metrics = tracksService.calculateParticipantMetrics(
-                  inspectedParticipant.id,
-                  inspectedParticipantTrackId
-                );
-
-                return (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
-                      <div className="p-3.5 rounded-xl border border-border/60 bg-card">
-                        <span className="text-[10px] text-muted-foreground block font-bold">
-                          {isAr ? "الحضور (40%)" : "Attendance (40%)"}
-                        </span>
-                        <span className="text-xl font-black text-primary">
-                          {metrics.attendanceScore} / 40
-                        </span>
-                        <span className="text-[10px] text-muted-foreground block mt-0.5">
-                          {metrics.attendancePercentage}% ({metrics.presentCount} حاضر / {metrics.lateCount} متأخر)
-                        </span>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl border border-border/60 bg-card">
-                        <span className="text-[10px] text-muted-foreground block font-bold">
-                          {isAr ? "المشاريع (30%)" : "Projects (30%)"}
-                        </span>
-                        <span className="text-xl font-black text-[#34a853]">
-                          {metrics.assignmentScore} / 30
-                        </span>
-                        <span className="text-[10px] text-muted-foreground block mt-0.5">
-                          Avg {metrics.assignmentAveragePct}%
-                        </span>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl border border-border/60 bg-card">
-                        <span className="text-[10px] text-muted-foreground block font-bold">
-                          {isAr ? "التفاعل (20%)" : "Participation (20%)"}
-                        </span>
-                        <span className="text-xl font-black text-[#fbbc04]">
-                          {metrics.participationScore} / 20
-                        </span>
-                        <span className="text-[10px] text-muted-foreground block mt-0.5">
-                          تفاعل إيجابي
-                        </span>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl border border-border/60 bg-card">
-                        <span className="text-[10px] text-muted-foreground block font-bold">
-                          {isAr ? "السلوك (10%)" : "Conduct (10%)"}
-                        </span>
-                        <span className="text-xl font-black text-[#1a73e8]">
-                          {metrics.conductScore} / 10
-                        </span>
-                        <span className="text-[10px] text-muted-foreground block mt-0.5">
-                          التزام مهني
-                        </span>
-                      </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                    <div className="p-3.5 rounded-xl border border-border/60 bg-card">
+                      <span className="text-[10px] text-muted-foreground block font-bold">
+                        {isAr ? "الحضور (40%)" : "Attendance (40%)"}
+                      </span>
+                      <span className="text-xl font-black text-primary">
+                        {metrics.attendanceScore} / 40
+                      </span>
+                      <span className="text-[10px] text-muted-foreground block mt-0.5">
+                        {metrics.attendancePercentage}% ({metrics.presentCount} حاضر / {metrics.lateCount} متأخر)
+                      </span>
                     </div>
 
-                    <div className="p-4 rounded-xl border border-border bg-muted/20 flex items-center justify-between">
-                      <div>
-                        <span className="text-[11px] text-muted-foreground block font-bold">
-                          {isAr ? "الدرجة الرسمية الإجمالية (من 100):" : "Final Official Score (100 pts):"}
-                        </span>
-                        <span className="text-2xl font-black text-foreground">
-                          {metrics.finalOfficialScore} / 100
-                        </span>
-                        {metrics.totalBonus > 0 && (
-                          <span className="text-[10px] font-bold text-amber-600 block mt-0.5">
-                            +{metrics.totalBonus} {isAr ? "درجات تميز إضافية" : "bonus points"}
-                          </span>
-                        )}
-                      </div>
+                    <div className="p-3.5 rounded-xl border border-border/60 bg-card">
+                      <span className="text-[10px] text-muted-foreground block font-bold">
+                        {isAr ? "المشاريع (30%)" : "Projects (30%)"}
+                      </span>
+                      <span className="text-xl font-black text-[#34a853]">
+                        {metrics.assignmentScore} / 30
+                      </span>
+                      <span className="text-[10px] text-muted-foreground block mt-0.5">
+                        Avg {metrics.assignmentAveragePct}%
+                      </span>
+                    </div>
 
-                      <div className="text-end">
-                        {metrics.isEligibleForCertificate ? (
-                          <Badge variant="success" className="text-xs font-bold gap-1 px-3 py-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            {isAr ? "مؤهل للاعتماد الرسمي" : "Eligible for Certificate"}
-                          </Badge>
-                        ) : (
-                          <Badge variant="warning" className="text-xs px-3 py-1">
-                            {isAr ? "قيد استيفاء المتطلبات" : "In Progress"}
-                          </Badge>
-                        )}
-                      </div>
+                    <div className="p-3.5 rounded-xl border border-border/60 bg-card">
+                      <span className="text-[10px] text-muted-foreground block font-bold">
+                        {isAr ? "التفاعل (20%)" : "Participation (20%)"}
+                      </span>
+                      <span className="text-xl font-black text-[#fbbc04]">
+                        {metrics.participationScore} / 20
+                      </span>
+                      <span className="text-[10px] text-muted-foreground block mt-0.5">
+                        تفاعل إيجابي
+                      </span>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl border border-border/60 bg-card">
+                      <span className="text-[10px] text-muted-foreground block font-bold">
+                        {isAr ? "السلوك (10%)" : "Conduct (10%)"}
+                      </span>
+                      <span className="text-xl font-black text-[#1a73e8]">
+                        {metrics.conductScore} / 10
+                      </span>
+                      <span className="text-[10px] text-muted-foreground block mt-0.5">
+                        التزام مهني
+                      </span>
                     </div>
                   </div>
-                );
-              })()}
-            </div>
-          )}
+
+                  <div className="p-4 rounded-xl border border-border bg-muted/20 flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] text-muted-foreground block font-bold">
+                        {isAr ? "الدرجة الرسمية الإجمالية (من 100):" : "Final Official Score (100 pts):"}
+                      </span>
+                      <span className="text-2xl font-black text-foreground">
+                        {metrics.finalOfficialScore} / 100
+                      </span>
+                      {metrics.totalBonus > 0 && (
+                        <span className="text-[10px] font-bold text-amber-600 block mt-0.5">
+                          +{metrics.totalBonus} {isAr ? "درجات تميز إضافية" : "bonus points"}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-end">
+                      {metrics.isEligibleForCertificate ? (
+                        <Badge variant="success" className="text-xs font-bold gap-1 px-3 py-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          {isAr ? "مؤهل للاعتماد الرسمي" : "Eligible for Certificate"}
+                        </Badge>
+                      ) : (
+                        <Badge variant="warning" className="text-xs px-3 py-1">
+                          {isAr ? "قيد استيفاء المتطلبات" : "In Progress"}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <DialogFooter className="border-t border-border pt-3 flex flex-row items-center justify-between sm:justify-between gap-2">
             {isHRorAdmin && inspectedParticipant ? (
@@ -2923,6 +3009,17 @@ export default function EducationPage() {
             <DialogTitle className="text-base font-bold">
               {isAr ? "منح نقاط تميز" : "Award Bonus Points"}
             </DialogTitle>
+            {(() => {
+              const targetPart = participants.find((p) => p.id === bonusFormData.participant_id);
+              const targetTrack = tracks.find((t) => t.id === bonusFormData.track_id);
+              if (!targetPart) return null;
+              return (
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-200 mt-1">
+                  <span className="font-bold block">{targetPart.full_name}</span>
+                  <span className="text-[11px] opacity-80">{isAr ? targetTrack?.name_ar || targetTrack?.name : targetTrack?.name}</span>
+                </div>
+              );
+            })()}
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
@@ -2970,6 +3067,174 @@ export default function EducationPage() {
             </Button>
             <Button size="sm" onClick={handleCreateBonus} className="bg-amber-600 text-white rounded-xl">
               {isAr ? "منح النقاط" : "Award Bonus"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 9.5 Assignment Submissions List Modal */}
+      <Dialog open={isSubmissionsListModalOpen} onOpenChange={setIsSubmissionsListModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center justify-between">
+              <span>{isAr ? "مراجعة تسليمات التكليف" : "Assignment Submissions"}</span>
+              {activeAssignmentForSubmissionsList && (
+                <Badge variant="outline" className="text-xs">
+                  Max: {activeAssignmentForSubmissionsList.max_score} pts
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {activeAssignmentForSubmissionsList?.title} • {activeAssignmentForSubmissionsList ? (isAr ? tracks.find(t => t.id === activeAssignmentForSubmissionsList.track_id)?.name_ar : tracks.find(t => t.id === activeAssignmentForSubmissionsList.track_id)?.name) : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {activeAssignmentForSubmissionsList && (() => {
+            const trackEnrs = tracksService.getEnrollmentsByTrack(activeAssignmentForSubmissionsList.track_id);
+            const asgSubs = submissions.filter((s) => s.assignment_id === activeAssignmentForSubmissionsList.id);
+
+            if (trackEnrs.length === 0) {
+              return (
+                <div className="p-8 text-center text-xs text-muted-foreground border border-dashed border-border rounded-xl">
+                  {isAr ? "لا يوجد متدربون مسجلون في هذا المسار." : "No trainees enrolled in this track."}
+                </div>
+              );
+            }
+
+            return (
+              <div className="flex-1 overflow-y-auto space-y-2 py-2 text-xs">
+                {trackEnrs.map((e) => {
+                  const part = e.participant || participants.find((p) => p.id === e.participant_id);
+                  const sub = asgSubs.find((s) => s.participant_id === e.participant_id);
+                  const isQuickSubmitting = quickSubmittingPartId === e.participant_id;
+
+                  return (
+                    <div
+                      key={e.id}
+                      className="p-3 rounded-xl border border-border/70 bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-bold text-foreground block truncate">
+                          {part?.full_name || e.participant_id}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground block font-mono truncate">
+                          {part?.email} • {part?.academic_year}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {sub ? (
+                          <>
+                            <div className="text-end">
+                              <Badge
+                                variant={
+                                  sub.status === "graded"
+                                    ? "success"
+                                    : sub.status === "revision_requested"
+                                    ? "warning"
+                                    : sub.status === "missing"
+                                    ? "destructive"
+                                    : "outline"
+                                }
+                                className="text-[10px]"
+                              >
+                                {sub.status === "graded"
+                                  ? isAr ? "تم التقييم" : "Graded"
+                                  : sub.status === "revision_requested"
+                                  ? isAr ? "مطلوب تعديل" : "Revision"
+                                  : sub.status === "submitted_late"
+                                  ? isAr ? "تسليم متأخر" : "Late"
+                                  : sub.status === "missing"
+                                  ? isAr ? "مفقود" : "Missing"
+                                  : isAr ? "قيد المراجعة" : "Submitted"}
+                              </Badge>
+                              {sub.score !== null && sub.score !== undefined ? (
+                                <span className="block text-[11px] font-bold text-foreground mt-0.5">
+                                  {sub.score} / {activeAssignmentForSubmissionsList.max_score}
+                                </span>
+                              ) : (
+                                <span className="block text-[10px] text-muted-foreground mt-0.5">
+                                  {isAr ? "بانتظار الرصد" : "Ungraded"}
+                                </span>
+                              )}
+                            </div>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setActiveAssignmentForAttempts(activeAssignmentForSubmissionsList);
+                                setActiveSubmissionForAttempts(sub);
+                                setIsAttemptsManagerOpen(true);
+                              }}
+                              className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>{isAr ? "مراجعة المحاولة" : "Review"}</span>
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                              {isAr ? "لم يسلّم بعد" : "Not Submitted"}
+                            </Badge>
+
+                            {(isHRorAdmin || isInstructor) && (
+                              isQuickSubmitting ? (
+                                <div className="flex items-center gap-1">
+                                  <Input
+                                    placeholder="https://github.com/..."
+                                    value={quickSubmissionUrl}
+                                    onChange={(ev) => setQuickSubmissionUrl(ev.target.value)}
+                                    className="h-7 text-[11px] w-36 rounded-lg"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleQuickSubmitAssignment(e.participant_id, e.id)}
+                                    className="h-7 px-2 text-[11px] bg-[#1a73e8] text-white rounded-lg font-bold"
+                                  >
+                                    {isAr ? "حفظ" : "Save"}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setQuickSubmittingPartId(null);
+                                      setQuickSubmissionUrl("");
+                                    }}
+                                    className="h-7 px-1.5 text-[11px] rounded-lg"
+                                  >
+                                    ✕
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setQuickSubmittingPartId(e.participant_id);
+                                    setQuickSubmissionUrl("");
+                                  }}
+                                  className="h-7 text-[11px] font-bold gap-1 text-primary hover:bg-primary/10 rounded-lg"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>{isAr ? "رصد تسليم" : "Add Submission"}</span>
+                                </Button>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          <DialogFooter className="border-t border-border pt-3">
+            <Button size="sm" onClick={() => setIsSubmissionsListModalOpen(false)} className="rounded-xl">
+              {isAr ? "إغلاق" : "Close"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1468,6 +1468,14 @@ export const tracksService = {
   deleteTrack(id: string): boolean {
     const list = this.getTracks();
     setStorage("tracks", list.filter((t) => t.id !== id));
+    const enrs = this.getEnrollments();
+    setStorage("enrollments", enrs.filter((e) => e.track_id !== id));
+    const sess = this.getSessions();
+    setStorage("sessions", sess.filter((s) => s.track_id !== id));
+    const asgs = this.getAssignments();
+    setStorage("assignments", asgs.filter((a) => a.track_id !== id));
+    const atts = this.getAttendanceRecords();
+    setStorage("attendance", atts.filter((a) => a.track_id !== id));
     return true;
   },
 
@@ -1517,6 +1525,12 @@ export const tracksService = {
     setStorage("submissions", subs.filter((s) => s.participant_id !== id));
     const bons = this.getBonusRecords();
     setStorage("bonuses", bons.filter((b) => b.participant_id !== id));
+    const certs = this.getCertificates();
+    setStorage("certificates", certs.filter((c) => c.participant_id !== id));
+    const evals = this.getEvaluations();
+    setStorage("evaluations", evals.filter((ev) => ev.participant_id !== id));
+    const follows = this.getFollowUps();
+    setStorage("followups", follows.filter((f) => f.participant_id !== id));
     return true;
   },
 
@@ -1528,8 +1542,8 @@ export const tracksService = {
 
     return enrollments.map((e) => ({
       ...e,
-      participant: participants.find((p) => p.id === e.participant_id),
-      track: tracks.find((t) => t.id === e.track_id),
+      participant: participants.find((p) => p.id === e.participant_id) || e.participant,
+      track: tracks.find((t) => t.id === e.track_id) || e.track,
     }));
   },
 
@@ -1573,7 +1587,12 @@ export const tracksService = {
     };
 
     setStorage("enrollments", [newEnr, ...list]);
-    return { success: true, enrollment: newEnr };
+    const populatedEnr = {
+      ...newEnr,
+      participant: this.getParticipantById(participantId) || undefined,
+      track: this.getTrackById(trackId) || undefined,
+    };
+    return { success: true, enrollment: populatedEnr };
   },
 
   deleteEnrollment(id: string): boolean {
@@ -1628,6 +1647,15 @@ export const tracksService = {
     });
     setStorage("enrollments", next);
     return true;
+  },
+
+  unenrollParticipant(participantId: string, trackId: string): boolean {
+    const list = this.getEnrollments();
+    const target = list.find((e) => e.participant_id === participantId && e.track_id === trackId);
+    if (target) {
+      return this.deleteEnrollment(target.id);
+    }
+    return false;
   },
 
   // ── Sessions & Attendance CRUD ───────────────────────────
@@ -2195,7 +2223,7 @@ export const tracksService = {
     ];
 
     enrollments.forEach((e) => {
-      const p = e.participant;
+      const p = e.participant || this.getParticipantById(e.participant_id);
       const metrics = this.calculateParticipantMetrics(e.participant_id, trackId);
       rows.push([
         e.participant_id,
@@ -2222,7 +2250,7 @@ export const tracksService = {
     const rows = [header];
 
     enrollments.forEach((e) => {
-      const p = e.participant;
+      const p = e.participant || this.getParticipantById(e.participant_id);
       const metrics = this.calculateParticipantMetrics(e.participant_id, trackId);
       const sessionStatuses = sessions.map((s) => {
         const rec = records.find((r) => r.session_id === s.id && r.participant_id === e.participant_id);
@@ -2243,7 +2271,7 @@ export const tracksService = {
     const rows = [header];
 
     enrollments.forEach((e) => {
-      const p = e.participant;
+      const p = e.participant || this.getParticipantById(e.participant_id);
       const metrics = this.calculateParticipantMetrics(e.participant_id, trackId);
       const asgScores = assignments.map((a) => {
         const sub = submissions.find((s) => s.assignment_id === a.id && s.participant_id === e.participant_id);
