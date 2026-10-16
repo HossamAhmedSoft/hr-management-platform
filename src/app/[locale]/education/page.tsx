@@ -160,6 +160,8 @@ export default function EducationPage() {
     university: "جامعة مصر التكنولوجية الدولية (NCTU)",
     faculty_department: "كلية تكنولوجيا الصناعة والطاقة",
     academic_year: "الفرقة الثانية",
+    track_id: "track_web_2026",
+    cohort: "Season 2026 - Cohort 1",
     notes: "",
   });
 
@@ -259,27 +261,70 @@ export default function EducationPage() {
     return map;
   }, [enrollments, sessions, attendance, assignments, submissions, bonuses]);
 
-  const filteredEnrollments = useMemo(() => {
-    return enrollments.filter((e) => {
-      if (selectedTrackId !== "all" && e.track_id !== selectedTrackId) return false;
+  interface TraineeItem {
+    id: string;
+    participant: Participant;
+    enrollment?: TrackEnrollment;
+    track?: TechnicalTrack;
+    cohort?: string;
+    isEnrolled: boolean;
+    metrics?: ReturnType<typeof tracksService.calculateParticipantMetrics>;
+  }
+
+  const allTraineeItems = useMemo<TraineeItem[]>(() => {
+    const items: TraineeItem[] = [];
+    const enrolledPartIds = new Set<string>();
+
+    enrollments.forEach((e) => {
+      if (!e.participant) return;
+      enrolledPartIds.add(e.participant_id);
       const metrics = participantMetricsMap.get(`${e.participant_id}_${e.track_id}`);
+      items.push({
+        id: e.id,
+        participant: e.participant,
+        enrollment: e,
+        track: e.track,
+        cohort: e.cohort,
+        isEnrolled: true,
+        metrics,
+      });
+    });
+
+    participants.forEach((p) => {
+      if (!enrolledPartIds.has(p.id)) {
+        items.push({
+          id: `unenrolled_${p.id}`,
+          participant: p,
+          isEnrolled: false,
+        });
+      }
+    });
+
+    return items;
+  }, [enrollments, participants, participantMetricsMap]);
+
+  const filteredTrainees = useMemo(() => {
+    return allTraineeItems.filter((item) => {
+      if (selectedTrackId !== "all") {
+        if (!item.isEnrolled || item.enrollment?.track_id !== selectedTrackId) return false;
+      }
       
-      if (participantStatusFilter === "eligible" && !metrics?.isEligibleForCertificate) return false;
-      if (participantStatusFilter === "at_risk" && !metrics?.isAtRisk) return false;
+      if (participantStatusFilter === "eligible" && (!item.isEnrolled || !item.metrics?.isEligibleForCertificate)) return false;
+      if (participantStatusFilter === "at_risk" && (!item.isEnrolled || !item.metrics?.isAtRisk)) return false;
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
-        const pName = e.participant?.full_name.toLowerCase() || "";
-        const pEmail = e.participant?.email.toLowerCase() || "";
-        const tName = e.track?.name.toLowerCase() || "";
-        const tNameAr = e.track?.name_ar.toLowerCase() || "";
+        const pName = item.participant.full_name.toLowerCase();
+        const pEmail = item.participant.email.toLowerCase();
+        const tName = item.track?.name.toLowerCase() || "";
+        const tNameAr = item.track?.name_ar.toLowerCase() || "";
         if (!pName.includes(query) && !pEmail.includes(query) && !tName.includes(query) && !tNameAr.includes(query)) {
           return false;
         }
       }
       return true;
     });
-  }, [enrollments, selectedTrackId, searchQuery, participantStatusFilter, participantMetricsMap]);
+  }, [allTraineeItems, selectedTrackId, searchQuery, participantStatusFilter]);
 
   const filteredSessions = useMemo(() => {
     return sessions.filter((s) => {
@@ -380,32 +425,65 @@ export default function EducationPage() {
   };
 
   const handleCreateParticipant = () => {
-    if (!participantFormData.full_name || !participantFormData.email) return;
-    tracksService.createParticipant({
-      full_name: participantFormData.full_name,
-      email: participantFormData.email,
-      phone: participantFormData.phone,
-      university: participantFormData.university,
-      faculty_department: participantFormData.faculty_department,
-      academic_year: participantFormData.academic_year,
+    if (!participantFormData.full_name.trim()) {
+      alert(isAr ? "يرجى كتابة اسم المتدرب." : "Please enter trainee full name.");
+      return;
+    }
+    if (!participantFormData.email.trim()) {
+      alert(isAr ? "يرجى كتابة البريد الإلكتروني للمتدرب." : "Please enter trainee email.");
+      return;
+    }
+
+    const newPart = tracksService.createParticipant({
+      full_name: participantFormData.full_name.trim(),
+      email: participantFormData.email.trim(),
+      phone: participantFormData.phone.trim(),
+      university: participantFormData.university.trim() || "جامعة مصر التكنولوجية الدولية (NCTU)",
+      faculty_department: participantFormData.faculty_department.trim() || "كلية تكنولوجيا الصناعة والطاقة",
+      academic_year: participantFormData.academic_year.trim() || "الفرقة الثانية",
       registration_date: new Date().toISOString().split("T")[0],
       status: "active",
       notes: participantFormData.notes,
     });
 
+    // Auto-enroll if track selected
+    const chosenTrackId = participantFormData.track_id || (selectedTrackId !== "all" ? selectedTrackId : (activeTracksList[0]?.id || ""));
+    if (chosenTrackId) {
+      const chosenTrack = tracks.find((t) => t.id === chosenTrackId);
+      tracksService.createEnrollment(
+        newPart.id,
+        chosenTrackId,
+        chosenTrack?.cohort || participantFormData.cohort || "Season 2026 - Cohort 1"
+      );
+    }
+
     if (logUserAction) {
       logUserAction({
         action: "PARTICIPANT_REGISTERED",
         entity_type: "participant",
-        entity_id: `p_${Date.now()}`,
+        entity_id: newPart.id,
         reason: `تسجيل متدرب جديد: "${participantFormData.full_name}"`,
-        details: `Email: ${participantFormData.email}, University: ${participantFormData.university}.`,
+        details: `Email: ${participantFormData.email}, Track: ${chosenTrackId || "None"}.`,
         after_value: { full_name: participantFormData.full_name, email: participantFormData.email },
       });
     }
 
+    // Reset buffer
+    setParticipantFormData({
+      full_name: "",
+      email: "",
+      phone: "",
+      university: "جامعة مصر التكنولوجية الدولية (NCTU)",
+      faculty_department: "كلية تكنولوجيا الصناعة والطاقة",
+      academic_year: "الفرقة الثانية",
+      track_id: selectedTrackId !== "all" ? selectedTrackId : (activeTracksList[0]?.id || ""),
+      cohort: "Season 2026 - Cohort 1",
+      notes: "",
+    });
+
     setIsNewParticipantModalOpen(false);
     reloadData();
+    setActiveTab("participants");
   };
 
   const handleEnrollParticipant = () => {
@@ -1056,7 +1134,7 @@ export default function EducationPage() {
                     participantStatusFilter === "all" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {isAr ? "الكل" : "All"} ({enrollments.length})
+                  {isAr ? "الكل" : "All"} ({participants.length})
                 </button>
                 <button
                   type="button"
@@ -1095,7 +1173,7 @@ export default function EducationPage() {
           </div>
 
           <div className="overflow-x-auto">
-            {filteredEnrollments.length === 0 ? (
+            {filteredTrainees.length === 0 ? (
               <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
                 <Users className="w-10 h-10 mx-auto text-muted-foreground/40" />
                 <p className="font-bold text-sm text-foreground">
@@ -1119,15 +1197,14 @@ export default function EducationPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredEnrollments.map((enr) => {
-                    const p = enr.participant;
-                    if (!p) return null;
-                    const metrics = participantMetricsMap.get(`${p.id}_${enr.track_id}`);
-                    if (!metrics) return null;
-                    const isCert = metrics.isEligibleForCertificate;
+                  {filteredTrainees.map((item) => {
+                    const p = item.participant;
+                    const enr = item.enrollment;
+                    const metrics = item.metrics;
+                    const isCert = metrics?.isEligibleForCertificate;
 
                     return (
-                      <tr key={enr.id} className="hover:bg-muted/15 transition-colors">
+                      <tr key={item.id} className="hover:bg-muted/15 transition-colors">
                         <td className="p-3.5">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-full bg-[#1a73e8]/10 text-[#1a73e8] font-black flex items-center justify-center shrink-0 text-xs">
@@ -1142,102 +1219,156 @@ export default function EducationPage() {
                         </td>
 
                         <td className="p-3.5">
-                          <Badge variant="outline" className="text-[11px] font-bold">
-                            {isAr ? enr.track?.name_ar || enr.track?.name : enr.track?.name}
-                          </Badge>
-                          <div className="text-[10px] text-muted-foreground mt-0.5">{enr.cohort}</div>
-                        </td>
-
-                        <td className="p-3.5 text-center">
-                          <div className="font-black text-sm text-foreground">
-                            {metrics.attendancePercentage}%
-                          </div>
-                          <span className="text-[10px] text-muted-foreground">
-                            ({metrics.attendanceScore} / 40 {isAr ? "درجة" : "pts"})
-                          </span>
-                        </td>
-
-                        <td className="p-3.5 text-center">
-                          <div className="font-black text-sm text-foreground">
-                            {metrics.assignmentAveragePct}%
-                          </div>
-                          <span className="text-[10px] text-muted-foreground">
-                            ({metrics.assignmentScore} / 30 {isAr ? "درجة" : "pts"})
-                          </span>
-                        </td>
-
-                        <td className="p-3.5 text-center">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black ${
-                              metrics.finalOfficialScore >= 75
-                                ? "bg-[#34a853]/15 text-[#34a853] border border-[#34a853]/30"
-                                : "bg-[#ea4335]/15 text-[#ea4335] border border-[#ea4335]/30"
-                            }`}
-                          >
-                            {metrics.finalOfficialScore} / 100
-                          </span>
-                          {metrics.totalBonus > 0 && (
-                            <span className="block text-[10px] font-bold text-amber-600 mt-0.5">
-                              +{metrics.totalBonus} {isAr ? "تميز" : "bonus"}
-                            </span>
+                          {item.isEnrolled && enr ? (
+                            <>
+                              <Badge variant="outline" className="text-[11px] font-bold">
+                                {isAr ? item.track?.name_ar || item.track?.name : item.track?.name}
+                              </Badge>
+                              <div className="text-[10px] text-muted-foreground mt-0.5">{item.cohort}</div>
+                            </>
+                          ) : (
+                            <Badge variant="outline" className="text-[11px] font-bold border-amber-500/40 text-amber-600 bg-amber-500/10">
+                              {isAr ? "غير منسب لمسار" : "Unassigned"}
+                            </Badge>
                           )}
                         </td>
 
                         <td className="p-3.5 text-center">
-                          {isCert ? (
-                            <Badge variant="success" className="text-[10px] gap-1 font-bold">
-                              <CheckCircle2 className="w-3 h-3" />
-                              {isAr ? "مؤهل للاعتماد" : "Eligible"}
-                            </Badge>
+                          {metrics ? (
+                            <>
+                              <div className="font-black text-sm text-foreground">
+                                {metrics.attendancePercentage}%
+                              </div>
+                              <span className="text-[10px] text-muted-foreground">
+                                ({metrics.attendanceScore} / 40 {isAr ? "درجة" : "pts"})
+                              </span>
+                            </>
                           ) : (
-                            <Badge variant="warning" className="text-[10px]">
-                              {isAr ? "قيد المتطلبات" : "In Progress"}
+                            <span className="text-muted-foreground font-bold">—</span>
+                          )}
+                        </td>
+
+                        <td className="p-3.5 text-center">
+                          {metrics ? (
+                            <>
+                              <div className="font-black text-sm text-foreground">
+                                {metrics.assignmentAveragePct}%
+                              </div>
+                              <span className="text-[10px] text-muted-foreground">
+                                ({metrics.assignmentScore} / 30 {isAr ? "درجة" : "pts"})
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground font-bold">—</span>
+                          )}
+                        </td>
+
+                        <td className="p-3.5 text-center">
+                          {metrics ? (
+                            <>
+                              <span
+                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black ${
+                                  metrics.finalOfficialScore >= 75
+                                    ? "bg-[#34a853]/15 text-[#34a853] border border-[#34a853]/30"
+                                    : "bg-[#ea4335]/15 text-[#ea4335] border border-[#ea4335]/30"
+                                }`}
+                              >
+                                {metrics.finalOfficialScore} / 100
+                              </span>
+                              {metrics.totalBonus > 0 && (
+                                <span className="block text-[10px] font-bold text-amber-600 mt-0.5">
+                                  +{metrics.totalBonus} {isAr ? "تميز" : "bonus"}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground font-bold">—</span>
+                          )}
+                        </td>
+
+                        <td className="p-3.5 text-center">
+                          {item.isEnrolled ? (
+                            isCert ? (
+                              <Badge variant="success" className="text-[10px] gap-1 font-bold">
+                                <CheckCircle2 className="w-3 h-3" />
+                                {isAr ? "مؤهل للاعتماد" : "Eligible"}
+                              </Badge>
+                            ) : (
+                              <Badge variant="warning" className="text-[10px]">
+                                {isAr ? "قيد المتطلبات" : "In Progress"}
+                              </Badge>
+                            )
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                              {isAr ? "بانتظار التنسيب" : "Not Enrolled"}
                             </Badge>
                           )}
                         </td>
 
                         <td className="p-3.5 text-end">
                           <div className="flex items-center justify-end gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleOpenParticipantProfile(p, enr.track_id)}
-                              className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
-                              title={isAr ? "عرض الملف الأكاديمي المفصل" : "View profile"}
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">{isAr ? "الملف" : "Profile"}</span>
-                            </Button>
+                            {item.isEnrolled && enr ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleOpenParticipantProfile(p, enr.track_id)}
+                                  className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
+                                  title={isAr ? "عرض الملف الأكاديمي المفصل" : "View profile"}
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">{isAr ? "الملف" : "Profile"}</span>
+                                </Button>
 
-                            {isHRorAdmin && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setBonusFormData({
-                                    ...bonusFormData,
-                                    participant_id: p.id,
-                                    track_id: enr.track_id,
-                                  });
-                                  setIsBonusModalOpen(true);
-                                }}
-                                className="h-8 text-xs font-bold gap-1 text-amber-600 border-amber-500/30 rounded-xl"
-                                title={isAr ? "منح نقاط تميز" : "Award bonus"}
-                              >
-                                <Star className="w-3 h-3" />
-                                <span className="hidden sm:inline">{isAr ? "تميز" : "Bonus"}</span>
-                              </Button>
-                            )}
+                                {isHRorAdmin && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setBonusFormData({
+                                        ...bonusFormData,
+                                        participant_id: p.id,
+                                        track_id: enr.track_id,
+                                      });
+                                      setIsBonusModalOpen(true);
+                                    }}
+                                    className="h-8 text-xs font-bold gap-1 text-amber-600 border-amber-500/30 rounded-xl"
+                                    title={isAr ? "منح نقاط تميز" : "Award bonus"}
+                                  >
+                                    <Star className="w-3 h-3" />
+                                    <span className="hidden sm:inline">{isAr ? "تميز" : "Bonus"}</span>
+                                  </Button>
+                                )}
 
-                            {isHRorAdmin && isCert && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleIssueCertificate(enr)}
-                                className="h-8 text-xs font-bold gap-1 bg-[#34a853] hover:bg-[#34a853]/90 text-white rounded-xl shadow-2xs"
-                              >
-                                <Award className="w-3.5 h-3.5" />
-                                <span>{isAr ? "إصدار الشهادة" : "Issue Cert"}</span>
-                              </Button>
+                                {isHRorAdmin && isCert && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleIssueCertificate(enr)}
+                                    className="h-8 text-xs font-bold gap-1 bg-[#34a853] hover:bg-[#34a853]/90 text-white rounded-xl shadow-2xs"
+                                  >
+                                    <Award className="w-3.5 h-3.5" />
+                                    <span>{isAr ? "إصدار الشهادة" : "Issue Cert"}</span>
+                                  </Button>
+                                )}
+                              </>
+                            ) : (
+                              isHRorAdmin && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setEnrollFormData({
+                                      participant_id: p.id,
+                                      track_id: selectedTrackId !== "all" ? selectedTrackId : (activeTracksList[0]?.id || ""),
+                                      cohort: "Season 2026 - Cohort 1",
+                                    });
+                                    setIsEnrollModalOpen(true);
+                                  }}
+                                  className="h-8 text-xs font-bold gap-1 bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white rounded-xl shadow-2xs"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>{isAr ? "تنسيب لمسار" : "Enroll"}</span>
+                                </Button>
+                              )
                             )}
                           </div>
                         </td>
@@ -1870,6 +2001,27 @@ export default function EducationPage() {
                   className="h-8.5 text-xs rounded-xl"
                 />
               </div>
+            </div>
+
+            <div className="space-y-1 pt-1.5 border-t border-border/80">
+              <Label className="font-bold text-[#1a73e8] flex items-center justify-between">
+                <span>{isAr ? "المسار التقني (تنسيب فوري)" : "Assign Technical Track"}</span>
+                <span className="text-[10px] text-muted-foreground font-normal">
+                  {isAr ? "موصى به لظهور المتدرب مباشرة" : "Recommended for immediate enrollment"}
+                </span>
+              </Label>
+              <select
+                value={participantFormData.track_id}
+                onChange={(e) => setParticipantFormData({ ...participantFormData, track_id: e.target.value })}
+                className="w-full text-xs h-9 px-3 rounded-xl border border-border bg-background font-bold focus:ring-2 focus:ring-[#1a73e8]/30"
+              >
+                <option value="">{isAr ? "-- بدون تنسيب حالياً (تسجيل عام فقط) --" : "-- Unassigned for now --"}</option>
+                {activeTracksList.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {isAr ? t.name_ar : t.name} ({t.cohort})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
