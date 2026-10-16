@@ -73,6 +73,8 @@ import { AtRiskDashboard } from "@/components/education/at-risk-dashboard";
 import { SmartRemindersPanel } from "@/components/education/smart-reminders-panel";
 import { CreateTraineeModal } from "@/components/education/create-trainee-modal";
 import { EditTraineeModal } from "@/components/education/edit-trainee-modal";
+import { EnrollTraineeModal } from "@/components/education/enroll-trainee-modal";
+import { TrackModal } from "@/components/education/track-modal";
 
 export default function EducationPage() {
   const { locale, currentUser, logUserAction } = useApp();
@@ -2181,106 +2183,16 @@ export default function EducationPage() {
       {/* ──────────────────────────────────────────────────────────── */}
 
       {/* 1. New Track Modal */}
-      <Dialog open={isNewTrackModalOpen} onOpenChange={setIsNewTrackModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">
-              {isAr ? "إنشاء مسار تقني جديد" : "Create Technical Track"}
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              {isAr ? "إضافة مسار تدريبي جديد وتحديد السعة والمدرب المسؤول." : "Configure a new educational track."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2 text-xs">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{isAr ? "اسم المسار (عربي)" : "Track Name (Arabic)"}</Label>
-                <Input
-                  value={trackFormData.name_ar}
-                  onChange={(e) => setTrackFormData({ ...trackFormData, name_ar: e.target.value })}
-                  placeholder="تطوير الويب الحديث"
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>{isAr ? "اسم المسار (English)" : "Track Name (English)"}</Label>
-                <Input
-                  value={trackFormData.name}
-                  onChange={(e) => setTrackFormData({ ...trackFormData, name: e.target.value })}
-                  placeholder="Web Development"
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "الوصف ومحتوى التدريب" : "Description"}</Label>
-              <Textarea
-                value={trackFormData.description}
-                onChange={(e) => setTrackFormData({ ...trackFormData, description: e.target.value })}
-                placeholder="أهداف ومخرجات المسار..."
-                className="text-xs h-18 rounded-xl"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{isAr ? "الفئة" : "Category"}</Label>
-                <select
-                  value={trackFormData.category}
-                  onChange={(e) => setTrackFormData({ ...trackFormData, category: e.target.value as any })}
-                  className="w-full text-xs h-8.5 px-3 rounded-xl border border-border bg-background"
-                >
-                  <option value="web">Web Development</option>
-                  <option value="mobile">Flutter / Mobile</option>
-                  <option value="cybersecurity">Cybersecurity</option>
-                  <option value="embedded">Embedded Systems</option>
-                  <option value="uiux">UI/UX Design</option>
-                  <option value="ai_ml">AI / Data Science</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label>{isAr ? "الدفعة / الموسم" : "Cohort"}</Label>
-                <Input
-                  value={trackFormData.cohort}
-                  onChange={(e) => setTrackFormData({ ...trackFormData, cohort: e.target.value })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{isAr ? "المدرب المسؤول" : "Lead Instructor"}</Label>
-                <Input
-                  value={trackFormData.lead_name}
-                  onChange={(e) => setTrackFormData({ ...trackFormData, lead_name: e.target.value })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>{isAr ? "السعة القصوى" : "Capacity Limit"}</Label>
-                <Input
-                  type="number"
-                  value={trackFormData.max_capacity}
-                  onChange={(e) => setTrackFormData({ ...trackFormData, max_capacity: Number(e.target.value) })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsNewTrackModalOpen(false)} className="rounded-xl">
-              {isAr ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button size="sm" onClick={handleCreateTrack} className="bg-[#1a73e8] text-white rounded-xl">
-              {isAr ? "حفظ المسار" : "Create Track"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TrackModal
+        isOpen={isNewTrackModalOpen}
+        onOpenChange={setIsNewTrackModalOpen}
+        onSuccess={() => {
+          reloadData();
+          setActiveTab("tracks");
+        }}
+        logUserAction={logUserAction}
+        isAr={isAr}
+      />
 
       {/* 2. New Trainee Modal */}
       <CreateTraineeModal
@@ -2328,67 +2240,20 @@ export default function EducationPage() {
       />
 
       {/* 3. Enroll Modal */}
-      <Dialog open={isEnrollModalOpen} onOpenChange={setIsEnrollModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">
-              {isAr ? "تنسيب متدرب" : "Enroll Trainee"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <Label>{isAr ? "المتدرب" : "Trainee"}</Label>
-              <select
-                value={enrollFormData.participant_id}
-                onChange={(e) => setEnrollFormData({ ...enrollFormData, participant_id: e.target.value })}
-                className="w-full text-xs h-8.5 px-3 rounded-xl border border-border bg-background"
-              >
-                <option value="">{isAr ? "-- اختر المتدرب --" : "-- Select trainee --"}</option>
-                {participants.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name} ({p.email})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "اختر المسار التقني" : "Select Track"}</Label>
-              <select
-                value={enrollFormData.track_id}
-                onChange={(e) => setEnrollFormData({ ...enrollFormData, track_id: e.target.value })}
-                className="w-full text-xs h-8.5 px-3 rounded-xl border border-border bg-background"
-              >
-                <option value="">{isAr ? "-- اختر المسار --" : "-- Select track --"}</option>
-                {activeTracksList.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {isAr ? t.name_ar : t.name} ({t.cohort})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "الدفعة" : "Cohort"}</Label>
-              <Input
-                value={enrollFormData.cohort}
-                onChange={(e) => setEnrollFormData({ ...enrollFormData, cohort: e.target.value })}
-                className="h-8.5 text-xs rounded-xl"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsEnrollModalOpen(false)} className="rounded-xl">
-              {isAr ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button size="sm" onClick={handleEnrollParticipant} className="bg-[#1a73e8] text-white rounded-xl">
-              {isAr ? "تأكيد التنسيب" : "Confirm Enrollment"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EnrollTraineeModal
+        isOpen={isEnrollModalOpen}
+        onOpenChange={setIsEnrollModalOpen}
+        participants={participants}
+        tracks={activeTracksList}
+        preselectedParticipantId={selectedParticipantForEnrollment?.id || ""}
+        preselectedTrackId={selectedTrackId !== "all" ? selectedTrackId : ""}
+        onSuccess={() => {
+          reloadData();
+          setActiveTab("participants");
+        }}
+        logUserAction={logUserAction}
+        isAr={isAr}
+      />
 
       {/* 4. Session Attendance Modal */}
       <Dialog open={isAttendanceModalOpen} onOpenChange={setIsAttendanceModalOpen}>
@@ -3339,73 +3204,17 @@ export default function EducationPage() {
       </Dialog>
 
       {/* 13. Edit Track Modal */}
-      <Dialog open={isEditTrackModalOpen} onOpenChange={setIsEditTrackModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">
-              {isAr ? "تعديل المسار" : "Edit Track"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <Label>{isAr ? "اسم المسار (بالعربية)" : "Track Name (Arabic)"}</Label>
-              <Input
-                value={editTrackFormData.name_ar}
-                onChange={(e) => setEditTrackFormData({ ...editTrackFormData, name_ar: e.target.value })}
-                className="h-8.5 text-xs rounded-xl"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "اسم المسار (بالإنجليزية)" : "Track Name (English)"}</Label>
-              <Input
-                value={editTrackFormData.name}
-                onChange={(e) => setEditTrackFormData({ ...editTrackFormData, name: e.target.value })}
-                className="h-8.5 text-xs rounded-xl"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label>{isAr ? "وصف المسار" : "Description"}</Label>
-              <Textarea
-                value={editTrackFormData.description}
-                onChange={(e) => setEditTrackFormData({ ...editTrackFormData, description: e.target.value })}
-                className="text-xs h-20 rounded-xl"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{isAr ? "المدرب المسؤول" : "Lead Instructor"}</Label>
-                <Input
-                  value={editTrackFormData.lead_name}
-                  onChange={(e) => setEditTrackFormData({ ...editTrackFormData, lead_name: e.target.value })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>{isAr ? "السعة القصوى (متدرب)" : "Max Capacity"}</Label>
-                <Input
-                  type="number"
-                  value={editTrackFormData.max_capacity}
-                  onChange={(e) => setEditTrackFormData({ ...editTrackFormData, max_capacity: Number(e.target.value) })}
-                  className="h-8.5 text-xs rounded-xl"
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsEditTrackModalOpen(false)} className="rounded-xl">
-              {isAr ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button size="sm" onClick={handleUpdateTrack} className="bg-[#1a73e8] text-white rounded-xl font-bold">
-              {isAr ? "حفظ" : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TrackModal
+        isOpen={isEditTrackModalOpen}
+        onOpenChange={setIsEditTrackModalOpen}
+        trackToEdit={editingTrack}
+        onSuccess={() => {
+          reloadData();
+          setActiveTab("tracks");
+        }}
+        logUserAction={logUserAction}
+        isAr={isAr}
+      />
     </div>
   );
 }
