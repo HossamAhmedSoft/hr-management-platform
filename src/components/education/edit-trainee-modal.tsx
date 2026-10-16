@@ -11,21 +11,20 @@ import {
   Layers,
   Pencil,
   AlertCircle,
-  Save,
+  CheckCircle2,
+  FileText,
 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Participant, TechnicalTrack } from "@/types";
+import { TechnicalTrack, Participant } from "@/types";
 
 interface EditTraineeModalProps {
   isOpen: boolean;
@@ -68,7 +67,6 @@ export function EditTraineeModal({
     academic_year: "",
     notes: "",
   });
-
   const [selectedTrackId, setSelectedTrackId] = useState("");
   const [originalTrackId, setOriginalTrackId] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -136,34 +134,39 @@ export function EditTraineeModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto p-5 sm:p-6 rounded-2xl border-border bg-card shadow-2xl">
-        <DialogHeader className="space-y-1.5 pb-3 border-b border-border/70">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-[#1a73e8]/10 text-[#1a73e8] flex items-center justify-center border border-[#1a73e8]/20">
-              <Pencil className="w-4 h-4" />
+      <DialogContent className="max-w-xl max-h-[88vh] flex flex-col p-0 overflow-hidden rounded-2xl border border-border shadow-2xl bg-card text-card-foreground">
+        {/* Pinned Header */}
+        <div className="relative bg-gradient-to-r from-indigo-600 via-blue-600 to-sky-600 p-6 text-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/20">
+              <Pencil className="w-5 h-5 text-white" />
             </div>
-            <DialogTitle className="text-base sm:text-lg font-black text-foreground tracking-tight">
-              {isAr ? "تعديل بيانات المتدرب" : "Edit Trainee"}
-            </DialogTitle>
+            <div>
+              <DialogTitle className="text-lg font-bold tracking-tight text-white">
+                {isAr ? "تعديل بيانات المتدرب" : "Edit Trainee"}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-white/80 mt-0.5">
+                {isAr
+                  ? `تحديث معلومات المتدرب: ${participant.full_name}`
+                  : `Update information for: ${participant.full_name}`}
+              </DialogDescription>
+            </div>
           </div>
-          <DialogDescription className="text-xs text-muted-foreground">
-            {isAr
-              ? `تحديث معلومات المتدرب: ${participant.full_name}`
-              : `Update information for: ${participant.full_name}`}
-          </DialogDescription>
-        </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-1 text-xs">
+        {/* Scrollable Form Body */}
+        <form id="edit-trainee-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4.5 text-xs">
           {/* Section 1: Personal Info */}
-          <div className="space-y-2.5">
+          <div className="space-y-3 p-3.5 rounded-xl bg-muted/30 border border-border/50">
             <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
-              <User className="w-3.5 h-3.5 text-[#1a73e8]" />
-              <span>{isAr ? "البيانات الأساسية" : "Personal Information"}</span>
+              <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>{isAr ? "البيانات الشخصية والتواصل" : "Personal & Contact Information"}</span>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-[11px] font-bold text-foreground">
-                {isAr ? "الاسم الرباعي" : "Full Name"} <span className="text-rose-500">*</span>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                {isAr ? "الاسم الرباعي" : "Full Name"}
+                <span className="text-rose-500">*</span>
               </Label>
               <Input
                 value={formData.full_name}
@@ -171,22 +174,23 @@ export function EditTraineeModal({
                   setFormData({ ...formData, full_name: e.target.value });
                   if (errors.full_name) setErrors({ ...errors, full_name: "" });
                 }}
-                className={`h-9 text-xs rounded-xl bg-background focus:ring-2 focus:ring-[#1a73e8]/20 ${
-                  errors.full_name ? "border-rose-500" : "border-border"
+                className={`h-10 text-xs rounded-xl bg-background ${
+                  errors.full_name ? "border-rose-500 focus:border-rose-500" : "border-border"
                 }`}
               />
               {errors.full_name && (
-                <p className="text-[10px] font-bold text-rose-500 flex items-center gap-1 mt-0.5">
+                <p className="text-[11px] font-medium text-rose-500 flex items-center gap-1 mt-1">
                   <AlertCircle className="w-3 h-3" />
                   <span>{errors.full_name}</span>
                 </p>
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <Label className="text-[11px] font-bold text-foreground">
-                  {isAr ? "البريد الإلكتروني" : "Email"} <span className="text-rose-500">*</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  {isAr ? "البريد الإلكتروني" : "Email Address"}
+                  <span className="text-rose-500">*</span>
                 </Label>
                 <Input
                   type="email"
@@ -196,133 +200,154 @@ export function EditTraineeModal({
                     if (errors.email) setErrors({ ...errors, email: "" });
                   }}
                   dir="ltr"
-                  className={`h-9 text-xs rounded-xl bg-background font-mono text-start ${
-                    errors.email ? "border-rose-500" : "border-border"
+                  className={`h-10 text-xs rounded-xl bg-background font-mono text-start ${
+                    errors.email ? "border-rose-500 focus:border-rose-500" : "border-border"
                   }`}
                 />
+                {errors.email && (
+                  <p className="text-[11px] font-medium text-rose-500 flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>{errors.email}</span>
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-[11px] font-bold text-foreground">
-                  {isAr ? "رقم الهاتف" : "Phone"}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  <Phone className="w-3 h-3 text-muted-foreground" />
+                  {isAr ? "رقم الهاتف / واتساب" : "Phone / WhatsApp"}
                 </Label>
                 <Input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   dir="ltr"
-                  className="h-9 text-xs rounded-xl bg-background font-mono border-border text-start"
+                  className="h-10 text-xs rounded-xl bg-background text-start border-border"
                 />
               </div>
             </div>
           </div>
 
-          {/* Section 2: Academic Info */}
-          <div className="space-y-2.5 pt-3 border-t border-border/60">
+          {/* Section 2: Academic Background */}
+          <div className="space-y-3 p-3.5 rounded-xl bg-muted/30 border border-border/50">
             <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
-              <School className="w-3.5 h-3.5 text-[#34a853]" />
-              <span>{isAr ? "البيانات الأكاديمية" : "Academic Background"}</span>
+              <School className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>{isAr ? "البيانات الأكاديمية والجامعية" : "Academic Background"}</span>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-[11px] font-bold text-foreground">
-                {isAr ? "الجامعة" : "University"}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-foreground">
+                {isAr ? "الجامعة أو المؤسسة التعليمية" : "University / Institution"}
               </Label>
               <Input
                 value={formData.university}
                 onChange={(e) => setFormData({ ...formData, university: e.target.value })}
-                className="h-9 text-xs rounded-xl bg-background border-border"
+                className="h-10 text-xs rounded-xl bg-background border-border"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <Label className="text-[11px] font-bold text-foreground">
-                  {isAr ? "الكلية / القسم" : "Department"}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  {isAr ? "الكلية / القسم الأكاديمي" : "Faculty / Department"}
                 </Label>
                 <Input
                   value={formData.faculty_department}
                   onChange={(e) => setFormData({ ...formData, faculty_department: e.target.value })}
-                  className="h-9 text-xs rounded-xl bg-background border-border"
+                  className="h-10 text-xs rounded-xl bg-background border-border"
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-[11px] font-bold text-foreground">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  <GraduationCap className="w-3 h-3 text-muted-foreground" />
                   {isAr ? "الفرقة الدراسية" : "Academic Year"}
                 </Label>
-                <Input
+                <select
                   value={formData.academic_year}
                   onChange={(e) => setFormData({ ...formData, academic_year: e.target.value })}
-                  className="h-9 text-xs rounded-xl bg-background border-border"
-                />
+                  className="w-full text-xs h-10 px-3 rounded-xl border border-border bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="الفرقة الأولى">{isAr ? "الفرقة الأولى (Year 1)" : "Year 1"}</option>
+                  <option value="الفرقة الثانية">{isAr ? "الفرقة الثانية (Year 2)" : "Year 2"}</option>
+                  <option value="الفرقة الثالثة">{isAr ? "الفرقة الثالثة (Year 3)" : "Year 3"}</option>
+                  <option value="الفرقة الرابعة">{isAr ? "الفرقة الرابعة (Year 4)" : "Year 4"}</option>
+                  <option value="خريج">{isAr ? "خريج حديث (Graduate)" : "Graduate"}</option>
+                </select>
               </div>
             </div>
           </div>
 
-          {/* Section 3: Track & Enrollment */}
-          <div className="space-y-2.5 pt-3 border-t border-border/60">
+          {/* Section 3: Track Assignment */}
+          <div className="space-y-3 p-3.5 rounded-xl bg-muted/30 border border-border/50">
             <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
-              <Layers className="w-3.5 h-3.5 text-[#1a73e8]" />
-              <span>{isAr ? "المسار التقني والتنسيب" : "Track Assignment"}</span>
+              <Layers className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              <span>{isAr ? "المسار التقني المسجل به" : "Track Assignment"}</span>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-[11px] font-bold text-[#1a73e8] block">
-                {isAr ? "المسار الأكاديمي الحالي" : "Assigned Track"}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <BookOpen className="w-3 h-3 text-muted-foreground" />
+                {isAr ? "المسار الأكاديمي الحالي" : "Enrolled Academic Track"}
               </Label>
               <select
                 value={selectedTrackId}
                 onChange={(e) => setSelectedTrackId(e.target.value)}
-                className="w-full text-xs h-9.5 px-3 rounded-xl border border-border bg-background font-bold focus:ring-2 focus:ring-[#1a73e8]/30 focus:outline-none"
+                className="w-full text-xs h-10 px-3 rounded-xl border border-border bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
-                <option value="">
-                  {isAr ? "— بدون مسار (إلغاء التنسيب) —" : "— Unassigned (Remove from track) —"}
-                </option>
-                {tracks
-                  .filter((t) => t.status !== "archived")
-                  .map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {isAr ? t.name_ar || t.name : t.name} • ({t.cohort})
-                    </option>
-                  ))}
+                <option value="">{isAr ? "— بدون مسار حالياً —" : "— Unassigned —"}</option>
+                {tracks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {isAr ? t.name_ar : t.name} ({t.cohort})
+                  </option>
+                ))}
               </select>
             </div>
 
-            <div className="space-y-1 pt-1">
-              <Label className="text-[11px] font-bold text-foreground">
-                {isAr ? "ملاحظات" : "Notes"}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <FileText className="w-3 h-3 text-muted-foreground" />
+                {isAr ? "ملاحظات إضافية" : "Notes"}
               </Label>
               <Textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                className="text-xs h-16 rounded-xl bg-background border-border resize-none"
+                className="text-xs h-16 rounded-xl resize-none border-border bg-background"
               />
             </div>
           </div>
-
-          <DialogFooter className="pt-3 border-t border-border/70 flex items-center justify-between sm:justify-between gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="rounded-xl text-xs h-8.5 font-bold"
-            >
-              {isAr ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isSubmitting}
-              className="rounded-xl text-xs h-8.5 px-4 font-bold bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white gap-1.5 shadow-sm"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? (isAr ? "جارِ الحفظ..." : "Saving...") : (isAr ? "حفظ التعديلات" : "Save Changes")}</span>
-            </Button>
-          </DialogFooter>
         </form>
+
+        {/* Pinned Sticky Footer */}
+        <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-end gap-2.5 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            className="rounded-xl h-9 px-4 text-xs font-medium"
+          >
+            {isAr ? "إلغاء" : "Cancel"}
+          </Button>
+          <Button
+            type="submit"
+            form="edit-trainee-form"
+            disabled={isSubmitting}
+            size="sm"
+            className="rounded-xl h-9 px-5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md shadow-blue-500/20 flex items-center gap-1.5"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>
+              {isSubmitting
+                ? isAr
+                  ? "جارِ الحفظ..."
+                  : "Saving..."
+                : isAr
+                ? "حفظ التعديلات"
+                : "Save Changes"}
+            </span>
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

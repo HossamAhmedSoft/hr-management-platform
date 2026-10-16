@@ -2245,7 +2245,7 @@ export default function EducationPage() {
         onOpenChange={setIsEnrollModalOpen}
         participants={participants}
         tracks={activeTracksList}
-        preselectedParticipantId={selectedParticipantForEnrollment?.id || ""}
+        preselectedParticipantId={enrollFormData.participant_id || ""}
         preselectedTrackId={selectedTrackId !== "all" ? selectedTrackId : ""}
         onSuccess={() => {
           reloadData();

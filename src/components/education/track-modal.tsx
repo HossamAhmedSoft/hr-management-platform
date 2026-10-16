@@ -25,7 +25,8 @@ import {
   AlertCircle,
   FileText,
 } from "lucide-react";
-import { tracksService, TechnicalTrack } from "@/lib/tracks-service";
+import { tracksService } from "@/lib/tracks-service";
+import { TechnicalTrack, TrackCategory } from "@/types";
 
 interface TrackModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export function TrackModal({
     name: "",
     name_ar: "",
     description: "",
-    category: "web" as "web" | "mobile" | "ai_ml" | "cybersecurity" | "uiux" | "embedded",
+    category: "web" as TrackCategory,
     cohort: "Season 2026 - Cohort 1",
     start_date: "2026-03-01",
     end_date: "2026-06-30",

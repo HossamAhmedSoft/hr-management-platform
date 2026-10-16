@@ -13,13 +13,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserCheck, BookOpen, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
-import { tracksService, Participant, Track } from "@/lib/tracks-service";
+import { tracksService } from "@/lib/tracks-service";
+import { Participant, TechnicalTrack } from "@/types";
 
 interface EnrollTraineeModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   participants: Participant[];
-  tracks: Track[];
+  tracks: TechnicalTrack[];
   preselectedParticipantId?: string;
   preselectedTrackId?: string;
   onSuccess: () => void;
