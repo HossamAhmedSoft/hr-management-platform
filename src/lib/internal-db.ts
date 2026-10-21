@@ -31,43 +31,75 @@ import {
 } from "./forms-seed";
 
 // ============================================================
-// Internal Enterprise Storage Engine (Pure Production)
+// Internal Enterprise Storage Engine (High-Performance Caching Tier)
 // ============================================================
 
 const STORAGE_PREFIX = "gdg_nctu_db_";
 const memoryStore: Record<string, string> = {};
+const activeTableCache: Record<string, any[]> = {};
 
 function getTable<T>(tableName: string, defaultData: T[] = []): T[] {
+  const cacheKey = `${STORAGE_PREFIX}${tableName}`;
+  
+  // Instant L1 In-Memory Cache (0ms latency, zero JSON parsing overhead)
+  if (activeTableCache[cacheKey]) {
+    return activeTableCache[cacheKey] as T[];
+  }
+
   if (typeof window === "undefined") {
-    const raw = memoryStore[`${STORAGE_PREFIX}${tableName}`];
-    if (!raw) return defaultData;
+    const raw = memoryStore[cacheKey];
+    if (!raw) {
+      activeTableCache[cacheKey] = defaultData;
+      return defaultData;
+    }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      activeTableCache[cacheKey] = parsed;
+      return parsed;
     } catch {
+      activeTableCache[cacheKey] = defaultData;
       return defaultData;
     }
   }
+
   try {
-    const raw = localStorage.getItem(`${STORAGE_PREFIX}${tableName}`);
+    const raw = localStorage.getItem(cacheKey);
     if (!raw) {
-      localStorage.setItem(`${STORAGE_PREFIX}${tableName}`, JSON.stringify(defaultData));
+      activeTableCache[cacheKey] = defaultData;
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(defaultData));
+      } catch {}
       return defaultData;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    activeTableCache[cacheKey] = parsed;
+    return parsed;
   } catch {
+    activeTableCache[cacheKey] = defaultData;
     return defaultData;
   }
 }
 
 function setTable<T>(tableName: string, data: T[]): void {
+  const cacheKey = `${STORAGE_PREFIX}${tableName}`;
+  
+  // Write-through update to L1 memory cache (synchronous, 0ms latency)
+  activeTableCache[cacheKey] = data;
+
   if (typeof window === "undefined") {
-    memoryStore[`${STORAGE_PREFIX}${tableName}`] = JSON.stringify(data);
+    memoryStore[cacheKey] = JSON.stringify(data);
     return;
   }
+
+  // Persist to browser storage with QuotaExceededError defense
   try {
-    localStorage.setItem(`${STORAGE_PREFIX}${tableName}`, JSON.stringify(data));
-  } catch (e) {
-    console.error(`Failed to write table ${tableName}:`, e);
+    localStorage.setItem(cacheKey, JSON.stringify(data));
+  } catch (e: any) {
+    if (e?.name === "QuotaExceededError" || e?.code === 22) {
+      console.warn(`[StorageEngine] LocalStorage quota reached for table "${tableName}". Retaining in-memory cache.`);
+    } else {
+      console.error(`Failed to write table ${tableName}:`, e);
+    }
   }
 }
 

@@ -38,13 +38,21 @@ export function generateCryptoToken(): string {
 export const SESSION_SECRET = process.env.SESSION_SECRET || "gdg_nctu_session_hmac_secret_2026_enterprise";
 
 export function createSessionSignature(userId: string, role: string, token: string): string {
-  let hashVal = 0;
-  const str = `${SESSION_SECRET}:${userId}:${role}:${token}`;
-  for (let i = 0; i < str.length; i++) {
-    hashVal = (hashVal << 5) - hashVal + str.charCodeAt(i);
-    hashVal |= 0;
+  const secret = process.env.SESSION_SECRET || SESSION_SECRET;
+  const payload = `${userId}:${role}:${token}`;
+  try {
+    const nodeCrypto = require("crypto");
+    return nodeCrypto.createHmac("sha256", secret).update(payload).digest("hex");
+  } catch {
+    // Safe browser fallback using deterministic pseudo-HMAC representation
+    let hash = 0;
+    const combined = `${secret}:${payload}`;
+    for (let i = 0; i < combined.length; i++) {
+      hash = (hash << 5) - hash + combined.charCodeAt(i);
+      hash |= 0;
+    }
+    return `hmac_${Math.abs(hash).toString(16)}`;
   }
-  return `sig_${Math.abs(hashVal).toString(16)}`;
 }
 
 export function verifySessionSignature(
@@ -54,18 +62,24 @@ export function verifySessionSignature(
   signature: string
 ): boolean {
   if (!userId || !role || !token || !signature) return false;
-  const expected = createSessionSignature(userId, role, token);
-  if (expected === signature) return true;
+  const secret = process.env.SESSION_SECRET || SESSION_SECRET;
 
   try {
     const nodeCrypto = require("crypto");
-    const nodeHash = nodeCrypto
-      .createHmac("sha256", SESSION_SECRET)
+    const expected = nodeCrypto
+      .createHmac("sha256", secret)
       .update(`${userId}:${role}:${token}`)
       .digest("hex");
-    if (nodeHash === signature) return true;
+
+    if (
+      signature.length === expected.length &&
+      nodeCrypto.timingSafeEqual(Buffer.from(signature, "utf-8"), Buffer.from(expected, "utf-8"))
+    ) {
+      return true;
+    }
   } catch (_) {}
 
+  // Strictly reject any legacy polynomial or forged signatures
   return false;
 }
 

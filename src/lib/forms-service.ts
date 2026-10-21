@@ -193,6 +193,14 @@ export function validateFormSubmission(
   for (const q of questions) {
     // If logic rule hid this question, skip validation
     if (visibleQuestionIds && !visibleQuestionIds.has(q.id)) {
+      // Mandatory questions cannot be suppressed if client sends an empty visible list without logic
+      if (q.is_required && visibleQuestionIds.size === 0) {
+        errors.push({
+          question_id: q.id,
+          message: "This question is required.",
+          message_ar: "هذا السؤال إلزامي.",
+        });
+      }
       continue;
     }
     const val = answersRecord[q.id];
@@ -268,7 +276,15 @@ export function evaluateLogicRules(
   jumpToSectionId?: string;
   shouldSubmitImmediately: boolean;
 } {
-  const hiddenQuestionIds = new Set<string>();
+  // Questions targeted by a 'show_question' rule must be hidden by default until condition passes
+  const conditionallyShownQuestionIds = new Set<string>();
+  for (const rule of rules) {
+    if (rule.action === "show_question" && rule.target_id) {
+      conditionallyShownQuestionIds.add(rule.target_id);
+    }
+  }
+
+  const hiddenQuestionIds = new Set<string>(conditionallyShownQuestionIds);
   let jumpToSectionId: string | undefined = undefined;
   let shouldSubmitImmediately = false;
 
@@ -466,14 +482,29 @@ export function computeFormAnalytics(
   const avgDuration =
     totalSubmissions > 0 ? Math.round(totalDuration / totalSubmissions) : 0;
 
-  // Question level analytics
+  // Question level analytics optimized to linear O(R x A + Q)
   const questions = form.questions || [];
   const questionStats: Record<string, QuestionAnalytics> = {};
 
+  // Pre-index all response answers by question_id in a single linear pass
+  const answersByQuestionId = new Map<string, any[]>();
+  for (const r of completedResponses) {
+    if (r.answers) {
+      for (const a of r.answers) {
+        if (a.answer_value !== undefined && a.answer_value !== null && a.answer_value !== "") {
+          let list = answersByQuestionId.get(a.question_id);
+          if (!list) {
+            list = [];
+            answersByQuestionId.set(a.question_id, list);
+          }
+          list.push(a.answer_value);
+        }
+      }
+    }
+  }
+
   questions.forEach((q) => {
-    const qAnswers = completedResponses
-      .map((r) => r.answers?.find((a) => a.question_id === q.id)?.answer_value)
-      .filter((v) => v !== undefined && v !== null && v !== "");
+    const qAnswers = answersByQuestionId.get(q.id) || [];
 
     const stat: QuestionAnalytics = {
       question_id: q.id,
@@ -490,20 +521,22 @@ export function computeFormAnalytics(
       q.type === "checkboxes"
     ) {
       const counts: Record<string, number> = {};
+      const optionLabelByVal = new Map<string, string>();
       q.options?.forEach((opt) => {
         counts[opt.label] = 0;
+        optionLabelByVal.set(opt.id, opt.label);
+        optionLabelByVal.set(opt.value, opt.label);
+        optionLabelByVal.set(opt.label, opt.label);
       });
 
       qAnswers.forEach((ans) => {
         if (Array.isArray(ans)) {
           ans.forEach((val) => {
-            const matchedOpt = q.options?.find((o) => o.id === val || o.value === val);
-            const key = matchedOpt ? matchedOpt.label : String(val);
+            const key = optionLabelByVal.get(String(val)) || String(val);
             counts[key] = (counts[key] || 0) + 1;
           });
         } else {
-          const matchedOpt = q.options?.find((o) => o.id === ans || o.value === ans);
-          const key = matchedOpt ? matchedOpt.label : String(ans);
+          const key = optionLabelByVal.get(String(ans)) || String(ans);
           counts[key] = (counts[key] || 0) + 1;
         }
       });

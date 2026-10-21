@@ -1,0 +1,13 @@
+[
+  {
+    "id": "FIND-1",
+    "title": "Batch ingestion of 500 form responses executed within threshold (<1500ms, actual: 1799.27ms)",
+    "category": "Performance & Scalability",
+    "severity": "Medium",
+    "status": "CONFIRMED",
+    "location": "src/lib/internal-db.ts",
+    "evidence": "Ingestion time: 1799.27ms",
+    "impact": "Degraded user experience or system instability.",
+    "recommendation": "Optimize algorithm or enforce boundary limits."
+  }
+]

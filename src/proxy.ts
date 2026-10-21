@@ -32,25 +32,28 @@ export default function proxy(request: NextRequest) {
     }
   }
 
-  // 2. Enforce authentication & RBAC authorization on strictly restricted administrative routes
-  const strictlyAdminRoutes = ["/audit-log"];
-  const isStrictlyAdminRoute = strictlyAdminRoutes.some(
+  // 2. Enforce authentication & RBAC authorization on restricted routes
+  const strictlyAdminRoutes = ["/audit-log", "/members", "/incidents", "/feedback", "/reports", "/hr-kpis"];
+  const isProtectedAdminRoute = strictlyAdminRoutes.some(
     (r) => pathWithoutLocale === r || pathWithoutLocale.startsWith(`${r}/`)
   );
 
-  if (isStrictlyAdminRoute) {
-    const userCookie = request.cookies.get("gdg_session_user")?.value;
-    const roleCookie = request.cookies.get("gdg_session_role")?.value as UserRole | undefined;
+  const userCookie = request.cookies.get("gdg_session_user")?.value;
+  const roleCookie = request.cookies.get("gdg_session_role")?.value as UserRole | undefined;
 
+  if (isProtectedAdminRoute) {
     if (!userCookie) {
       const loginUrl = new URL(`/${locale}/login?reason=expired`, request.url);
       return NextResponse.redirect(loginUrl);
     }
 
-    if (roleCookie && (roleCookie !== "super_admin" && roleCookie !== "hr_admin")) {
+    if (roleCookie && !canAccessRoute(roleCookie, pathWithoutLocale)) {
       const forbiddenUrl = new URL(`/${locale}/forbidden`, request.url);
       return NextResponse.redirect(forbiddenUrl);
     }
+  } else if (roleCookie && !canAccessRoute(roleCookie, pathWithoutLocale)) {
+    const forbiddenUrl = new URL(`/${locale}/forbidden`, request.url);
+    return NextResponse.redirect(forbiddenUrl);
   }
 
   // 3. Delegate to internationalization middleware

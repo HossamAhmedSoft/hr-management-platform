@@ -417,6 +417,50 @@ function QuestionEditorCardComponent({
         </div>
       )}
 
+      {/* Number Range Settings (Min / Max) */}
+      {question.type === "number" && (
+        <div className="mt-4 pt-3 border-t border-border/40 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div>
+            <label className="text-[11px] text-muted-foreground font-semibold block mb-1">
+              {isAr ? "الحد الأدنى للقيمة (اختياري)" : "Minimum Value (optional)"}
+            </label>
+            <Input
+              type="number"
+              value={question.validation?.min ?? ""}
+              onChange={(e) =>
+                onUpdate({
+                  validation: {
+                    ...question.validation,
+                    min: e.target.value === "" ? undefined : parseFloat(e.target.value),
+                  },
+                })
+              }
+              placeholder="e.g. 0"
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground font-semibold block mb-1">
+              {isAr ? "الحد الأقصى للقيمة (اختياري)" : "Maximum Value (optional)"}
+            </label>
+            <Input
+              type="number"
+              value={question.validation?.max ?? ""}
+              onChange={(e) =>
+                onUpdate({
+                  validation: {
+                    ...question.validation,
+                    max: e.target.value === "" ? undefined : parseFloat(e.target.value),
+                  },
+                })
+              }
+              placeholder="e.g. 100"
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+      )}
+
       {/* File Upload Settings */}
       {question.type === "file_upload" && (
         <div className="mt-4 pt-3 border-t border-border/40 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">

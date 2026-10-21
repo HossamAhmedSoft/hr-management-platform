@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Form, FormResponse, FormAnalytics } from "@/types/forms";
 import { useApp } from "@/lib/app-context";
@@ -53,8 +53,12 @@ export default function FormResponsesPage() {
 
   const [form, setForm] = useState<Form | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
-  const [analytics, setAnalytics] = useState<FormAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Memoized analytics calculation: runs in single linear pass only when form or responses change
+  const analytics = useMemo(() => {
+    return form ? computeFormAnalytics(form, responses) : null;
+  }, [form, responses]);
 
   // Tab & Filters
   const [activeTab, setActiveTab] = useState<"summary" | "table" | "individual">("summary");
@@ -71,7 +75,6 @@ export default function FormResponsesPage() {
           setForm(local);
           const localResps = internalDB.getFormResponses(local.id);
           setResponses(localResps);
-          setAnalytics(computeFormAnalytics(local, localResps));
           setLoading(false);
         }
 
@@ -79,9 +82,7 @@ export default function FormResponsesPage() {
         if (found) {
           setForm(found);
           const resps = await dbService.getFormResponses(found.id);
-          setResponses(resps);
-          const stats = computeFormAnalytics(found, resps);
-          setAnalytics(stats);
+          setResponses((prev) => (prev.length === resps.length ? prev : resps));
         }
       } catch (e) {
         console.error("Error loading responses:", e);
@@ -98,9 +99,6 @@ export default function FormResponsesPage() {
       await dbService.deleteFormResponse(respId);
       const remaining = responses.filter((r) => r.id !== respId);
       setResponses(remaining);
-      if (form) {
-        setAnalytics(computeFormAnalytics(form, remaining));
-      }
       if (individualIndex >= remaining.length) {
         setIndividualIndex(Math.max(0, remaining.length - 1));
       }

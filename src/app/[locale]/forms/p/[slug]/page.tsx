@@ -328,7 +328,10 @@ export default function PublicFormViewPage() {
     const quizResult = submittedData.data?.quiz_result;
 
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8 px-4 flex justify-center items-start">
+      <div
+        dir={isAr ? "rtl" : "ltr"}
+        className={cn("min-h-screen bg-slate-50 dark:bg-slate-950 py-8 px-4 flex justify-center items-start", isAr && "font-sans font-cairo")}
+      >
         <div className="max-w-2xl w-full bg-card border border-border rounded-3xl shadow-lg overflow-hidden animate-in fade-in space-y-6">
           <div
             className="h-3 w-full"
@@ -406,7 +409,10 @@ export default function PublicFormViewPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8 px-4 flex justify-center items-start">
+    <div
+      dir={isAr ? "rtl" : "ltr"}
+      className={cn("min-h-screen bg-slate-50 dark:bg-slate-950 py-8 px-4 flex justify-center items-start", isAr && "font-sans font-cairo")}
+    >
       {/* Honeypot hidden input for spam bots */}
       <input
         type="text"

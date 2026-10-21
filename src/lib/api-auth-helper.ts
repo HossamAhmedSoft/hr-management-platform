@@ -55,8 +55,9 @@ export function getApiAuthContext(request: NextRequest): ApiAuthContext {
   const apiKey = request.headers.get("x-api-key") || request.headers.get("authorization");
   if (apiKey) {
     const cleanKey = apiKey.replace(/^Bearer\s+/i, "").trim();
-    // Valid system API key
-    if (cleanKey === "gdg_nctu_forms_secret_api_key_2026" || cleanKey.startsWith("gdg_live_")) {
+    const configuredApiKey = process.env.FORMS_API_KEY;
+    // Strictly validate against environment-configured secret (never allow wildcard prefix or hardcoded keys)
+    if (configuredApiKey && cleanKey === configuredApiKey) {
       return {
         isAuthenticated: true,
         user: {

@@ -9,6 +9,7 @@ import { dbService } from "@/lib/db-service";
 import { getApiAuthContext, checkApiRateLimit } from "@/lib/api-auth-helper";
 import {
   validateFormSubmission,
+  evaluateLogicRules,
   gradeQuizSubmission,
   executeFormAutomations,
 } from "@/lib/forms-service";
@@ -183,9 +184,18 @@ export async function POST(
     }
 
     const answersRecord = payload.answers || {};
-    const visibleQuestionIds = payload.visible_question_ids
-      ? new Set<string>(payload.visible_question_ids)
-      : undefined;
+
+    // 2.1 Calculate genuine visible questions server-side via dynamic logic engine
+    // Never trust client-supplied visible_question_ids to prevent validation bypass
+    let visibleQuestionIds: Set<string> | undefined = undefined;
+    if (form.logic_rules && form.logic_rules.length > 0) {
+      const logicResult = evaluateLogicRules(form.logic_rules, answersRecord, form.questions || []);
+      visibleQuestionIds = new Set(
+        (form.questions || [])
+          .filter((q) => !logicResult.hiddenQuestionIds.has(q.id))
+          .map((q) => q.id)
+      );
+    }
 
     // 3. Validation
     const validation = validateFormSubmission(

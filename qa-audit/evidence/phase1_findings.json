@@ -1,0 +1,39 @@
+[
+  {
+    "id": "SEC-STATIC-01",
+    "title": "High-Severity Denial of Service Vulnerabilities in Dependencies (braces/micromatch)",
+    "severity": "High",
+    "category": "Dependency Security",
+    "cwe": "CWE-674",
+    "cvss": 7.5,
+    "location": "package-lock.json (braces <=3.0.3, fast-glob, micromatch)",
+    "evidence": "5 High vulnerabilities detected in npm audit: braces stack-exhaustion DoS (GHSA-vfj7-8cjw-p6xm)."
+  },
+  {
+    "id": "SEC-STATIC-03",
+    "title": "Hardcoded Static Fallback for Session HMAC Secret & Insecure 32-bit Signature Hash",
+    "severity": "Critical",
+    "category": "Cryptographic Failures",
+    "cwe": "CWE-798 / CWE-327",
+    "location": "src/lib/auth-service.ts (lines 38-48)",
+    "evidence": "Found static fallback 'gdg_nctu_session_hmac_secret_2026_enterprise' and weak 32-bit linear bitshift polynomial hash in createSessionSignature."
+  },
+  {
+    "id": "SEC-STATIC-04",
+    "title": "Hardcoded OAuth Client Secret Committed to Permanent Git History",
+    "severity": "High",
+    "category": "Credential Exposure",
+    "cwe": "CWE-522",
+    "location": "Git Commit History (8c8794f / 2f8b957) and .env.local",
+    "evidence": "GOOGLE_CLIENT_SECRET='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' found in git history commits."
+  },
+  {
+    "id": "QA-STATIC-05",
+    "title": "Linter Violations Hotspot: 583 Problems (204 Errors, 379 Warnings)",
+    "severity": "Medium",
+    "category": "Code Quality & Static Analysis",
+    "cwe": "CWE-1164",
+    "location": "Global Codebase (ESLint)",
+    "evidence": "ESLint exited with code 1. 583 problems reported (@typescript-eslint/no-explicit-any, unused vars, prefer-const)."
+  }
+]
