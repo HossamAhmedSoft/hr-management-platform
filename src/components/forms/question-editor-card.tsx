@@ -82,7 +82,7 @@ const QUESTION_TYPES: Array<{
   { type: "ranking", label: "Item Ranking", label_ar: "ترتيب العناصر حسب الأولوية", icon: ListOrdered, category: "advanced" },
 ];
 
-export function QuestionEditorCard({
+function QuestionEditorCardComponent({
   question,
   index,
   totalQuestions,
@@ -539,3 +539,6 @@ export function QuestionEditorCard({
     </div>
   );
 }
+
+export const QuestionEditorCard = React.memo(QuestionEditorCardComponent);
+

@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS forms (
   theme_config JSONB DEFAULT '{"primaryColor": "#1a73e8", "accentColor": "#4285F4", "backgroundColor": "#f8f9fa", "font": "Inter", "rounded": "rounded-xl"}'::jsonb,
   settings JSONB DEFAULT '{"limit_one_response": false, "allow_edit": false, "response_cap": null, "open_date": null, "close_date": null, "confirmation_message": "Your response has been recorded.", "confirmation_message_ar": "تم تسجيل ردك بنجاح.", "redirect_url": null, "show_progress_bar": true, "shuffle_questions": false, "collect_email": true}'::jsonb,
   quiz_settings JSONB DEFAULT '{"is_quiz": false, "total_points": 0, "show_score_immediate": true, "show_correct_answers": false}'::jsonb,
+  sections JSONB DEFAULT '[]'::jsonb,
+  questions JSONB DEFAULT '[]'::jsonb,
+  logic_rules JSONB DEFAULT '[]'::jsonb,
   is_template BOOLEAN NOT NULL DEFAULT FALSE,
   template_category VARCHAR(100),
   created_by VARCHAR(100) NOT NULL,
@@ -50,14 +53,8 @@ CREATE TABLE IF NOT EXISTS form_versions (
 CREATE INDEX IF NOT EXISTS idx_form_versions_form_id ON form_versions(form_id);
 
 -- Add Foreign Key for forms.current_version_id
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'fk_forms_current_version'
-  ) THEN
-    ALTER TABLE forms ADD CONSTRAINT fk_forms_current_version FOREIGN KEY (current_version_id) REFERENCES form_versions(id) ON DELETE SET NULL;
-  END IF;
-END $$;
+ALTER TABLE forms DROP CONSTRAINT IF EXISTS fk_forms_current_version;
+ALTER TABLE forms ADD CONSTRAINT fk_forms_current_version FOREIGN KEY (current_version_id) REFERENCES form_versions(id) ON DELETE SET NULL;
 
 -- 3. Form Sections / Pages
 CREATE TABLE IF NOT EXISTS form_sections (
@@ -243,3 +240,68 @@ CREATE TABLE IF NOT EXISTS form_templates (
   is_system BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ─────────────────────────────────────────────────────────────
+-- 14. ROW LEVEL SECURITY (RLS) POLICIES
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE forms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_sections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_logic_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_responses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_answers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_automations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_webhooks ENABLE ROW LEVEL SECURITY;
+
+-- Forms: Published forms are readable by all (anon & authenticated); drafts by authenticated
+CREATE POLICY "Public and users can view published forms"
+  ON forms FOR SELECT
+  USING (status = 'published' OR auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can create forms"
+  ON forms FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update forms"
+  ON forms FOR UPDATE
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Authenticated users can delete forms"
+  ON forms FOR DELETE
+  TO authenticated
+  USING (true);
+
+-- Form Versions: readable by everyone
+CREATE POLICY "Form versions viewable by all"
+  ON form_versions FOR SELECT
+  USING (true);
+
+CREATE POLICY "Authenticated users can create form versions"
+  ON form_versions FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+-- Form Responses: Anyone can submit responses; authenticated can view responses
+CREATE POLICY "Anyone can submit form responses"
+  ON form_responses FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can view responses"
+  ON form_responses FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Authenticated users can delete responses"
+  ON form_responses FOR DELETE
+  TO authenticated
+  USING (true);
+
+-- Templates: viewable by all
+CREATE POLICY "Form templates viewable by all"
+  ON form_templates FOR SELECT
+  USING (true);
+

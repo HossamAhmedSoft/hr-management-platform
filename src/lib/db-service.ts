@@ -1119,10 +1119,17 @@ export const dbService = {
     const local = internalDB.getForms();
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
+      const fetchPromise = supabase
         .from("forms")
         .select("*")
         .order("created_at", { ascending: false });
+      const timeoutPromise = new Promise<{ data: any; error: any }>((_, reject) =>
+        setTimeout(() => reject(new Error("Supabase query timeout")), 1200)
+      );
+
+      const res = await Promise.race([fetchPromise, timeoutPromise]);
+      const data = res?.data;
+      const error = res?.error;
 
       if (!error && Array.isArray(data) && data.length > 0) {
         const merged = [...(data as Form[])];
@@ -1134,60 +1141,76 @@ export const dbService = {
         internalDB.setForms(merged);
         return merged;
       }
-    } catch (e) {
-      console.warn("Supabase forms query error, falling back to local:", e);
+    } catch {
+      // Return authoritative local data immediately on timeout or offline
     }
     return local;
   },
 
   async getFormById(id: string): Promise<Form | null> {
+    const local = internalDB.getFormById(id);
+    if (local) return local;
     const forms = await this.getForms();
     return forms.find((f) => f.id === id || f.slug === id) || null;
   },
 
   async getFormBySlug(slug: string): Promise<Form | null> {
+    const local = internalDB.getFormBySlug(slug);
+    if (local) return local;
     const forms = await this.getForms();
     return forms.find((f) => f.slug === slug || f.id === slug) || null;
   },
 
   async createForm(formData: Partial<Form>): Promise<Form> {
     const newForm = internalDB.createForm(formData);
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("forms")
-        .insert([newForm])
-        .select()
-        .single();
-
-      if (!error && data) {
-        return data as Form;
-      }
-    } catch (e) {
-      console.warn("Supabase createForm error:", e);
-    }
+    // Non-blocking background sync
+    (async () => {
+      try {
+        const supabase = createClient();
+        const payload: Record<string, any> = { ...newForm };
+        delete payload.sections;
+        delete payload.questions;
+        delete payload.logic_rules;
+        await Promise.race([
+          supabase.from("forms").insert([payload]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500)),
+        ]);
+      } catch {}
+    })();
     return newForm;
   },
 
   async updateForm(id: string, updates: Partial<Form>): Promise<Form | null> {
     const updated = internalDB.updateForm(id, updates);
-    try {
-      const supabase = createClient();
-      await supabase.from("forms").update(updates).eq("id", id);
-    } catch (e) {
-      console.warn("Supabase updateForm error:", e);
-    }
+    // Non-blocking background sync
+    (async () => {
+      try {
+        const supabase = createClient();
+        const payload: Record<string, any> = { ...updates };
+        delete payload.sections;
+        delete payload.questions;
+        delete payload.logic_rules;
+        await Promise.race([
+          supabase.from("forms").update(payload).eq("id", id),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500)),
+        ]);
+      } catch {}
+    })();
     return updated;
   },
 
   async deleteForm(id: string): Promise<boolean> {
-    try {
-      const supabase = createClient();
-      await supabase.from("forms").delete().eq("id", id);
-    } catch (e) {
-      console.warn("Supabase deleteForm error:", e);
-    }
-    return internalDB.deleteForm(id);
+    const res = internalDB.deleteForm(id);
+    (async () => {
+      try {
+        const supabase = createClient();
+        await Promise.race([
+          supabase.from("forms").delete().eq("id", id),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500)),
+        ]);
+      } catch {}
+    })();
+    return res;
   },
 
   async getFormVersions(formId?: string): Promise<FormVersion[]> {
@@ -1227,12 +1250,15 @@ export const dbService = {
 
   async createFormResponse(responseData: Partial<FormResponse>): Promise<FormResponse> {
     const newResponse = internalDB.createFormResponse(responseData);
-    try {
-      const supabase = createClient();
-      await supabase.from("form_responses").insert([newResponse]);
-    } catch (e) {
-      console.warn("Supabase createFormResponse error:", e);
-    }
+    (async () => {
+      try {
+        const supabase = createClient();
+        await Promise.race([
+          supabase.from("form_responses").insert([newResponse]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500)),
+        ]);
+      } catch {}
+    })();
     return newResponse;
   },
 

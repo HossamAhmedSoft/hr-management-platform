@@ -86,20 +86,34 @@ export default function FormBuilderPage() {
   const [automations, setAutomations] = useState<FormAutomation[]>([]);
   const [webhooks, setWebhooks] = useState<FormWebhook[]>([]);
 
-  // Fetch form data on mount
+  // Fetch form data on mount (instant local-first render)
   useEffect(() => {
     async function loadForm() {
       if (!formId) return;
       try {
+        // Fast local check first (0ms instantaneous display)
+        const local = internalDB.getFormById(formId);
+        if (local) {
+          setForm(local);
+          setHistory([local]);
+          setHistoryIndex(0);
+          if (local.sections && local.sections.length > 0) {
+            setActiveSectionId(local.sections[0].id);
+          }
+          setEntityLinks(internalDB.getFormEntityLinks(local.id));
+          setAutomations(internalDB.getFormAutomations(local.id));
+          setWebhooks(internalDB.getFormWebhooks(local.id));
+          setLoading(false);
+        }
+
         const found = await dbService.getFormById(formId);
-        if (found) {
+        if (found && (!local || found.updated_at !== local.updated_at)) {
           setForm(found);
           setHistory([found]);
           setHistoryIndex(0);
           if (found.sections && found.sections.length > 0) {
             setActiveSectionId(found.sections[0].id);
           }
-          // Load integrations
           setEntityLinks(internalDB.getFormEntityLinks(found.id));
           setAutomations(internalDB.getFormAutomations(found.id));
           setWebhooks(internalDB.getFormWebhooks(found.id));
@@ -113,19 +127,36 @@ export default function FormBuilderPage() {
     loadForm();
   }, [formId]);
 
-  // Debounced Autosave
+  // Debounced Autosave & History
   const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const historyDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  const pushToHistoryAndSave = (updatedForm: Form) => {
+  const pushToHistoryAndSave = (updatedForm: Form, isImmediateHistory = false) => {
     setForm(updatedForm);
     setSaveStatus("saving");
 
-    // Push state to undo stack
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(updatedForm);
-    if (newHistory.length > 25) newHistory.shift();
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
+    if (isImmediateHistory) {
+      if (historyDebounceRef.current) clearTimeout(historyDebounceRef.current);
+      setHistory((prev) => {
+        const next = prev.slice(0, historyIndex + 1);
+        next.push(updatedForm);
+        if (next.length > 30) next.shift();
+        return next;
+      });
+      setHistoryIndex((prev) => Math.min(prev + 1, 29));
+    } else {
+      // Debounce history snapshot during typing so input remains smooth 60fps
+      if (historyDebounceRef.current) clearTimeout(historyDebounceRef.current);
+      historyDebounceRef.current = setTimeout(() => {
+        setHistory((prev) => {
+          const next = prev.slice(0, historyIndex + 1);
+          next.push(updatedForm);
+          if (next.length > 30) next.shift();
+          return next;
+        });
+        setHistoryIndex((prev) => Math.min(prev + 1, 29));
+      }, 800);
+    }
 
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
@@ -135,11 +166,10 @@ export default function FormBuilderPage() {
       try {
         await dbService.updateForm(updatedForm.id, updatedForm);
         setSaveStatus("saved");
-      } catch (err) {
-        console.warn("Autosave error:", err);
+      } catch {
         setSaveStatus("unsaved");
       }
-    }, 800);
+    }, 1200);
   };
 
   // Undo / Redo Handlers
@@ -180,7 +210,7 @@ export default function FormBuilderPage() {
       sections: [...(form.sections || []), newSection],
     };
     setActiveSectionId(newSecId);
-    pushToHistoryAndSave(updated);
+    pushToHistoryAndSave(updated, true);
   };
 
   const updateSection = (secId: string, updates: Partial<FormSection>) => {
@@ -189,7 +219,7 @@ export default function FormBuilderPage() {
       ...form,
       sections: (form.sections || []).map((s) => (s.id === secId ? { ...s, ...updates } : s)),
     };
-    pushToHistoryAndSave(updated);
+    pushToHistoryAndSave(updated, false);
   };
 
   const removeSection = (secId: string) => {
@@ -204,7 +234,7 @@ export default function FormBuilderPage() {
       ),
     };
     setActiveSectionId(remainingSections[0].id);
-    pushToHistoryAndSave(updated);
+    pushToHistoryAndSave(updated, true);
   };
 
   // Question Handlers
@@ -235,7 +265,7 @@ export default function FormBuilderPage() {
       ...form,
       questions: [...existingQ, newQ],
     };
-    pushToHistoryAndSave(updated);
+    pushToHistoryAndSave(updated, true);
   };
 
   const updateQuestion = (qId: string, updates: Partial<FormQuestion>) => {
@@ -244,7 +274,7 @@ export default function FormBuilderPage() {
       ...form,
       questions: (form.questions || []).map((q) => (q.id === qId ? { ...q, ...updates } : q)),
     };
-    pushToHistoryAndSave(updated);
+    pushToHistoryAndSave(updated, false);
   };
 
   const duplicateQuestion = (qId: string) => {
@@ -262,7 +292,7 @@ export default function FormBuilderPage() {
       ...form,
       questions: [...(form.questions || []), newQ],
     };
-    pushToHistoryAndSave(updated);
+    pushToHistoryAndSave(updated, true);
   };
 
   const removeQuestion = (qId: string) => {
@@ -271,7 +301,7 @@ export default function FormBuilderPage() {
       ...form,
       questions: (form.questions || []).filter((q) => q.id !== qId),
     };
-    pushToHistoryAndSave(updated);
+    pushToHistoryAndSave(updated, true);
   };
 
   const moveQuestion = (qId: string, direction: "up" | "down") => {
@@ -289,7 +319,7 @@ export default function FormBuilderPage() {
       questions[index + 1] = temp;
     }
     const reordered = questions.map((q, idx) => ({ ...q, order_index: idx }));
-    pushToHistoryAndSave({ ...form, questions: reordered });
+    pushToHistoryAndSave({ ...form, questions: reordered }, true);
   };
 
   // Publish Form Handler

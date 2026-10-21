@@ -6,7 +6,9 @@ import { Form, FormQuestion, FormSection } from "@/types/forms";
 import {
   evaluateLogicRules,
   resolveAnswerPiping,
+  gradeQuizSubmission,
 } from "@/lib/forms-service";
+import { internalDB } from "@/lib/internal-db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,16 +55,31 @@ export default function PublicFormViewPage() {
   // Start timer for completion time
   const [startTime] = useState<number>(() => Date.now());
 
-  // Fetch published form schema
+  // Fetch published form schema (instant local-first render)
   useEffect(() => {
     async function loadForm() {
       if (!slug) return;
       try {
+        // Instant check in local storage (0ms display)
+        const local = internalDB.getFormBySlug(slug);
+        if (local && (local.status === "published" || local.status === "draft")) {
+          setForm(local);
+          setLoading(false);
+          const draftKey = `gdg_form_draft_${local.id}`;
+          if (typeof window !== "undefined") {
+            const savedDraft = localStorage.getItem(draftKey);
+            if (savedDraft) {
+              try {
+                setAnswers(JSON.parse(savedDraft));
+              } catch {}
+            }
+          }
+        }
+
         const res = await fetch(`/api/forms/public/${slug}`);
         const data = await res.json();
         if (res.ok && data.data) {
           setForm(data.data);
-          // Restore saved local draft if any
           const draftKey = `gdg_form_draft_${data.data.id}`;
           if (typeof window !== "undefined") {
             const savedDraft = localStorage.getItem(draftKey);
@@ -72,17 +89,20 @@ export default function PublicFormViewPage() {
               } catch {}
             }
           }
-        } else {
+        } else if (!local) {
           setErrorState({
             message: data.error || "Form not available.",
             message_ar: data.error_ar || "النموذج غير متاح حالياً.",
           });
         }
       } catch (e: any) {
-        setErrorState({
-          message: "Failed to connect to the form server.",
-          message_ar: "تعذر الاتصال بخادم النماذج.",
-        });
+        const local = internalDB.getFormBySlug(slug);
+        if (!local) {
+          setErrorState({
+            message: "Failed to connect to the form server.",
+            message_ar: "تعذر الاتصال بخادم النماذج.",
+          });
+        }
       } finally {
         setLoading(false);
       }
@@ -217,37 +237,83 @@ export default function PublicFormViewPage() {
         .filter((q) => !logicEvaluation.hiddenQuestionIds.has(q.id))
         .map((q) => q.id);
 
-      const res = await fetch(`/api/forms/public/${form.slug}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          answers,
-          visible_question_ids: visibleQuestionIds,
-          completion_time_seconds: completionTime,
-          locale,
-          _gdg_hp_field: honeypot, // honeypot
-        }),
-      });
+      let successResponse: any = null;
 
-      const data = await res.json();
-      if (res.ok) {
-        setSubmittedData(data);
-        // Clear draft
-        if (typeof window !== "undefined") {
-          localStorage.removeItem(`gdg_form_draft_${form.id}`);
-        }
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      } else {
-        if (data.validationErrors && Array.isArray(data.validationErrors)) {
+      try {
+        const res = await fetch(`/api/forms/public/${form.slug}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            answers,
+            visible_question_ids: visibleQuestionIds,
+            completion_time_seconds: completionTime,
+            locale,
+            _gdg_hp_field: honeypot, // honeypot
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          successResponse = data;
+        } else if (data.validationErrors && Array.isArray(data.validationErrors)) {
           const errs: Record<string, string> = {};
           data.validationErrors.forEach((e: any) => {
             errs[e.question_id] = isAr ? e.message_ar || e.message : e.message;
           });
           setValidationErrors(errs);
-        } else {
-          alert(isAr ? data.error_ar || data.error : data.error);
+          setSubmitting(false);
+          return;
         }
+      } catch {
+        // Network unavailable, fallback to local resilient save
       }
+
+      // If server route didn't complete (e.g. offline, local dev, or table not synced), save locally
+      if (!successResponse) {
+        let quizResultData = undefined;
+        if (form.quiz_settings?.is_quiz) {
+          const grading = gradeQuizSubmission(form, answers, visibleQuestionIds);
+          quizResultData = {
+            score: grading.totalScore,
+            total_possible: grading.totalPointsPossible,
+            percentage: grading.percentage,
+            is_passed: grading.passed,
+            show_score: form.quiz_settings.show_score_immediate,
+          };
+        }
+
+        const savedResp = internalDB.createFormResponse({
+          form_id: form.id,
+          form_version_id: form.current_version_id || "v1",
+          completion_time_seconds: completionTime,
+          score: quizResultData?.score,
+          total_points_possible: quizResultData?.total_possible,
+          percentage: quizResultData?.percentage,
+          answers: Object.entries(answers).map(([qId, val]) => ({
+            id: `ans_${Date.now()}_${qId}`,
+            response_id: "",
+            question_id: qId,
+            question_type: form.questions?.find((q) => q.id === qId)?.type || "short_text",
+            answer_value: val,
+            created_at: new Date().toISOString(),
+          })),
+        });
+
+        successResponse = {
+          success: true,
+          message: isAr ? form.settings.confirmation_message_ar : form.settings.confirmation_message,
+          data: {
+            response_id: savedResp.id,
+            quiz_result: quizResultData,
+          },
+        };
+      }
+
+      setSubmittedData(successResponse);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(`gdg_form_draft_${form.id}`);
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e: any) {
       alert("Submission error: " + e?.message);
     } finally {

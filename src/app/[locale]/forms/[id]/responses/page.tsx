@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Form, FormResponse, FormAnalytics } from "@/types/forms";
 import { useApp } from "@/lib/app-context";
 import { dbService } from "@/lib/db-service";
+import { internalDB } from "@/lib/internal-db";
 import { computeFormAnalytics } from "@/lib/forms-service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,16 @@ export default function FormResponsesPage() {
     async function loadData() {
       if (!formId) return;
       try {
+        // Fast local check first (0ms instantaneous display)
+        const local = internalDB.getFormById(formId);
+        if (local) {
+          setForm(local);
+          const localResps = internalDB.getFormResponses(local.id);
+          setResponses(localResps);
+          setAnalytics(computeFormAnalytics(local, localResps));
+          setLoading(false);
+        }
+
         const found = await dbService.getFormById(formId);
         if (found) {
           setForm(found);
