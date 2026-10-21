@@ -49,6 +49,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { DataTable, ColumnDef, FilterDef } from "@/components/common/data-table";
 import { useApp } from "@/lib/app-context";
 import {
   tracksService,
@@ -1719,254 +1720,315 @@ export default function EducationPage() {
       )}
 
       {/* ──────────────────────────────────────────────────────────── */}
-      {/* TAB 3: SESSIONS & ATTENDANCE ROSTER                         */}
+      {/* TAB 3: SESSIONS & ATTENDANCE RECORDING                     */}
       {/* ──────────────────────────────────────────────────────────── */}
-      {activeTab === "sessions" && (
-        <Card className="border-border/80 rounded-2xl shadow-2xs overflow-hidden">
-          <div className="p-4 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-black text-foreground">
-                {isAr ? "الجلسات والتحضير" : "Sessions & Attendance"}
-              </h2>
-            </div>
+      {activeTab === "sessions" && (() => {
+        const sessionRows = sessions.map((sess) => {
+          const trk = tracks.find((t) => t.id === sess.track_id);
+          return {
+            ...sess,
+            track_name: isAr ? trk?.name_ar || trk?.name || "—" : trk?.name || "—",
+          };
+        });
 
-            {isHRorAdmin && (
-              <Button
-                size="sm"
-                onClick={() => setIsNewSessionModalOpen(true)}
-                className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl h-8.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                {isAr ? "جلسة جديدة" : "New Session"}
-              </Button>
-            )}
-          </div>
-
-          <div className="overflow-x-auto">
-            {filteredSessions.length === 0 ? (
-              <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
-                <Calendar className="w-10 h-10 mx-auto text-muted-foreground/40" />
-                <p className="font-bold text-sm text-foreground">
-                  {isAr ? "لا توجد جلسات مجدولة" : "No sessions scheduled"}
-                </p>
+        const columns: ColumnDef<typeof sessionRows[0]>[] = [
+          {
+            key: "title",
+            header: isAr ? "الجلسة والتفاصيل" : "Session & Details",
+            render: (sess) => (
+              <div>
+                <span className="font-black text-foreground text-sm block">{sess.title}</span>
+                <span className="text-[11px] text-muted-foreground line-clamp-1">{sess.location_or_link}</span>
               </div>
-            ) : (
-              <table className="w-full text-xs text-start border-collapse">
-                <thead>
-                  <tr className="border-b border-border bg-muted/20 text-muted-foreground font-bold">
-                    <th className="p-3.5 text-start">{isAr ? "الجلسة" : "Session"}</th>
-                    <th className="p-3.5 text-start">{isAr ? "المسار" : "Track"}</th>
-                    <th className="p-3.5 text-start">{isAr ? "الموعد" : "Date & Time"}</th>
-                    <th className="p-3.5 text-start">{isAr ? "المدرب" : "Instructor"}</th>
-                    <th className="p-3.5 text-center">{isAr ? "الحالة" : "Status"}</th>
-                    <th className="p-3.5 text-end">{isAr ? "إجراءات" : "Actions"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filteredSessions.map((sess) => {
-                    const trk = tracks.find((t) => t.id === sess.track_id);
-                    const isDone = sess.status === "completed";
+            ),
+            sortable: true,
+          },
+          {
+            key: "track_name",
+            header: isAr ? "المسار" : "Track",
+            render: (sess) => (
+              <Badge variant="outline" className="text-[10px] font-bold">
+                {sess.track_name}
+              </Badge>
+            ),
+            sortable: true,
+          },
+          {
+            key: "date",
+            header: isAr ? "الموعد" : "Date & Time",
+            render: (sess) => (
+              <div>
+                <div className="font-bold text-foreground">{sess.date}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {sess.start_time} - {sess.end_time}
+                </div>
+              </div>
+            ),
+            sortable: true,
+          },
+          {
+            key: "instructor_name",
+            header: isAr ? "المدرب" : "Instructor",
+            render: (sess) => <span className="font-bold text-foreground">{sess.instructor_name}</span>,
+            sortable: true,
+          },
+          {
+            key: "status",
+            header: isAr ? "الحالة" : "Status",
+            render: (sess) =>
+              sess.status === "completed" ? (
+                <Badge variant="success" className="text-[10px] font-bold gap-1">
+                  <Check className="w-3 h-3" />
+                  {isAr ? "تم الرصد" : "Recorded"}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] text-muted-foreground font-semibold">
+                  {isAr ? "مجدولة" : "Scheduled"}
+                </Badge>
+              ),
+            align: "center",
+            sortable: true,
+          },
+          {
+            key: "actions",
+            header: isAr ? "إجراءات" : "Actions",
+            render: (sess) => {
+              const isDone = sess.status === "completed";
+              return (
+                <div className="flex items-center justify-end gap-1.5">
+                  <Button
+                    size="sm"
+                    onClick={() => handleOpenAttendanceModal(sess)}
+                    className={`h-8 text-xs font-bold gap-1.5 rounded-xl ${
+                      isDone
+                        ? "bg-muted text-foreground hover:bg-muted/80"
+                        : "bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white shadow-2xs"
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>{isDone ? (isAr ? "تعديل التحضير" : "Edit") : (isAr ? "تحضير" : "Attendance")}</span>
+                  </Button>
 
-                    return (
-                      <tr key={sess.id} className="hover:bg-muted/15 transition-colors">
-                        <td className="p-3.5">
-                          <span className="font-black text-foreground text-sm block">{sess.title}</span>
-                          <span className="text-[11px] text-muted-foreground line-clamp-1">{sess.location_or_link}</span>
-                        </td>
+                  {isHRorAdmin && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleOpenEditSession(sess)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground rounded-xl"
+                        title={isAr ? "تعديل" : "Edit"}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteSession(sess)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
+                        title={isAr ? "حذف" : "Delete"}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              );
+            },
+            align: "end",
+            sortable: false,
+          },
+        ];
 
-                        <td className="p-3.5">
-                          <Badge variant="outline" className="text-[10px] font-bold">
-                            {isAr ? trk?.name_ar || trk?.name : trk?.name}
-                          </Badge>
-                        </td>
+        const filters: FilterDef<typeof sessionRows[0]>[] = [
+          {
+            key: "track_id",
+            label: isAr ? "جميع المسارات" : "All Tracks",
+            options: tracks.map((t) => ({
+              label: isAr ? t.name_ar : t.name,
+              value: t.id,
+            })),
+            predicate: (item, val) => item.track_id === val,
+          },
+          {
+            key: "status",
+            label: isAr ? "جميع الحالات" : "All Statuses",
+            options: [
+              { label: isAr ? "تم الرصد (Completed)" : "Completed", value: "completed" },
+              { label: isAr ? "مجدولة (Scheduled)" : "Scheduled", value: "scheduled" },
+            ],
+            predicate: (item, val) => item.status === val,
+          },
+        ];
 
-                        <td className="p-3.5">
-                          <div className="font-bold text-foreground">{sess.date}</div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {sess.start_time} - {sess.end_time}
-                          </div>
-                        </td>
-
-                        <td className="p-3.5 font-bold text-foreground">
-                          {sess.instructor_name}
-                        </td>
-
-                        <td className="p-3.5 text-center">
-                          {isDone ? (
-                            <Badge variant="success" className="text-[10px] font-bold gap-1">
-                              <Check className="w-3 h-3" />
-                              {isAr ? "تم الرصد" : "Recorded"}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px] text-muted-foreground font-semibold">
-                              {isAr ? "مجدولة" : "Scheduled"}
-                            </Badge>
-                          )}
-                        </td>
-
-                        <td className="p-3.5 text-end">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button
-                              size="sm"
-                              onClick={() => handleOpenAttendanceModal(sess)}
-                              className={`h-8 text-xs font-bold gap-1.5 rounded-xl ${
-                                isDone
-                                  ? "bg-muted text-foreground hover:bg-muted/80"
-                                  : "bg-[#1a73e8] hover:bg-[#1a73e8]/90 text-white shadow-2xs"
-                              }`}
-                            >
-                              <Users className="w-3.5 h-3.5" />
-                              <span>{isDone ? (isAr ? "تعديل التحضير" : "Edit") : (isAr ? "تحضير" : "Attendance")}</span>
-                            </Button>
-
-                            {isHRorAdmin && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleOpenEditSession(sess)}
-                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground rounded-xl"
-                                  title={isAr ? "تعديل" : "Edit"}
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleDeleteSession(sess)}
-                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
-                                  title={isAr ? "حذف" : "Delete"}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </Card>
-      )}
+        return (
+          <DataTable
+            data={sessionRows}
+            columns={columns}
+            filters={filters}
+            title={isAr ? "الجلسات والتحضير" : "Sessions & Attendance Recording"}
+            subtitle={isAr ? "جدول الجلسات الأكاديمية والتدريب ورصد نسب الحضور" : "Track sessions schedule, instructors, and attendance status"}
+            searchPlaceholder={isAr ? "بحث بعنوان الجلسة أو اسم المدرب أو المكان..." : "Search session title, instructor, or link..."}
+            exportFileName="track_sessions_roster"
+            isAr={isAr}
+            actions={
+              isHRorAdmin && (
+                <Button
+                  size="sm"
+                  onClick={() => setIsNewSessionModalOpen(true)}
+                  className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl h-8.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {isAr ? "جلسة جديدة" : "New Session"}
+                </Button>
+              )
+            }
+          />
+        );
+      })()}
 
       {/* ──────────────────────────────────────────────────────────── */}
       {/* TAB 4: ASSIGNMENTS & GRADING                                */}
       {/* ──────────────────────────────────────────────────────────── */}
-      {activeTab === "assignments" && (
-        <Card className="border-border/80 rounded-2xl shadow-2xs overflow-hidden">
-          <div className="p-4 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-black text-foreground">
-                {isAr ? "المهام والتكليفات" : "Assignments"}
-              </h2>
-            </div>
+      {activeTab === "assignments" && (() => {
+        const assignmentRows = assignments.map((asg) => {
+          const trk = tracks.find((t) => t.id === asg.track_id);
+          const asgSubs = submissions.filter((s) => s.assignment_id === asg.id);
+          const gradedSubs = asgSubs.filter((s) => s.status === "graded");
+          return {
+            ...asg,
+            track_name: isAr ? trk?.name_ar || trk?.name || "—" : trk?.name || "—",
+            submissions_count: asgSubs.length,
+            graded_count: gradedSubs.length,
+          };
+        });
 
-            {(isHRorAdmin || isInstructor) && (
-              <Button
-                size="sm"
-                onClick={() => setIsNewAssignmentModalOpen(true)}
-                className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl h-8.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                {isAr ? "تكليف جديد" : "New Task"}
-              </Button>
-            )}
-          </div>
-
-          <div className="overflow-x-auto">
-            {filteredAssignments.length === 0 ? (
-              <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
-                <FileCheck className="w-10 h-10 mx-auto text-muted-foreground/40" />
-                <p className="font-bold text-sm text-foreground">
-                  {isAr ? "لا توجد تكليفات منشورة" : "No assignments published"}
-                </p>
+        const columns: ColumnDef<typeof assignmentRows[0]>[] = [
+          {
+            key: "title",
+            header: isAr ? "التكليف والمطلوب" : "Assignment & Deliverables",
+            render: (asg) => (
+              <div>
+                <span className="font-black text-foreground text-sm block">{asg.title}</span>
+                <span className="text-[11px] text-muted-foreground line-clamp-1">{asg.required_deliverables}</span>
               </div>
-            ) : (
-              <table className="w-full text-xs text-start border-collapse">
-                <thead>
-                  <tr className="border-b border-border bg-muted/20 text-muted-foreground font-bold">
-                    <th className="p-3.5 text-start">{isAr ? "التكليف" : "Assignment"}</th>
-                    <th className="p-3.5 text-start">{isAr ? "المسار" : "Track"}</th>
-                    <th className="p-3.5 text-start">{isAr ? "الموعد" : "Deadline"}</th>
-                    <th className="p-3.5 text-center">{isAr ? "الدرجة" : "Score"}</th>
-                    <th className="p-3.5 text-center">{isAr ? "التسليمات" : "Submissions"}</th>
-                    <th className="p-3.5 text-end">{isAr ? "إجراءات" : "Actions"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filteredAssignments.map((asg) => {
-                    const trk = tracks.find((t) => t.id === asg.track_id);
-                    const asgSubs = submissions.filter((s) => s.assignment_id === asg.id);
-                    const gradedSubs = asgSubs.filter((s) => s.status === "graded");
+            ),
+            sortable: true,
+          },
+          {
+            key: "track_name",
+            header: isAr ? "المسار" : "Track",
+            render: (asg) => (
+              <Badge variant="outline" className="text-[10px] font-bold">
+                {asg.track_name}
+              </Badge>
+            ),
+            sortable: true,
+          },
+          {
+            key: "deadline",
+            header: isAr ? "الموعد النهائي" : "Deadline",
+            render: (asg) => (
+              <span className="font-mono font-bold text-foreground">
+                {asg.deadline.replace("T", " ")}
+              </span>
+            ),
+            sortable: true,
+          },
+          {
+            key: "max_score",
+            header: isAr ? "الدرجة" : "Max Score",
+            render: (asg) => (
+              <span className="font-black text-sm text-[#1a73e8]">
+                {asg.max_score} {isAr ? "درجة" : "pts"}
+              </span>
+            ),
+            align: "center",
+            sortable: true,
+          },
+          {
+            key: "submissions_count",
+            header: isAr ? "التسليمات" : "Submissions",
+            render: (asg) => (
+              <span className="font-bold text-foreground">
+                {asg.graded_count} / {asg.submissions_count} {isAr ? "تم تصحيحه" : "graded"}
+              </span>
+            ),
+            align: "center",
+            sortable: true,
+          },
+          {
+            key: "actions",
+            header: isAr ? "إجراءات" : "Actions",
+            render: (asg) => (
+              <div className="flex items-center justify-end gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setActiveAssignmentForSubmissionsList(asg);
+                    setIsSubmissionsListModalOpen(true);
+                  }}
+                  className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>{isAr ? "مراجعة التسليمات" : "Review Submissions"}</span>
+                </Button>
 
-                    return (
-                      <tr key={asg.id} className="hover:bg-muted/15 transition-colors">
-                        <td className="p-3.5">
-                          <span className="font-black text-foreground text-sm block">{asg.title}</span>
-                          <span className="text-[11px] text-muted-foreground line-clamp-1">{asg.required_deliverables}</span>
-                        </td>
+                {(isHRorAdmin || isInstructor) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeleteAssignment(asg)}
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
+                    title={isAr ? "حذف" : "Delete"}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+            ),
+            align: "end",
+            sortable: false,
+          },
+        ];
 
-                        <td className="p-3.5">
-                          <Badge variant="outline" className="text-[10px] font-bold">
-                            {isAr ? trk?.name_ar || trk?.name : trk?.name}
-                          </Badge>
-                        </td>
+        const filters: FilterDef<typeof assignmentRows[0]>[] = [
+          {
+            key: "track_id",
+            label: isAr ? "جميع المسارات" : "All Tracks",
+            options: tracks.map((t) => ({
+              label: isAr ? t.name_ar : t.name,
+              value: t.id,
+            })),
+            predicate: (item, val) => item.track_id === val,
+          },
+        ];
 
-                        <td className="p-3.5 font-bold text-foreground">
-                          {asg.deadline.replace("T", " ")}
-                        </td>
-
-                        <td className="p-3.5 text-center font-black text-sm text-[#1a73e8]">
-                          {asg.max_score} {isAr ? "درجة" : "pts"}
-                        </td>
-
-                        <td className="p-3.5 text-center">
-                          <span className="font-bold text-foreground">
-                            {gradedSubs.length} / {asgSubs.length} {isAr ? "تم تصحيحه" : "graded"}
-                          </span>
-                        </td>
-
-                        <td className="p-3.5 text-end">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setActiveAssignmentForSubmissionsList(asg);
-                                setIsSubmissionsListModalOpen(true);
-                              }}
-                              className="h-8 text-xs font-bold gap-1 rounded-xl text-primary"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>{isAr ? "مراجعة التسليمات" : "Review Submissions"}</span>
-                            </Button>
-
-                            {(isHRorAdmin || isInstructor) && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeleteAssignment(asg)}
-                                className="h-8 w-8 p-0 text-muted-foreground hover:text-[#ea4335] hover:bg-[#ea4335]/10 rounded-xl"
-                                title={isAr ? "حذف" : "Delete"}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </Card>
-      )}
+        return (
+          <DataTable
+            data={assignmentRows}
+            columns={columns}
+            filters={filters}
+            title={isAr ? "المهام والتكليفات" : "Track Assignments & Grading"}
+            subtitle={isAr ? "تكليفات المسارات التقنية ومتابعة التسليمات ورصد الدرجات" : "Technical assignments, submission reviews, and score evaluation"}
+            searchPlaceholder={isAr ? "بحث بعنوان التكليف أو المخرجات المطلوبة..." : "Search assignment title or deliverables..."}
+            exportFileName="track_assignments_roster"
+            isAr={isAr}
+            actions={
+              (isHRorAdmin || isInstructor) && (
+                <Button
+                  size="sm"
+                  onClick={() => setIsNewAssignmentModalOpen(true)}
+                  className="gap-1.5 text-xs font-bold bg-[#1a73e8] text-white rounded-xl h-8.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {isAr ? "تكليف جديد" : "New Task"}
+                </Button>
+              )
+            }
+          />
+        );
+      })()}
 
       {/* ──────────────────────────────────────────────────────────── */}
       {/* TAB 5: CERTIFICATES, INSIGHTS & REPORTS HUB                 */}
@@ -2001,86 +2063,105 @@ export default function EducationPage() {
           </div>
 
           {/* SubTab 1: Issued Certificates */}
-          {insightsSubTab === "certificates" && (
-            <Card className="border-border/80 rounded-2xl shadow-2xs overflow-hidden">
-              <div className="p-4 border-b border-border bg-card">
-                <h3 className="font-black text-base text-foreground">
-                  {isAr ? "الشهادات المعتمدة" : "Issued Certificates"}
-                </h3>
-              </div>
+          {insightsSubTab === "certificates" && (() => {
+            const certRows = certificates.map((cert) => {
+              const p = participants.find((part) => part.id === cert.participant_id);
+              const t = tracks.find((trk) => trk.id === cert.track_id);
+              return {
+                ...cert,
+                trainee_name: p?.full_name || cert.participant_id,
+                track_name: isAr ? t?.name_ar || t?.name || "—" : t?.name || "—",
+              };
+            });
 
-              <div className="overflow-x-auto">
-                {certificates.length === 0 ? (
-                  <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
-                    <Award className="w-10 h-10 mx-auto text-muted-foreground/40" />
-                    <p className="font-bold text-sm text-foreground">
-                      {isAr ? "لم تصدر أي شهادات بعد" : "No certificates issued yet"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {isAr ? "يمكنك إصدار الشهادات مباشرة من سجل المتدربين للمستوفين للشروط." : "Issue certificates from the Trainees Directory."}
-                    </p>
-                  </div>
-                ) : (
-                  <table className="w-full text-xs text-start border-collapse">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/20 text-muted-foreground font-bold">
-                        <th className="p-3.5 text-start">{isAr ? "كود الشهادة" : "Certificate Code"}</th>
-                        <th className="p-3.5 text-start">{isAr ? "اسم المتدرب" : "Trainee"}</th>
-                        <th className="p-3.5 text-start">{isAr ? "المسار" : "Track"}</th>
-                        <th className="p-3.5 text-center">{isAr ? "الدرجة النهائية" : "Score"}</th>
-                        <th className="p-3.5 text-center">{isAr ? "تاريخ الإصدار" : "Date"}</th>
-                        <th className="p-3.5 text-end">{isAr ? "معاينة" : "Preview"}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {certificates.map((cert) => {
-                        const p = participants.find((part) => part.id === cert.participant_id);
-                        const t = tracks.find((trk) => trk.id === cert.track_id);
+            const columns: ColumnDef<typeof certRows[0]>[] = [
+              {
+                key: "certificate_code",
+                header: isAr ? "كود الشهادة" : "Certificate Code",
+                render: (cert) => <span className="font-mono font-bold text-foreground">{cert.certificate_code}</span>,
+                sortable: true,
+              },
+              {
+                key: "trainee_name",
+                header: isAr ? "اسم المتدرب" : "Trainee",
+                render: (cert) => <span className="font-black text-foreground">{cert.trainee_name}</span>,
+                sortable: true,
+              },
+              {
+                key: "track_name",
+                header: isAr ? "المسار" : "Track",
+                render: (cert) => (
+                  <Badge variant="outline" className="text-[10px] font-bold">
+                    {cert.track_name}
+                  </Badge>
+                ),
+                sortable: true,
+              },
+              {
+                key: "official_score",
+                header: isAr ? "الدرجة النهائية" : "Score",
+                render: (cert) => (
+                  <span className="font-black text-sm text-[#34a853]">
+                    {cert.official_score} / 100
+                  </span>
+                ),
+                align: "center",
+                sortable: true,
+              },
+              {
+                key: "issue_date",
+                header: isAr ? "تاريخ الإصدار" : "Issue Date",
+                render: (cert) => <span className="text-muted-foreground">{cert.issue_date}</span>,
+                align: "center",
+                sortable: true,
+              },
+              {
+                key: "actions",
+                header: isAr ? "معاينة" : "Preview",
+                render: (cert) => (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setActiveCertificateToView(cert);
+                      setIsCertificatePreviewOpen(true);
+                    }}
+                    className="h-8 text-xs font-bold gap-1 rounded-xl"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-primary" />
+                    <span>{isAr ? "معاينة الشهادة" : "Preview"}</span>
+                  </Button>
+                ),
+                align: "end",
+                sortable: false,
+              },
+            ];
 
-                        return (
-                          <tr key={cert.id} className="hover:bg-muted/15 transition-colors">
-                            <td className="p-3.5 font-mono font-bold text-foreground">
-                              {cert.certificate_code}
-                            </td>
-                            <td className="p-3.5 font-black text-foreground">
-                              {p?.full_name || cert.participant_id}
-                            </td>
-                            <td className="p-3.5">
-                              <Badge variant="outline" className="text-[10px] font-bold">
-                                {isAr ? t?.name_ar || t?.name : t?.name}
-                              </Badge>
-                            </td>
-                            <td className="p-3.5 text-center">
-                              <span className="font-black text-sm text-[#34a853]">
-                                {cert.official_score} / 100
-                              </span>
-                            </td>
-                            <td className="p-3.5 text-center text-muted-foreground">
-                              {cert.issue_date}
-                            </td>
-                            <td className="p-3.5 text-end">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setActiveCertificateToView(cert);
-                                  setIsCertificatePreviewOpen(true);
-                                }}
-                                className="h-8 text-xs font-bold gap-1 rounded-xl"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-primary" />
-                                <span>{isAr ? "معاينة الشهادة" : "Preview"}</span>
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </Card>
-          )}
+            const filters: FilterDef<typeof certRows[0]>[] = [
+              {
+                key: "track_id",
+                label: isAr ? "جميع المسارات" : "All Tracks",
+                options: tracks.map((t) => ({
+                  label: isAr ? t.name_ar : t.name,
+                  value: t.id,
+                })),
+                predicate: (item, val) => item.track_id === val,
+              },
+            ];
+
+            return (
+              <DataTable
+                data={certRows}
+                columns={columns}
+                filters={filters}
+                title={isAr ? "الشهادات المعتمدة" : "Issued Certificates Roster"}
+                subtitle={isAr ? "سجل الشهادات الأكاديمية الصادرة والتحقق من أكوادها الرسمية" : "Official certificates issued with verifiable credentials and track records"}
+                searchPlaceholder={isAr ? "بحث بكود الشهادة أو اسم المتدرب..." : "Search certificate code or trainee name..."}
+                exportFileName="issued_certificates_roster"
+                isAr={isAr}
+              />
+            );
+          })()}
 
           {/* SubTab 2: At-Risk Hub Component */}
           {insightsSubTab === "at_risk" && (

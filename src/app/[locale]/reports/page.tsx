@@ -38,6 +38,7 @@ import {
   Cell,
 } from "recharts";
 import { PageHeader } from "@/components/common/page-header";
+import { DataTable, ColumnDef, FilterDef } from "@/components/common/data-table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -394,134 +395,227 @@ export default function ReportsPage() {
       </div>
 
       {/* Tab Content: Benchmarks */}
-      {activeTab === "benchmarks" && (
-        <Card className="border-border/80">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold">
-              {isAr ? "مؤشرات أداء الفرق واللجان" : "Committee Performance Benchmarks"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground">
-                    <th className="py-2.5 px-3 text-left">{isAr ? "الفريق" : "Team"}</th>
-                    <th className="py-2.5 px-3 text-left">{isAr ? "النوع" : "Type"}</th>
-                    <th className="py-2.5 px-3 text-left">{isAr ? "الأعضاء" : "Members"}</th>
-                    <th className="py-2.5 px-3 text-left">{isAr ? "نسبة التسليم" : "Delivery Rate"}</th>
-                    <th className="py-2.5 px-3 text-left">{isAr ? "متوسط التقييم" : "Avg Score"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {teams.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-muted-foreground">
-                        {isAr ? "لا توجد فرق مضافة حالياً" : "No teams available"}
-                      </td>
-                    </tr>
-                  ) : (
-                    teams.map((t) => {
-                      const mCount = availableUsers.filter((u) => isUserInTeam(u, t.id)).length;
-                      const tTasks = tasks.filter((tk) => isUserInTeam({ team_id: tk.team_id }, t.id));
-                      const tDone = tTasks.filter((tk) => tk.status === "completed").length;
-                      const rate = tTasks.length > 0 ? `${Math.round((tDone / tTasks.length) * 100)}%` : "—";
-                      return (
-                        <tr key={t.id} className="hover:bg-muted/20">
-                          <td className="py-3 px-3 font-bold text-foreground">
-                            {isAr ? t.name_ar : t.name}
-                          </td>
-                          <td className="py-3 px-3 capitalize text-muted-foreground">
-                            {t.type.replace("_", " ")}
-                          </td>
-                          <td className="py-3 px-3">{mCount}</td>
-                          <td className="py-3 px-3 font-semibold text-emerald-600">
-                            {rate}
-                          </td>
-                          <td className="py-3 px-3 font-bold text-primary">
-                            {avgEvalScore}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {activeTab === "benchmarks" && (() => {
+        const benchmarkData = teams.map((t) => {
+          const mCount = availableUsers.filter((u) => isUserInTeam(u, t.id)).length;
+          const tTasks = tasks.filter((tk) => isUserInTeam({ team_id: tk.team_id }, t.id));
+          const tDone = tTasks.filter((tk) => tk.status === "completed").length;
+          const deliveryPct = tTasks.length > 0 ? Math.round((tDone / tTasks.length) * 100) : 0;
+          return {
+            id: t.id,
+            team_name: isAr ? t.name_ar : t.name,
+            type: t.type,
+            member_count: mCount,
+            delivery_pct: deliveryPct,
+            delivery_rate_str: tTasks.length > 0 ? `${deliveryPct}%` : "—",
+            avg_score: avgEvalScore,
+          };
+        });
+
+        const columns: ColumnDef<typeof benchmarkData[0]>[] = [
+          {
+            key: "team_name",
+            header: isAr ? "الفريق / اللجنة" : "Team / Committee",
+            render: (item) => <span className="font-bold text-foreground">{item.team_name}</span>,
+            sortable: true,
+          },
+          {
+            key: "type",
+            header: isAr ? "النوع" : "Type",
+            render: (item) => (
+              <span className="capitalize text-muted-foreground text-[11px] px-2 py-0.5 rounded-full bg-muted/60">
+                {item.type.replace("_", " ")}
+              </span>
+            ),
+            sortable: true,
+          },
+          {
+            key: "member_count",
+            header: isAr ? "الأعضاء" : "Members",
+            render: (item) => <span className="font-mono font-semibold">{item.member_count}</span>,
+            align: "center",
+            sortable: true,
+          },
+          {
+            key: "delivery_pct",
+            header: isAr ? "نسبة التسليم" : "Delivery Rate",
+            render: (item) => (
+              <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                {item.delivery_rate_str}
+              </span>
+            ),
+            align: "center",
+            sortable: true,
+          },
+          {
+            key: "avg_score",
+            header: isAr ? "متوسط التقييم" : "Avg Score",
+            render: (item) => (
+              <span className="font-bold font-mono text-primary">
+                {item.avg_score}
+              </span>
+            ),
+            align: "center",
+            sortable: true,
+          },
+        ];
+
+        const filters: FilterDef<typeof benchmarkData[0]>[] = [
+          {
+            key: "type",
+            label: isAr ? "جميع الأنواع" : "All Types",
+            options: [
+              { label: isAr ? "تقني (Technical)" : "Technical", value: "technical" },
+              { label: isAr ? "غير تقني (Non-Technical)" : "Non-Technical", value: "non_technical" },
+            ],
+            predicate: (item, val) => item.type === val,
+          },
+        ];
+
+        return (
+          <DataTable
+            data={benchmarkData}
+            columns={columns}
+            filters={filters}
+            title={isAr ? "مؤشرات أداء الفرق واللجان" : "Committee Performance Benchmarks"}
+            subtitle={isAr ? "معدلات تسليم المهام ومتوسط درجات التقييم الشهري لكل فريق" : "Task delivery rates and monthly evaluation averages across teams"}
+            searchPlaceholder={isAr ? "بحث باسم الفريق أو النوع..." : "Search team or type..."}
+            exportFileName="gdg_committee_benchmarks"
+            isAr={isAr}
+          />
+        );
+      })()}
 
       {/* Tab Content: Workload & Capacity Management (Section 14) */}
-      {activeTab === "workload" && (
-        <Card className="border-border/80">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold flex items-center justify-between">
-              <span>{isAr ? "تحليل وتوزيع أعباء العمل على الأعضاء" : "Member Workload & Capacity Management"}</span>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
-                {isAr ? "مؤشرات الشفافية ومنع الإجهاد" : "Capacity & Anti-Burnout Monitor"}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-xs text-muted-foreground">
-              {isAr
-                ? "يساعد هذا القسم قادة الفرق على مراقبة توزيع المهام ومنع إثقال كاهل الأعضاء بمهام زائدة بالتزامن مع فترات الامتحانات الأكاديمية."
-                : "Provides team leads with visibility into task allocation to prevent overload, burnout, and imbalances during academic periods."}
-            </p>
+      {activeTab === "workload" && (() => {
+        const workloadData = memberWorkload.map((w) => {
+          const memberTeam = teams.find((t) => t.id === w.member.team_id);
+          const capacityStatus = w.isOverloaded
+            ? "overloaded"
+            : w.activeTasksCount >= 2
+            ? "optimal"
+            : "available";
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground">
-                    <th className="py-2.5 px-3 text-left">{isAr ? "العضو" : "Member"}</th>
-                    <th className="py-2.5 px-3 text-left">{isAr ? "اللجنة" : "Committee"}</th>
-                    <th className="py-2.5 px-3 text-left">{isAr ? "المهام النشطة" : "Active Tasks"}</th>
-                    <th className="py-2.5 px-3 text-left">{isAr ? "المهام المكتملة" : "Completed Tasks"}</th>
-                    <th className="py-2.5 px-3 text-left">{isAr ? "حالة العبء" : "Capacity Status"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {memberWorkload.map((w) => {
-                    const memberTeam = teams.find((t) => t.id === w.member.team_id);
-                    return (
-                      <tr key={w.member.id} className="hover:bg-muted/20">
-                        <td className="py-3 px-3 font-bold">
-                          {w.member.full_name}
-                        </td>
-                        <td className="py-3 px-3 text-muted-foreground uppercase text-[10px]">
-                          {memberTeam ? (isAr ? memberTeam.name_ar : memberTeam.name) : "—"}
-                        </td>
-                        <td className="py-3 px-3 font-semibold">
-                          {w.activeTasksCount}
-                        </td>
-                      <td className="py-3 px-3 text-emerald-600 font-semibold">
-                        {w.completedTasksCount}
-                      </td>
-                      <td className="py-3 px-3">
-                        {w.isOverloaded ? (
-                          <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 font-bold text-[10px]">
-                            {isAr ? "عبء مرتفع (ينصح بإعادة التوزيع)" : "Overloaded (Redistribute)"}
-                          </span>
-                        ) : w.activeTasksCount >= 2 ? (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold text-[10px]">
-                            {isAr ? "عبء متوازن ومثالي" : "Optimal Load"}
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-muted/40 text-muted-foreground text-[10px]">
-                            {isAr ? "متاح لمهام إضافية" : "Available Capacity"}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          return {
+            id: w.member.id,
+            full_name: w.member.full_name,
+            email: w.member.email,
+            team_id: w.member.team_id || "none",
+            team_name: memberTeam ? (isAr ? memberTeam.name_ar : memberTeam.name) : "—",
+            active_tasks: w.activeTasksCount,
+            completed_tasks: w.completedTasksCount,
+            capacity_status: capacityStatus,
+          };
+        });
+
+        const columns: ColumnDef<typeof workloadData[0]>[] = [
+          {
+            key: "full_name",
+            header: isAr ? "العضو" : "Member",
+            render: (item) => (
+              <div>
+                <span className="font-bold text-foreground block">{item.full_name}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">{item.email}</span>
+              </div>
+            ),
+            sortable: true,
+          },
+          {
+            key: "team_name",
+            header: isAr ? "اللجنة" : "Committee",
+            render: (item) => (
+              <span className="text-muted-foreground text-[11px] font-medium">
+                {item.team_name}
+              </span>
+            ),
+            sortable: true,
+          },
+          {
+            key: "active_tasks",
+            header: isAr ? "المهام النشطة" : "Active Tasks",
+            render: (item) => (
+              <span className="font-mono font-bold text-foreground">
+                {item.active_tasks}
+              </span>
+            ),
+            align: "center",
+            sortable: true,
+          },
+          {
+            key: "completed_tasks",
+            header: isAr ? "المهام المكتملة" : "Completed Tasks",
+            render: (item) => (
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                {item.completed_tasks}
+              </span>
+            ),
+            align: "center",
+            sortable: true,
+          },
+          {
+            key: "capacity_status",
+            header: isAr ? "حالة العبء" : "Capacity Status",
+            render: (item) => {
+              if (item.capacity_status === "overloaded") {
+                return (
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 font-bold text-[10px]">
+                    {isAr ? "عبء مرتفع (ينصح بإعادة التوزيع)" : "Overloaded (Redistribute)"}
+                  </span>
+                );
+              }
+              if (item.capacity_status === "optimal") {
+                return (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold text-[10px]">
+                    {isAr ? "عبء متوازن ومثالي" : "Optimal Load"}
+                  </span>
+                );
+              }
+              return (
+                <span className="px-2 py-0.5 rounded-full bg-muted/40 text-muted-foreground text-[10px]">
+                  {isAr ? "متاح لمهام إضافية" : "Available Capacity"}
+                </span>
+              );
+            },
+            align: "center",
+            sortable: true,
+          },
+        ];
+
+        const filters: FilterDef<typeof workloadData[0]>[] = [
+          {
+            key: "team_id",
+            label: isAr ? "جميع اللجان والفرق" : "All Committees",
+            options: teams.map((t) => ({
+              label: isAr ? t.name_ar : t.name,
+              value: t.id,
+            })),
+            predicate: (item, val) => item.team_id === val,
+          },
+          {
+            key: "capacity_status",
+            label: isAr ? "جميع حالات العبء" : "All Capacity Statuses",
+            options: [
+              { label: isAr ? "عبء مرتفع (Overloaded)" : "Overloaded", value: "overloaded" },
+              { label: isAr ? "عبء متوازن ومثالي (Optimal)" : "Optimal", value: "optimal" },
+              { label: isAr ? "متاح لمهام إضافية (Available)" : "Available", value: "available" },
+            ],
+            predicate: (item, val) => item.capacity_status === val,
+          },
+        ];
+
+        return (
+          <DataTable
+            data={workloadData}
+            columns={columns}
+            filters={filters}
+            title={isAr ? "تحليل وتوزيع أعباء العمل على الأعضاء" : "Member Workload & Capacity Management"}
+            subtitle={isAr ? "مراقبة توزيع المهام ومنع إثقال كاهل الأعضاء بمهام زائدة" : "Task allocation visibility to prevent overload and burnout"}
+            searchPlaceholder={isAr ? "بحث باسم العضو أو بريده..." : "Search member name or email..."}
+            exportFileName="gdg_member_workload"
+            isAr={isAr}
+          />
+        );
+      })()}
 
       {/* Tab Content: Operational Health & Data Quality (Section 21) */}
       {activeTab === "health" && (
@@ -961,51 +1055,86 @@ export default function ReportsPage() {
 
               {/* Committees & Tracks Performance Table */}
               <div className="space-y-2">
-                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                  {isAr ? "مصفوفة أداء اللجان والمسارات التقنية:" : "Tracks & Committees Performance Matrix:"}
-                </h3>
-                <div className="rounded-xl border border-border overflow-hidden">
-                  <table className="w-full text-xs text-left rtl:text-right">
-                    <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border">
-                      <tr>
-                        <th className="p-2.5">{isAr ? "اللجنة / المسار" : "Track / Committee"}</th>
-                        <th className="p-2.5 text-center">{isAr ? "عدد الأعضاء" : "Members"}</th>
-                        <th className="p-2.5 text-center">{isAr ? "تسليم المهام" : "Task Delivery"}</th>
-                        <th className="p-2.5 text-center">{isAr ? "رصيد النقاط" : "Net Points"}</th>
-                        <th className="p-2.5 text-center">{isAr ? "الحالة التشغيلية" : "Operational Status"}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {teams.map((t) => {
-                        const mCount = availableUsers.filter((u) => isUserInTeam(u, t.id)).length;
-                        const tTasks = tasks.filter((tk) => isUserInTeam({ team_id: tk.team_id }, t.id));
-                        const tCompleted = tTasks.filter((tk) => tk.status === "completed").length;
-                        const rate = tTasks.length > 0 ? `${Math.round((tCompleted / tTasks.length) * 100)}%` : "—";
-                        const netPts = pointEvents
-                          .filter((p) => isUserInTeam({ team_id: p.team_id }, t.id) && p.status === "approved")
-                          .reduce((s, p) => s + (p.direction === "positive" ? p.value : -Math.abs(p.value)), 0);
+                {(() => {
+                  const matrixData = teams.map((t) => {
+                    const mCount = availableUsers.filter((u) => isUserInTeam(u, t.id)).length;
+                    const tTasks = tasks.filter((tk) => isUserInTeam({ team_id: tk.team_id }, t.id));
+                    const tCompleted = tTasks.filter((tk) => tk.status === "completed").length;
+                    const rate = tTasks.length > 0 ? `${Math.round((tCompleted / tTasks.length) * 100)}%` : "—";
+                    const netPts = pointEvents
+                      .filter((p) => isUserInTeam({ team_id: p.team_id }, t.id) && p.status === "approved")
+                      .reduce((s, p) => s + (p.direction === "positive" ? p.value : -Math.abs(p.value)), 0);
 
-                        return (
-                          <tr key={t.id} className="hover:bg-muted/20">
-                            <td className="p-2.5 font-bold text-foreground">
-                              {isAr ? t.name_ar : t.name}
-                            </td>
-                            <td className="p-2.5 text-center font-mono">{mCount}</td>
-                            <td className="p-2.5 text-center font-mono font-bold text-emerald-600">{rate}</td>
-                            <td className="p-2.5 text-center font-mono font-bold text-primary">
-                              {netPts > 0 ? `+${netPts}` : netPts}
-                            </td>
-                            <td className="p-2.5 text-center">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                                {isAr ? "نشط ومنضبط" : "Optimal"}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                    return {
+                      id: t.id,
+                      name: isAr ? t.name_ar : t.name,
+                      members: mCount,
+                      delivery_rate: rate,
+                      net_points: netPts,
+                      status: "optimal",
+                    };
+                  });
+
+                  const matrixCols: ColumnDef<typeof matrixData[0]>[] = [
+                    {
+                      key: "name",
+                      header: isAr ? "اللجنة / المسار" : "Track / Committee",
+                      render: (item) => <span className="font-bold text-foreground">{item.name}</span>,
+                      sortable: true,
+                    },
+                    {
+                      key: "members",
+                      header: isAr ? "عدد الأعضاء" : "Members",
+                      render: (item) => <span className="font-mono">{item.members}</span>,
+                      align: "center",
+                      sortable: true,
+                    },
+                    {
+                      key: "delivery_rate",
+                      header: isAr ? "تسليم المهام" : "Task Delivery",
+                      render: (item) => (
+                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          {item.delivery_rate}
+                        </span>
+                      ),
+                      align: "center",
+                      sortable: true,
+                    },
+                    {
+                      key: "net_points",
+                      header: isAr ? "رصيد النقاط" : "Net Points",
+                      render: (item) => (
+                        <span className="font-mono font-bold text-primary">
+                          {item.net_points > 0 ? `+${item.net_points}` : item.net_points}
+                        </span>
+                      ),
+                      align: "center",
+                      sortable: true,
+                    },
+                    {
+                      key: "status",
+                      header: isAr ? "الحالة التشغيلية" : "Operational Status",
+                      render: () => (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                          {isAr ? "نشط ومنضبط" : "Optimal"}
+                        </span>
+                      ),
+                      align: "center",
+                      sortable: true,
+                    },
+                  ];
+
+                  return (
+                    <DataTable
+                      data={matrixData}
+                      columns={matrixCols}
+                      title={isAr ? "مصفوفة أداء اللجان والمسارات التقنية" : "Tracks & Committees Performance Matrix"}
+                      searchPlaceholder={isAr ? "بحث في اللجان والمسارات..." : "Search tracks..."}
+                      exportFileName="gdg_committees_matrix"
+                      isAr={isAr}
+                    />
+                  );
+                })()}
               </div>
 
               {/* Escalation, PIP & Appeals Breakdown */}
