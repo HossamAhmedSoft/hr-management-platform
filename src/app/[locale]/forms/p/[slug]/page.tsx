@@ -272,12 +272,12 @@ export default function PublicFormViewPage() {
       if (!successResponse) {
         let quizResultData = undefined;
         if (form.quiz_settings?.is_quiz) {
-          const grading = gradeQuizSubmission(form, answers, visibleQuestionIds);
+          const grading = gradeQuizSubmission(form.questions || [], answers, form.quiz_settings);
           quizResultData = {
-            score: grading.totalScore,
+            score: grading.scoreAwarded,
             total_possible: grading.totalPointsPossible,
             percentage: grading.percentage,
-            is_passed: grading.passed,
+            is_passed: grading.isPassed,
             show_score: form.quiz_settings.show_score_immediate,
           };
         }
