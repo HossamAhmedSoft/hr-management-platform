@@ -1,5 +1,6 @@
-import { Profile, UserRole } from "@/types";
-import { internalDB } from "./internal-db";
+import { Profile, UserRole, RegistrationRequest, RegistrationStatus } from "@/types";
+import { internalDB, verifyPasswordHash } from "./internal-db";
+import { dbService } from "./db-service";
 import { createClient } from "./supabase/client";
 import { generateId } from "./utils";
 
@@ -455,7 +456,13 @@ export async function loginWithCredentials(
   password: string,
   rememberMe: boolean = false,
   skipSession: boolean = false
-): Promise<{ success: boolean; user?: Profile; error?: string }> {
+): Promise<{
+  success: boolean;
+  user?: Profile;
+  error?: string;
+  registrationStatus?: RegistrationStatus;
+  registrationRequest?: RegistrationRequest;
+}> {
   const cleanEmail = email.trim().toLowerCase();
 
   // 1. Rate Limiting / Lockout Check
@@ -488,6 +495,21 @@ export async function loginWithCredentials(
 
     if (!profileErr && dbProfile) {
       const prof = dbProfile as Profile;
+
+      // Status check
+      if (prof.status === "suspended") {
+        return {
+          success: false,
+          error: "تم تعليق هذا الحساب. يرجى مراجعة إدارة الموارد البشرية والدعم الفني.",
+        };
+      }
+      if (prof.status === "inactive" || prof.status === "archived") {
+        return {
+          success: false,
+          error: "هذا الحساب غير نشط حالياً. يرجى مراجعة مدير النظام.",
+        };
+      }
+
       let isPassValid = false;
 
       // Check password stored in profile metadata (academic_notes)
@@ -548,40 +570,26 @@ export async function loginWithCredentials(
       }
       return { success: true, user: prof };
     }
-
-    if (!profileErr && !dbProfile) {
-      // Check offline internalDB before giving up
-      const existing = internalDB.getProfileByEmail(cleanEmail);
-      if (existing) {
-        if (!internalDB.verifyPassword(cleanEmail, password)) {
-          const attempt = recordFailedLogin(cleanEmail);
-          const warning = attempt.isLocked
-            ? "تم قفل الحساب مؤقتاً لمدة 15 دقيقة لتكرار المحاولات الخاطئة."
-            : `كلمة المرور غير صحيحة. المحاولات المتبقية: ${attempt.attemptsLeft}`;
-          return {
-            success: false,
-            error: warning,
-          };
-        }
-        resetLoginAttempts(cleanEmail);
-        if (!skipSession) {
-          saveSession(existing, rememberMe);
-        }
-        return { success: true, user: existing };
-      }
-
-      return {
-        success: false,
-        error: "الحساب غير مسجل في قاعدة البيانات. يرجى التأكد من البريد الإلكتروني أو مراجعة مدير النظام.",
-      };
-    }
   } catch (err) {
     console.warn("Supabase query error:", err);
   }
 
-  // 3. Offline fallback (only if network to Supabase was unreachable)
+  // 3. Check offline internalDB profiles
   const existing = internalDB.getProfileByEmail(cleanEmail);
   if (existing) {
+    if (existing.status === "suspended") {
+      return {
+        success: false,
+        error: "تم تعليق هذا الحساب. يرجى مراجعة إدارة الموارد البشرية والدعم الفني.",
+      };
+    }
+    if (existing.status === "inactive" || existing.status === "archived") {
+      return {
+        success: false,
+        error: "هذا الحساب غير نشط حالياً. يرجى مراجعة مدير النظام.",
+      };
+    }
+
     if (!internalDB.verifyPassword(cleanEmail, password)) {
       const attempt = recordFailedLogin(cleanEmail);
       const warning = attempt.isLocked
@@ -599,9 +607,40 @@ export async function loginWithCredentials(
     return { success: true, user: existing };
   }
 
+  // 4. Check Pending Registration Requests
+  try {
+    const regReq = await dbService.getRegistrationRequestByEmail(cleanEmail);
+    if (regReq) {
+      if (verifyPasswordHash(password, regReq.password_hash)) {
+        resetLoginAttempts(cleanEmail);
+        return {
+          success: false,
+          registrationStatus: regReq.status,
+          registrationRequest: regReq,
+        };
+      } else {
+        const attempt = recordFailedLogin(cleanEmail);
+        const warning = attempt.isLocked
+          ? "تم قفل الحساب مؤقتاً لمدة 15 دقيقة لتكرار المحاولات الخاطئة."
+          : `كلمة المرور غير صحيحة. المحاولات المتبقية: ${attempt.attemptsLeft}`;
+        return {
+          success: false,
+          error: warning,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("Registration request check error:", err);
+  }
+
+  // 5. Account not found anywhere
+  const finalAttempt = recordFailedLogin(cleanEmail);
+  const finalWarning = finalAttempt.isLocked
+    ? "تم قفل تسجيل الدخول مؤقتاً لمدة 15 دقيقة لتكرار المحاولات الخاطئة."
+    : "بيانات الدخول غير صحيحة، أو الحساب غير مسجل بالمنصة.";
   return {
     success: false,
-    error: "الحساب غير مسجل في قاعدة البيانات. يرجى التأكد من البريد الإلكتروني أو مراجعة مدير النظام.",
+    error: finalWarning,
   };
 }
 
@@ -710,7 +749,10 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
   // Common routes accessible to all authenticated personas
   if (
     cleanPath === "/" ||
+    cleanPath === "/auth" ||
+    cleanPath.startsWith("/auth/") ||
     cleanPath === "/login" ||
+    cleanPath === "/register" ||
     cleanPath === "/forbidden" ||
     cleanPath === "/tasks" ||
     cleanPath.startsWith("/tasks/") ||
@@ -745,6 +787,11 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
   // HR KPIs Benchmarks
   if (cleanPath === "/hr-kpis" || cleanPath.startsWith("/hr-kpis/")) {
     return role === "team_lead" || role === "track_lead";
+  }
+
+  // Registration Requests & Onboarding Approvals (HR Admins, Super Admins, and HR Reviewers)
+  if (cleanPath === "/members/registrations" || cleanPath.startsWith("/members/registrations/")) {
+    return role === "hr_reviewer";
   }
 
   // Members Directory

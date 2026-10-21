@@ -14,13 +14,27 @@ export default function proxy(request: NextRequest) {
   const locale = localeMatch ? localeMatch[1] : routing.defaultLocale;
   const pathWithoutLocale = localeMatch && localeMatch[2] ? localeMatch[2] : pathname;
 
-  // 1. Check for expired session cookies if any are present
+  // 1. Redirect legacy /login and /register to unified /auth
+  if (pathWithoutLocale === "/login" || pathWithoutLocale === "/register") {
+    const targetMode = pathWithoutLocale === "/register" ? "register" : "login";
+    const authUrl = new URL(`/${locale}/auth`, request.url);
+    authUrl.searchParams.set("mode", targetMode);
+    // Forward any other query params (e.g. error, next, reason)
+    request.nextUrl.searchParams.forEach((val, key) => {
+      if (key !== "mode") {
+        authUrl.searchParams.set(key, val);
+      }
+    });
+    return NextResponse.redirect(authUrl);
+  }
+
+  // 2. Check for expired session cookies if any are present
   const expiresCookie = request.cookies.get("gdg_session_expires")?.value;
   if (expiresCookie) {
     const expiresAt = parseInt(expiresCookie, 10);
     if (!isNaN(expiresAt) && Date.now() > expiresAt) {
-      // Session has expired -> redirect to login and clear cookies
-      const loginUrl = new URL(`/${locale}/login?reason=expired`, request.url);
+      // Session has expired -> redirect to unified auth and clear cookies
+      const loginUrl = new URL(`/${locale}/auth?mode=login&reason=expired`, request.url);
       const response = NextResponse.redirect(loginUrl);
       response.cookies.delete("gdg_session_user");
       response.cookies.delete("gdg_session_role");
@@ -32,7 +46,7 @@ export default function proxy(request: NextRequest) {
     }
   }
 
-  // 2. Enforce authentication & RBAC authorization on restricted routes
+  // 3. Enforce authentication & RBAC authorization on restricted routes
   const strictlyAdminRoutes = ["/audit-log", "/members", "/incidents", "/feedback", "/reports", "/hr-kpis"];
   const isProtectedAdminRoute = strictlyAdminRoutes.some(
     (r) => pathWithoutLocale === r || pathWithoutLocale.startsWith(`${r}/`)
@@ -43,7 +57,7 @@ export default function proxy(request: NextRequest) {
 
   if (isProtectedAdminRoute) {
     if (!userCookie) {
-      const loginUrl = new URL(`/${locale}/login?reason=expired`, request.url);
+      const loginUrl = new URL(`/${locale}/auth?mode=login&reason=expired`, request.url);
       return NextResponse.redirect(loginUrl);
     }
 

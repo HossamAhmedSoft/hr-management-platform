@@ -20,6 +20,11 @@ import {
   FormEntityLink,
   FormAutomation,
   FormWebhook,
+  RegistrationRequest,
+  RegistrationField,
+  RegistrationSettings,
+  RegistrationRequestEvent,
+  RegistrationRequestFile,
 } from "@/types";
 import { generateId } from "./utils";
 import {
@@ -29,6 +34,11 @@ import {
   INITIAL_FORM_ENTITY_LINKS,
   INITIAL_FORM_AUTOMATIONS,
 } from "./forms-seed";
+import {
+  INITIAL_REGISTRATION_FIELDS,
+  INITIAL_REGISTRATION_SETTINGS,
+  INITIAL_REGISTRATION_REQUESTS,
+} from "./registration-seed";
 
 // ============================================================
 // Internal Enterprise Storage Engine (High-Performance Caching Tier)
@@ -1040,6 +1050,118 @@ export const internalDB = {
     return true;
   },
 
+  // ── Registration Requests & Admin Approval Workflow ────
+  getRegistrationRequests(): RegistrationRequest[] {
+    return getTable<RegistrationRequest>("registration_requests", INITIAL_REGISTRATION_REQUESTS);
+  },
+
+  getRegistrationRequestById(id: string): RegistrationRequest | null {
+    const requests = this.getRegistrationRequests();
+    return requests.find((r) => r.id === id) || null;
+  },
+
+  getRegistrationRequestByEmail(email: string): RegistrationRequest | null {
+    const clean = email.toLowerCase().trim();
+    const requests = this.getRegistrationRequests();
+    return requests.find((r) => r.email.toLowerCase().trim() === clean) || null;
+  },
+
+  getRegistrationRequestByReference(refNo: string): RegistrationRequest | null {
+    const clean = refNo.trim().toUpperCase();
+    const requests = this.getRegistrationRequests();
+    return requests.find((r) => r.reference_no.toUpperCase() === clean) || null;
+  },
+
+  createRegistrationRequest(request: RegistrationRequest): RegistrationRequest {
+    const requests = this.getRegistrationRequests();
+    const filtered = requests.filter((r) => r.id !== request.id);
+    const updated = [request, ...filtered];
+    setTable("registration_requests", updated);
+    return request;
+  },
+
+  updateRegistrationRequest(id: string, updates: Partial<RegistrationRequest>): RegistrationRequest | null {
+    const requests = this.getRegistrationRequests();
+    const index = requests.findIndex((r) => r.id === id);
+    if (index === -1) return null;
+
+    const existing = requests[index];
+    const updated: RegistrationRequest = {
+      ...existing,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+    requests[index] = updated;
+    setTable("registration_requests", requests);
+    return updated;
+  },
+
+  deleteRegistrationRequest(id: string): boolean {
+    const requests = this.getRegistrationRequests();
+    const filtered = requests.filter((r) => r.id !== id);
+    setTable("registration_requests", filtered);
+    return true;
+  },
+
+  addRegistrationEvent(event: RegistrationRequestEvent): RegistrationRequestEvent {
+    const events = getTable<RegistrationRequestEvent>("registration_events", []);
+    setTable("registration_events", [event, ...events]);
+
+    // Also attach to the request directly for instant hydration
+    const req = this.getRegistrationRequestById(event.request_id);
+    if (req) {
+      const curEvents = req.events || [];
+      this.updateRegistrationRequest(req.id, {
+        events: [event, ...curEvents.filter((e) => e.id !== event.id)],
+      });
+    }
+    return event;
+  },
+
+  getRegistrationEvents(requestId: string): RegistrationRequestEvent[] {
+    const req = this.getRegistrationRequestById(requestId);
+    if (req && req.events && req.events.length > 0) return req.events;
+    const events = getTable<RegistrationRequestEvent>("registration_events", []);
+    return events.filter((e) => e.request_id === requestId);
+  },
+
+  getRegistrationFields(): RegistrationField[] {
+    const fields = getTable<RegistrationField>("registration_fields", INITIAL_REGISTRATION_FIELDS);
+    return fields.sort((a, b) => {
+      if (a.step_index !== b.step_index) return a.step_index - b.step_index;
+      return a.order_index - b.order_index;
+    });
+  },
+
+  saveRegistrationField(field: RegistrationField): RegistrationField {
+    const fields = this.getRegistrationFields();
+    const filtered = fields.filter((f) => f.id !== field.id && f.field_key !== field.field_key);
+    const updated = [...filtered, field];
+    setTable("registration_fields", updated);
+    return field;
+  },
+
+  deleteRegistrationField(fieldId: string): boolean {
+    const fields = this.getRegistrationFields();
+    setTable("registration_fields", fields.filter((f) => f.id !== fieldId));
+    return true;
+  },
+
+  getRegistrationSettings(): RegistrationSettings {
+    const settings = getTable<RegistrationSettings>("registration_settings", [INITIAL_REGISTRATION_SETTINGS]);
+    return settings[0] || INITIAL_REGISTRATION_SETTINGS;
+  },
+
+  updateRegistrationSettings(updates: Partial<RegistrationSettings>): RegistrationSettings {
+    const current = this.getRegistrationSettings();
+    const updated: RegistrationSettings = {
+      ...current,
+      ...updates,
+    };
+    setTable("registration_settings", [updated]);
+    return updated;
+  },
+
   // ── Clear Database ─────────────────────────────────────
   clearAll(): void {
     if (typeof window === "undefined") return;
@@ -1066,6 +1188,11 @@ export const internalDB = {
       "form_entity_links",
       "form_automations",
       "form_webhooks",
+      "registration_requests",
+      "registration_fields",
+      "registration_settings",
+      "registration_events",
+      "registration_files",
     ];
     tables.forEach((t) => localStorage.removeItem(`${STORAGE_PREFIX}${t}`));
   },

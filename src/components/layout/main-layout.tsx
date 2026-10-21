@@ -35,7 +35,11 @@ export function MainLayout({ children }: MainLayoutProps) {
     pathname && (pathname.includes("/forms/p/") || pathname.includes("/forms/public/"))
   );
   const isAuthOrErrorPage = Boolean(
-    pathname && (pathname.includes("/login") || pathname.includes("/forbidden"))
+    pathname &&
+      (pathname.includes("/auth") ||
+        pathname.includes("/login") ||
+        pathname.includes("/register") ||
+        pathname.includes("/forbidden"))
   );
   const isFullPage = isAuthOrErrorPage || isPublicFormPage;
   const isAllowed = isFullPage || (Boolean(isAuthenticated && currentUser) && canAccessRoute(currentUser!.role, pathname || "/"));
@@ -44,7 +48,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     if (!hasMounted) return;
     if (!isFullPage) {
       if (!isAuthenticated) {
-        router.push(`/${locale}/login`);
+        router.push(`/${locale}/auth?mode=login`);
       } else if (!isAllowed) {
         router.push(`/${locale}/forbidden`);
       }

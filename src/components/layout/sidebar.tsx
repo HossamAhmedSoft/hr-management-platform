@@ -19,6 +19,7 @@ import {
   Target,
   Settings,
   FileText,
+  UserCheck,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -105,6 +106,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       label: isAr ? "دليل الأعضاء" : "Members Directory",
       icon: Users,
       color: "text-[#34a853] dark:text-[#81c995]",
+    },
+    {
+      href: `/${locale}/members/registrations`,
+      label: isAr ? "طلبات الانضمام والاعتماد" : "Registration Requests",
+      icon: UserCheck,
+      color: "text-[#1a73e8] dark:text-[#8ab4f8]",
     },
     {
       href: `/${locale}/teams`,

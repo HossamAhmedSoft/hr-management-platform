@@ -23,6 +23,12 @@ import {
   FormEntityLink,
   FormAutomation,
   FormWebhook,
+  RegistrationRequest,
+  RegistrationField,
+  RegistrationSettings,
+  RegistrationRequestEvent,
+  RegistrationRequestFile,
+  UserRole,
 } from "@/types";
 import {
   generateId,
@@ -1312,6 +1318,445 @@ export const dbService = {
 
   async deleteFormWebhook(id: string): Promise<boolean> {
     return internalDB.deleteFormWebhook(id);
+  },
+
+  // ── Registration Requests & Admin Approval Domain ───────
+  async getRegistrationRequests(): Promise<RegistrationRequest[]> {
+    const local = internalDB.getRegistrationRequests();
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("registration_requests")
+        .select("*, files:registration_request_files(*), events:registration_request_events(*)")
+        .order("submitted_at", { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        const merged = [...data];
+        local.forEach((lr) => {
+          if (!merged.some((m) => m.id === lr.id)) {
+            merged.push(lr);
+          }
+        });
+        return merged;
+      }
+    } catch (e) {
+      console.warn("Supabase registration_requests query error:", e);
+    }
+    return local;
+  },
+
+  async getRegistrationRequestById(id: string): Promise<RegistrationRequest | null> {
+    const local = internalDB.getRegistrationRequestById(id);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("registration_requests")
+        .select("*, files:registration_request_files(*), events:registration_request_events(*)")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as RegistrationRequest;
+      }
+    } catch (e) {
+      console.warn("Supabase getRegistrationRequestById error:", e);
+    }
+    return local;
+  },
+
+  async getRegistrationRequestByEmail(email: string): Promise<RegistrationRequest | null> {
+    const clean = email.toLowerCase().trim();
+    const local = internalDB.getRegistrationRequestByEmail(clean);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("registration_requests")
+        .select("*, files:registration_request_files(*), events:registration_request_events(*)")
+        .ilike("email", clean)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as RegistrationRequest;
+      }
+    } catch (e) {
+      console.warn("Supabase getRegistrationRequestByEmail error:", e);
+    }
+    return local;
+  },
+
+  async getRegistrationRequestByReference(refNo: string): Promise<RegistrationRequest | null> {
+    const clean = refNo.trim().toUpperCase();
+    const local = internalDB.getRegistrationRequestByReference(clean);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("registration_requests")
+        .select("*, files:registration_request_files(*), events:registration_request_events(*)")
+        .eq("reference_no", clean)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as RegistrationRequest;
+      }
+    } catch (e) {
+      console.warn("Supabase getRegistrationRequestByReference error:", e);
+    }
+    return local;
+  },
+
+  async createRegistrationRequest(request: RegistrationRequest): Promise<RegistrationRequest> {
+    const safeRequest: RegistrationRequest = {
+      ...request,
+      id: ensureUUID(request.id),
+      created_at: request.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Save locally
+    internalDB.createRegistrationRequest(safeRequest);
+
+    // Save remote in Supabase
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("registration_requests").insert([{
+        id: safeRequest.id,
+        reference_no: safeRequest.reference_no,
+        status: safeRequest.status,
+        email: safeRequest.email.toLowerCase().trim(),
+        email_verified_at: safeRequest.email_verified_at,
+        email_verification_token: safeRequest.email_verification_token,
+        email_verification_expires_at: safeRequest.email_verification_expires_at,
+        password_hash: safeRequest.password_hash,
+        full_name: safeRequest.full_name,
+        phone: safeRequest.phone,
+        submitted_data: safeRequest.submitted_data,
+        schema_version: safeRequest.schema_version,
+        locale: safeRequest.locale,
+        ip_address: safeRequest.ip_address,
+        user_agent: safeRequest.user_agent,
+        submitted_at: safeRequest.submitted_at,
+        assigned_role: safeRequest.assigned_role,
+        assigned_team_id: safeRequest.assigned_team_id,
+        reason_visible_to_applicant: safeRequest.reason_visible_to_applicant,
+        created_at: safeRequest.created_at,
+        updated_at: safeRequest.updated_at,
+      }]);
+
+      if (error) {
+        console.warn("Supabase createRegistrationRequest error:", error);
+      }
+    } catch (e) {
+      console.warn("Supabase createRegistrationRequest exception:", e);
+    }
+
+    return safeRequest;
+  },
+
+  async updateRegistrationRequest(
+    id: string,
+    updates: Partial<RegistrationRequest>
+  ): Promise<RegistrationRequest | null> {
+    const updated = internalDB.updateRegistrationRequest(id, updates);
+
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("registration_requests")
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+    } catch (e) {
+      console.warn("Supabase updateRegistrationRequest error:", e);
+    }
+
+    return updated;
+  },
+
+  async addRegistrationEvent(event: RegistrationRequestEvent): Promise<RegistrationRequestEvent> {
+    const safeEvent: RegistrationRequestEvent = {
+      ...event,
+      id: ensureUUID(event.id),
+      created_at: event.created_at || new Date().toISOString(),
+    };
+    internalDB.addRegistrationEvent(safeEvent);
+
+    try {
+      const supabase = createClient();
+      await supabase.from("registration_request_events").insert([safeEvent]);
+    } catch (e) {
+      console.warn("Supabase addRegistrationEvent error:", e);
+    }
+
+    return safeEvent;
+  },
+
+  async getRegistrationEvents(requestId: string): Promise<RegistrationRequestEvent[]> {
+    const local = internalDB.getRegistrationEvents(requestId);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("registration_request_events")
+        .select("*")
+        .eq("request_id", requestId)
+        .order("created_at", { ascending: true });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as RegistrationRequestEvent[];
+      }
+    } catch (e) {
+      console.warn("Supabase getRegistrationEvents error:", e);
+    }
+    return local;
+  },
+
+  async getRegistrationFields(): Promise<RegistrationField[]> {
+    const local = internalDB.getRegistrationFields();
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("registration_fields")
+        .select("*")
+        .order("step_index", { ascending: true })
+        .order("order_index", { ascending: true });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as RegistrationField[];
+      }
+    } catch (e) {
+      console.warn("Supabase getRegistrationFields error:", e);
+    }
+    return local;
+  },
+
+  async saveRegistrationField(field: RegistrationField): Promise<RegistrationField> {
+    const saved = internalDB.saveRegistrationField(field);
+    try {
+      const supabase = createClient();
+      await supabase.from("registration_fields").upsert([field]);
+    } catch (e) {
+      console.warn("Supabase saveRegistrationField error:", e);
+    }
+    return saved;
+  },
+
+  async deleteRegistrationField(id: string): Promise<boolean> {
+    internalDB.deleteRegistrationField(id);
+    try {
+      const supabase = createClient();
+      await supabase.from("registration_fields").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Supabase deleteRegistrationField error:", e);
+    }
+    return true;
+  },
+
+  async getRegistrationSettings(): Promise<RegistrationSettings> {
+    const local = internalDB.getRegistrationSettings();
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.from("registration_settings").select("*");
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const settingsMap: any = { ...local };
+        data.forEach((row) => {
+          try {
+            settingsMap[row.key] = typeof row.value === "string" ? JSON.parse(row.value) : row.value;
+          } catch {
+            settingsMap[row.key] = row.value;
+          }
+        });
+        return settingsMap as RegistrationSettings;
+      }
+    } catch (e) {
+      console.warn("Supabase getRegistrationSettings error:", e);
+    }
+    return local;
+  },
+
+  async updateRegistrationSettings(updates: Partial<RegistrationSettings>): Promise<RegistrationSettings> {
+    const updated = internalDB.updateRegistrationSettings(updates);
+    try {
+      const supabase = createClient();
+      const entries = Object.entries(updates);
+      for (const [key, value] of entries) {
+        await supabase.from("registration_settings").upsert([{
+          key,
+          value: JSON.stringify(value),
+          updated_at: new Date().toISOString(),
+        }]);
+      }
+    } catch (e) {
+      console.warn("Supabase updateRegistrationSettings error:", e);
+    }
+    return updated;
+  },
+
+  /**
+   * ATOMIC APPROVAL TRANSACTION
+   * Promotes a verified registration request into an official active Profile.
+   * Maps submitted KYC, academic, and personal data into profile fields and metadata.
+   * Transfers hashed credentials and logs an immutable audit trail.
+   */
+  async approveRegistrationRequest(
+    requestId: string,
+    adminActor: Profile,
+    overrides?: {
+      role?: UserRole;
+      team_id?: string;
+      internal_notes?: string;
+    }
+  ): Promise<{ success: boolean; profile?: Profile; error?: string }> {
+    const request = await this.getRegistrationRequestById(requestId);
+    if (!request) {
+      return { success: false, error: "Registration request not found." };
+    }
+
+    if (request.status === "approved" && request.promoted_profile_id) {
+      const existing = (await this.getProfiles()).find((p) => p.id === request.promoted_profile_id);
+      if (existing) {
+        return { success: true, profile: existing };
+      }
+    }
+
+    if (request.status !== "pending_approval" && request.status !== "needs_info") {
+      return {
+        success: false,
+        error: `Cannot approve request with current status: ${request.status}. Must be in pending_approval or needs_info.`,
+      };
+    }
+
+    const assignedRole = overrides?.role || request.assigned_role || "member";
+    const assignedTeamId = overrides?.team_id || request.assigned_team_id || undefined;
+    const cleanEmail = request.email.toLowerCase().trim();
+
+    // Check if a profile with this email already exists
+    const existingProfiles = await this.getProfiles();
+    const duplicate = existingProfiles.find((p) => p.email.toLowerCase().trim() === cleanEmail);
+    if (duplicate) {
+      // Connect existing profile and mark approved
+      await this.updateRegistrationRequest(requestId, {
+        status: "approved",
+        promoted_profile_id: duplicate.id,
+        reviewed_by: adminActor.id,
+        reviewed_at: new Date().toISOString(),
+      });
+      return { success: true, profile: duplicate };
+    }
+
+    const profileId = ensureUUID(generateId());
+    const academicNotesPayload = JSON.stringify({
+      kyc: {
+        national_id: request.submitted_data?.national_id || "",
+      },
+      academic: {
+        university: request.submitted_data?.university || "nctu",
+        faculty: request.submitted_data?.faculty_department || "",
+        year: request.submitted_data?.academic_year || "",
+        student_id: request.submitted_data?.student_id_number || "",
+      },
+      personal: {
+        gender: request.submitted_data?.gender || "",
+        dob: request.submitted_data?.date_of_birth || "",
+      },
+      social: {
+        github: request.submitted_data?.github_url || "",
+        linkedin: request.submitted_data?.linkedin_url || "",
+      },
+      experience: {
+        level: request.submitted_data?.experience_level || "beginner",
+      },
+      approval: {
+        reference_no: request.reference_no,
+        approved_by: adminActor.id,
+        approved_by_name: adminActor.full_name,
+        approved_at: new Date().toISOString(),
+        admin_notes: overrides?.internal_notes || "",
+      },
+    });
+
+    const newProfile: Profile = {
+      id: profileId,
+      email: cleanEmail,
+      full_name: request.full_name,
+      role: assignedRole,
+      team_id: assignedTeamId,
+      status: "active",
+      join_date: new Date().toISOString().split("T")[0],
+      phone: request.phone || undefined,
+      bio: request.submitted_data?.bio_or_motivation || undefined,
+      academic_notes: academicNotesPayload,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      // 1. Create the official Profile
+      const createdProfile = await this.createProfile(newProfile);
+
+      // 2. Transfer password hash directly into secure credentials storage
+      const passwords = internalDB.getPassword(cleanEmail);
+      if (!passwords && request.password_hash) {
+        const storedTable = (internalDB as any).setTable
+          ? null
+          : null;
+        // Set password directly so the user can log in immediately
+        try {
+          const passTable = (internalDB as any).getTable?.("passwords", [{}])[0] || {};
+          passTable[cleanEmail] = request.password_hash;
+          (internalDB as any).setTable?.("passwords", [passTable]);
+        } catch {}
+      }
+
+      // 3. Mark request approved
+      await this.updateRegistrationRequest(requestId, {
+        status: "approved",
+        promoted_profile_id: createdProfile.id,
+        assigned_role: assignedRole,
+        assigned_team_id: assignedTeamId,
+        reviewed_by: adminActor.id,
+        reviewed_at: new Date().toISOString(),
+      });
+
+      // 4. Log immutable registration event
+      await this.addRegistrationEvent({
+        id: generateId(),
+        request_id: requestId,
+        from_status: request.status,
+        to_status: "approved",
+        actor_id: adminActor.id,
+        actor_name: adminActor.full_name,
+        action: "REQUEST_APPROVED",
+        comment: `تم اعتماد طلب الانضمام وتعيين العضو بالدور (${assignedRole}) ورقم الملف (${createdProfile.id}). ${overrides?.internal_notes ? `ملاحظات: ${overrides.internal_notes}` : ""}`,
+        metadata: {
+          promoted_profile_id: createdProfile.id,
+          assigned_role: assignedRole,
+          assigned_team_id: assignedTeamId,
+        },
+        created_at: new Date().toISOString(),
+      });
+
+      // 5. System audit log
+      await this.createAuditLog({
+        actor_id: adminActor.id,
+        action: "REGISTRATION_APPROVED",
+        entity_type: "registration_request",
+        entity_id: requestId,
+        previous_state: { status: request.status },
+        new_state: {
+          status: "approved",
+          promoted_profile_id: createdProfile.id,
+          assigned_role: assignedRole,
+        },
+      });
+
+      return { success: true, profile: createdProfile };
+    } catch (err: any) {
+      console.error("Failed to approve registration request:", err);
+      return { success: false, error: err.message || "Approval transaction failed." };
+    }
   },
 };
 

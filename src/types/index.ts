@@ -1151,3 +1151,6 @@ export interface CaseActionLog {
 
 // ── Native Forms Module Types ────────────────────────────────
 export * from "./forms";
+
+// ── Registration & Admin Approval Workflow Types ─────────────
+export * from "./registration";
