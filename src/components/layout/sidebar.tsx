@@ -56,6 +56,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       icon: CalendarCheck,
       color: "text-[#34a853] dark:text-[#81c995]",
     },
+    {
+      href: `/${locale}/forms`,
+      label: isAr ? "النماذج والاستبيانات" : "Forms & Surveys",
+      icon: FileText,
+      color: "text-[#1a73e8] dark:text-[#8ab4f8]",
+    },
   ];
 
   // Group 2: Performance & Academic Standing

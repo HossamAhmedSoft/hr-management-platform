@@ -13,8 +13,22 @@ import {
   Notification,
   MeetingAttendanceEvent,
   MeetingExcuse,
+  Form,
+  FormVersion,
+  FormResponse,
+  FormTemplate,
+  FormEntityLink,
+  FormAutomation,
+  FormWebhook,
 } from "@/types";
 import { generateId } from "./utils";
+import {
+  INITIAL_FORMS,
+  INITIAL_FORM_TEMPLATES,
+  INITIAL_FORM_RESPONSES,
+  INITIAL_FORM_ENTITY_LINKS,
+  INITIAL_FORM_AUTOMATIONS,
+} from "./forms-seed";
 
 // ============================================================
 // Internal Enterprise Storage Engine (Pure Production)
@@ -704,6 +718,296 @@ export const internalDB = {
     return true;
   },
 
+  // ── Forms Module ───────────────────────────────────────
+  getForms(): Form[] {
+    return getTable<Form>("forms", INITIAL_FORMS);
+  },
+
+  setForms(forms: Form[]): void {
+    setTable("forms", forms);
+  },
+
+  getFormById(id: string): Form | null {
+    const forms = this.getForms();
+    return forms.find((f) => f.id === id || f.slug === id) || null;
+  },
+
+  getFormBySlug(slug: string): Form | null {
+    const forms = this.getForms();
+    return forms.find((f) => f.slug === slug || f.id === slug) || null;
+  },
+
+  createForm(formData: Partial<Form>): Form {
+    const forms = this.getForms();
+    const now = new Date().toISOString();
+    const newForm: Form = {
+      id: formData.id || generateId(),
+      slug: formData.slug || `form-${Date.now().toString(36)}`,
+      title: formData.title || "Untitled Form",
+      title_ar: formData.title_ar || "نموذج بدون عنوان",
+      description: formData.description || "",
+      description_ar: formData.description_ar || "",
+      status: formData.status || "draft",
+      access_mode: formData.access_mode || "public",
+      allowed_roles: formData.allowed_roles || [],
+      allowed_user_ids: formData.allowed_user_ids || [],
+      current_version_id: formData.current_version_id,
+      current_version_number: formData.current_version_number || 1,
+      theme_config: formData.theme_config || {
+        primaryColor: "#1a73e8",
+        accentColor: "#4285F4",
+        backgroundColor: "#f8f9fa",
+        font: "Inter",
+        rounded: "rounded-xl",
+      },
+      settings: formData.settings || {
+        limit_one_response: false,
+        allow_edit: false,
+        show_progress_bar: true,
+        shuffle_questions: false,
+        collect_email: true,
+        auto_collect_user_profile: true,
+        confirmation_message: "Your response has been recorded.",
+        confirmation_message_ar: "تم تسجيل ردك بنجاح.",
+      },
+      quiz_settings: formData.quiz_settings || {
+        is_quiz: false,
+        total_points: 0,
+        show_score_immediate: true,
+        show_correct_answers: false,
+      },
+      created_by: formData.created_by || "system",
+      sections: formData.sections || [],
+      questions: formData.questions || [],
+      logic_rules: formData.logic_rules || [],
+      response_count: 0,
+      created_at: formData.created_at || now,
+      updated_at: now,
+    };
+    setTable("forms", [newForm, ...forms]);
+    return newForm;
+  },
+
+  updateForm(id: string, updates: Partial<Form>): Form | null {
+    const forms = this.getForms();
+    let updated: Form | null = null;
+    const newForms = forms.map((f) => {
+      if (f.id === id || f.slug === id) {
+        updated = { ...f, ...updates, updated_at: new Date().toISOString() };
+        return updated;
+      }
+      return f;
+    });
+    setTable("forms", newForms);
+    return updated;
+  },
+
+  deleteForm(id: string): boolean {
+    const forms = this.getForms();
+    setTable("forms", forms.filter((f) => f.id !== id && f.slug !== id));
+    return true;
+  },
+
+  // ── Form Versions (Immutable Snapshots) ────────────────
+  getFormVersions(formId?: string): FormVersion[] {
+    const versions = getTable<FormVersion>("form_versions", []);
+    if (formId) {
+      return versions.filter((v) => v.form_id === formId);
+    }
+    return versions;
+  },
+
+  createFormVersion(versionData: Omit<FormVersion, "id" | "published_at"> & { id?: string }): FormVersion {
+    const versions = this.getFormVersions();
+    const newVersion: FormVersion = {
+      ...versionData,
+      id: versionData.id || generateId(),
+      published_at: new Date().toISOString(),
+    };
+    setTable("form_versions", [newVersion, ...versions]);
+    return newVersion;
+  },
+
+  // ── Form Responses ─────────────────────────────────────
+  getFormResponses(formId?: string): FormResponse[] {
+    const responses = getTable<FormResponse>("form_responses", INITIAL_FORM_RESPONSES);
+    if (formId) {
+      return responses.filter((r) => r.form_id === formId);
+    }
+    return responses;
+  },
+
+  getFormResponseById(id: string): FormResponse | null {
+    const responses = this.getFormResponses();
+    return responses.find((r) => r.id === id) || null;
+  },
+
+  createFormResponse(responseData: Partial<FormResponse>): FormResponse {
+    const responses = this.getFormResponses();
+    const now = new Date().toISOString();
+    const newResponse: FormResponse = {
+      id: responseData.id || generateId(),
+      form_id: responseData.form_id || "",
+      form_version_id: responseData.form_version_id || "v1",
+      respondent_id: responseData.respondent_id,
+      respondent_email: responseData.respondent_email,
+      respondent_name: responseData.respondent_name,
+      ip_hash: responseData.ip_hash,
+      session_token: responseData.session_token,
+      is_draft: responseData.is_draft || false,
+      score: responseData.score ?? null,
+      total_points_possible: responseData.total_points_possible ?? null,
+      percentage: responseData.percentage ?? null,
+      completion_time_seconds: responseData.completion_time_seconds || 60,
+      answers: responseData.answers || [],
+      files: responseData.files || [],
+      submitted_at: responseData.submitted_at || now,
+      updated_at: now,
+    };
+    setTable("form_responses", [newResponse, ...responses]);
+
+    // Update response_count in form
+    if (newResponse.form_id && !newResponse.is_draft) {
+      const form = this.getFormById(newResponse.form_id);
+      if (form) {
+        this.updateForm(form.id, { response_count: (form.response_count || 0) + 1 });
+      }
+    }
+
+    return newResponse;
+  },
+
+  updateFormResponse(id: string, updates: Partial<FormResponse>): FormResponse | null {
+    const responses = this.getFormResponses();
+    let updated: FormResponse | null = null;
+    const newResponses = responses.map((r) => {
+      if (r.id === id) {
+        updated = { ...r, ...updates, updated_at: new Date().toISOString() };
+        return updated;
+      }
+      return r;
+    });
+    setTable("form_responses", newResponses);
+    return updated;
+  },
+
+  deleteFormResponse(id: string): boolean {
+    const responses = this.getFormResponses();
+    const target = responses.find((r) => r.id === id);
+    setTable("form_responses", responses.filter((r) => r.id !== id));
+    if (target && target.form_id && !target.is_draft) {
+      const form = this.getFormById(target.form_id);
+      if (form && (form.response_count || 0) > 0) {
+        this.updateForm(form.id, { response_count: Math.max(0, (form.response_count || 0) - 1) });
+      }
+    }
+    return true;
+  },
+
+  // ── Form Templates ─────────────────────────────────────
+  getFormTemplates(): FormTemplate[] {
+    return getTable<FormTemplate>("form_templates", INITIAL_FORM_TEMPLATES);
+  },
+
+  createFormTemplate(templateData: Omit<FormTemplate, "id" | "created_at">): FormTemplate {
+    const templates = this.getFormTemplates();
+    const newTemplate: FormTemplate = {
+      ...templateData,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+    };
+    setTable("form_templates", [newTemplate, ...templates]);
+    return newTemplate;
+  },
+
+  // ── Form Entity Links ──────────────────────────────────
+  getFormEntityLinks(formId?: string, entityType?: string, entityId?: string): FormEntityLink[] {
+    let links = getTable<FormEntityLink>("form_entity_links", INITIAL_FORM_ENTITY_LINKS);
+    if (formId) links = links.filter((l) => l.form_id === formId);
+    if (entityType) links = links.filter((l) => l.entity_type === entityType);
+    if (entityId) links = links.filter((l) => !l.entity_id || l.entity_id === entityId);
+    return links;
+  },
+
+  createFormEntityLink(linkData: Omit<FormEntityLink, "id" | "created_at"> & { id?: string }): FormEntityLink {
+    const links = this.getFormEntityLinks();
+    const newLink: FormEntityLink = {
+      ...linkData,
+      id: linkData.id || generateId(),
+      created_at: new Date().toISOString(),
+    };
+    setTable("form_entity_links", [newLink, ...links]);
+    return newLink;
+  },
+
+  deleteFormEntityLink(id: string): boolean {
+    const links = this.getFormEntityLinks();
+    setTable("form_entity_links", links.filter((l) => l.id !== id));
+    return true;
+  },
+
+  // ── Form Automations ───────────────────────────────────
+  getFormAutomations(formId?: string): FormAutomation[] {
+    const automations = getTable<FormAutomation>("form_automations", INITIAL_FORM_AUTOMATIONS);
+    if (formId) return automations.filter((a) => a.form_id === formId);
+    return automations;
+  },
+
+  createFormAutomation(automationData: Omit<FormAutomation, "id" | "created_at"> & { id?: string }): FormAutomation {
+    const automations = this.getFormAutomations();
+    const newAutomation: FormAutomation = {
+      ...automationData,
+      id: automationData.id || generateId(),
+      created_at: new Date().toISOString(),
+    };
+    setTable("form_automations", [newAutomation, ...automations]);
+    return newAutomation;
+  },
+
+  updateFormAutomation(id: string, updates: Partial<FormAutomation>): FormAutomation | null {
+    const automations = this.getFormAutomations();
+    let updated: FormAutomation | null = null;
+    const list = automations.map((a) => {
+      if (a.id === id) {
+        updated = { ...a, ...updates };
+        return updated;
+      }
+      return a;
+    });
+    setTable("form_automations", list);
+    return updated;
+  },
+
+  deleteFormAutomation(id: string): boolean {
+    const automations = this.getFormAutomations();
+    setTable("form_automations", automations.filter((a) => a.id !== id));
+    return true;
+  },
+
+  // ── Form Webhooks ──────────────────────────────────────
+  getFormWebhooks(formId?: string): FormWebhook[] {
+    const webhooks = getTable<FormWebhook>("form_webhooks", []);
+    if (formId) return webhooks.filter((w) => w.form_id === formId);
+    return webhooks;
+  },
+
+  createFormWebhook(webhookData: Omit<FormWebhook, "id" | "created_at"> & { id?: string }): FormWebhook {
+    const webhooks = this.getFormWebhooks();
+    const newWebhook: FormWebhook = {
+      ...webhookData,
+      id: webhookData.id || generateId(),
+      created_at: new Date().toISOString(),
+    };
+    setTable("form_webhooks", [newWebhook, ...webhooks]);
+    return newWebhook;
+  },
+
+  deleteFormWebhook(id: string): boolean {
+    const webhooks = this.getFormWebhooks();
+    setTable("form_webhooks", webhooks.filter((w) => w.id !== id));
+    return true;
+  },
+
   // ── Clear Database ─────────────────────────────────────
   clearAll(): void {
     if (typeof window === "undefined") return;
@@ -723,6 +1027,13 @@ export const internalDB = {
       "meeting_excuses",
       "notifications",
       "passwords",
+      "forms",
+      "form_versions",
+      "form_responses",
+      "form_templates",
+      "form_entity_links",
+      "form_automations",
+      "form_webhooks",
     ];
     tables.forEach((t) => localStorage.removeItem(`${STORAGE_PREFIX}${t}`));
   },

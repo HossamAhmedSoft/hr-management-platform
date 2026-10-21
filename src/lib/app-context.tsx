@@ -15,6 +15,7 @@ import {
   Attendee,
   AuditLog,
   Notification,
+  Form,
 } from "@/types";
 import { AlertTriangle } from "lucide-react";
 import {
@@ -94,6 +95,11 @@ interface AppContextType {
   addNotification: (notif: Omit<Notification, "id" | "created_at">) => Promise<Notification>;
   markNotificationAsRead: (id: string) => Promise<void>;
   markAllNotificationsAsRead: () => Promise<void>;
+  forms: Form[];
+  addForm: (form: Partial<Form>) => Promise<Form>;
+  updateForm: (id: string, updates: Partial<Form>) => Promise<Form | null>;
+  deleteForm: (id: string) => Promise<boolean>;
+  refreshForms: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -138,6 +144,7 @@ export function AppProvider({
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => internalDB.getAuditLogs());
   const [notifications, setNotifications] = useState<Notification[]>(() => internalDB.getNotifications());
   const unreadNotificationsCount = notifications.filter((n) => !n.is_read).length;
+  const [forms, setForms] = useState<Form[]>(() => internalDB.getForms());
 
   // Sync theme with HTML class
   useEffect(() => {
@@ -1153,6 +1160,58 @@ export function AppProvider({
     }
   };
 
+  const refreshForms = async () => {
+    const list = await dbService.getForms();
+    setForms(list);
+  };
+
+  const addForm = async (formData: Partial<Form>): Promise<Form> => {
+    const created = await dbService.createForm({
+      ...formData,
+      created_by: currentUser?.id || "system",
+    });
+    setForms((prev) => [created, ...prev.filter((f) => f.id !== created.id)]);
+    await logUserAction({
+      action: "FORM_CREATED",
+      entity_type: "form",
+      entity_id: created.id,
+      reason: `إنشاء استمارة / نموذج جديد: ${created.title}`,
+      details: `Form "${created.title}" created with access mode "${created.access_mode}"`,
+    });
+    return created;
+  };
+
+  const updateForm = async (id: string, updates: Partial<Form>): Promise<Form | null> => {
+    const updated = await dbService.updateForm(id, updates);
+    if (updated) {
+      setForms((prev) => prev.map((f) => (f.id === id || f.slug === id ? updated : f)));
+      await logUserAction({
+        action: "FORM_UPDATED",
+        entity_type: "form",
+        entity_id: id,
+        reason: `تحديث إعدادات أو أسئلة النموذج`,
+        details: `Form updated: ${Object.keys(updates).join(", ")}`,
+      });
+    }
+    return updated;
+  };
+
+  const deleteForm = async (id: string): Promise<boolean> => {
+    const target = forms.find((f) => f.id === id || f.slug === id);
+    const success = await dbService.deleteForm(id);
+    if (success) {
+      setForms((prev) => prev.filter((f) => f.id !== id && f.slug !== id));
+      await logUserAction({
+        action: "FORM_DELETED",
+        entity_type: "form",
+        entity_id: id,
+        reason: `حذف النموذج: ${target?.title || id}`,
+        details: `Form "${target?.title}" deleted`,
+      });
+    }
+    return success;
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1209,6 +1268,11 @@ export function AppProvider({
         addNotification,
         markNotificationAsRead,
         markAllNotificationsAsRead,
+        forms,
+        addForm,
+        updateForm,
+        deleteForm,
+        refreshForms,
       }}
     >
       {children}

@@ -31,24 +31,28 @@ export function MainLayout({ children }: MainLayoutProps) {
     setHasMounted(true);
   }, []);
 
+  const isPublicFormPage = Boolean(
+    pathname && (pathname.includes("/forms/p/") || pathname.includes("/forms/public/"))
+  );
   const isAuthOrErrorPage = Boolean(
     pathname && (pathname.includes("/login") || pathname.includes("/forbidden"))
   );
-  const isAllowed = isAuthOrErrorPage || (Boolean(isAuthenticated && currentUser) && canAccessRoute(currentUser!.role, pathname || "/"));
+  const isFullPage = isAuthOrErrorPage || isPublicFormPage;
+  const isAllowed = isFullPage || (Boolean(isAuthenticated && currentUser) && canAccessRoute(currentUser!.role, pathname || "/"));
 
   useEffect(() => {
     if (!hasMounted) return;
-    if (!isAuthOrErrorPage) {
+    if (!isFullPage) {
       if (!isAuthenticated) {
         router.push(`/${locale}/login`);
       } else if (!isAllowed) {
         router.push(`/${locale}/forbidden`);
       }
     }
-  }, [hasMounted, isAuthOrErrorPage, isAuthenticated, isAllowed, locale, router]);
+  }, [hasMounted, isFullPage, isAuthenticated, isAllowed, locale, router]);
 
-  // If on login or forbidden page, render clean full screen without sidebar
-  if (isAuthOrErrorPage) {
+  // If on login, forbidden, or public form page, render clean full screen without sidebar
+  if (isFullPage) {
     return <main className="min-h-screen bg-background">{children}</main>;
   }
 

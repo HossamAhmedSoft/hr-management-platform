@@ -1149,3 +1149,5 @@ export interface CaseActionLog {
   created_at?: string;
 }
 
+// ── Native Forms Module Types ────────────────────────────────
+export * from "./forms";

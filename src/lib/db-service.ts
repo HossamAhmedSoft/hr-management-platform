@@ -16,6 +16,13 @@ import {
   Notification,
   MeetingAttendanceEvent,
   MeetingExcuse,
+  Form,
+  FormVersion,
+  FormResponse,
+  FormTemplate,
+  FormEntityLink,
+  FormAutomation,
+  FormWebhook,
 } from "@/types";
 import {
   generateId,
@@ -1105,6 +1112,180 @@ export const dbService = {
 
   async updateMeetingExcuse(id: string, updates: Partial<MeetingExcuse>): Promise<MeetingExcuse | null> {
     return internalDB.updateMeetingExcuse(id, updates);
+  },
+
+  // ── Native Forms Module ────────────────────────────────────
+  async getForms(): Promise<Form[]> {
+    const local = internalDB.getForms();
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("forms")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const merged = [...(data as Form[])];
+        local.forEach((lf) => {
+          if (!merged.some((m) => m.id === lf.id)) {
+            merged.push(lf);
+          }
+        });
+        internalDB.setForms(merged);
+        return merged;
+      }
+    } catch (e) {
+      console.warn("Supabase forms query error, falling back to local:", e);
+    }
+    return local;
+  },
+
+  async getFormById(id: string): Promise<Form | null> {
+    const forms = await this.getForms();
+    return forms.find((f) => f.id === id || f.slug === id) || null;
+  },
+
+  async getFormBySlug(slug: string): Promise<Form | null> {
+    const forms = await this.getForms();
+    return forms.find((f) => f.slug === slug || f.id === slug) || null;
+  },
+
+  async createForm(formData: Partial<Form>): Promise<Form> {
+    const newForm = internalDB.createForm(formData);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("forms")
+        .insert([newForm])
+        .select()
+        .single();
+
+      if (!error && data) {
+        return data as Form;
+      }
+    } catch (e) {
+      console.warn("Supabase createForm error:", e);
+    }
+    return newForm;
+  },
+
+  async updateForm(id: string, updates: Partial<Form>): Promise<Form | null> {
+    const updated = internalDB.updateForm(id, updates);
+    try {
+      const supabase = createClient();
+      await supabase.from("forms").update(updates).eq("id", id);
+    } catch (e) {
+      console.warn("Supabase updateForm error:", e);
+    }
+    return updated;
+  },
+
+  async deleteForm(id: string): Promise<boolean> {
+    try {
+      const supabase = createClient();
+      await supabase.from("forms").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Supabase deleteForm error:", e);
+    }
+    return internalDB.deleteForm(id);
+  },
+
+  async getFormVersions(formId?: string): Promise<FormVersion[]> {
+    return internalDB.getFormVersions(formId);
+  },
+
+  async createFormVersion(versionData: Omit<FormVersion, "id" | "published_at"> & { id?: string }): Promise<FormVersion> {
+    const newVersion = internalDB.createFormVersion(versionData);
+    try {
+      const supabase = createClient();
+      await supabase.from("form_versions").insert([newVersion]);
+    } catch (e) {
+      console.warn("Supabase createFormVersion error:", e);
+    }
+    return newVersion;
+  },
+
+  async getFormResponses(formId?: string): Promise<FormResponse[]> {
+    const local = internalDB.getFormResponses(formId);
+    try {
+      const supabase = createClient();
+      let query = supabase.from("form_responses").select("*").order("submitted_at", { ascending: false });
+      if (formId) query = query.eq("form_id", formId);
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as FormResponse[];
+      }
+    } catch (e) {
+      console.warn("Supabase getFormResponses error:", e);
+    }
+    return local;
+  },
+
+  async getFormResponseById(id: string): Promise<FormResponse | null> {
+    return internalDB.getFormResponseById(id);
+  },
+
+  async createFormResponse(responseData: Partial<FormResponse>): Promise<FormResponse> {
+    const newResponse = internalDB.createFormResponse(responseData);
+    try {
+      const supabase = createClient();
+      await supabase.from("form_responses").insert([newResponse]);
+    } catch (e) {
+      console.warn("Supabase createFormResponse error:", e);
+    }
+    return newResponse;
+  },
+
+  async updateFormResponse(id: string, updates: Partial<FormResponse>): Promise<FormResponse | null> {
+    return internalDB.updateFormResponse(id, updates);
+  },
+
+  async deleteFormResponse(id: string): Promise<boolean> {
+    return internalDB.deleteFormResponse(id);
+  },
+
+  async getFormTemplates(): Promise<FormTemplate[]> {
+    return internalDB.getFormTemplates();
+  },
+
+  async getFormEntityLinks(formId?: string, entityType?: string, entityId?: string): Promise<FormEntityLink[]> {
+    return internalDB.getFormEntityLinks(formId, entityType, entityId);
+  },
+
+  async createFormEntityLink(linkData: Omit<FormEntityLink, "id" | "created_at"> & { id?: string }): Promise<FormEntityLink> {
+    return internalDB.createFormEntityLink(linkData);
+  },
+
+  async deleteFormEntityLink(id: string): Promise<boolean> {
+    return internalDB.deleteFormEntityLink(id);
+  },
+
+  async getFormAutomations(formId?: string): Promise<FormAutomation[]> {
+    return internalDB.getFormAutomations(formId);
+  },
+
+  async createFormAutomation(automationData: Omit<FormAutomation, "id" | "created_at"> & { id?: string }): Promise<FormAutomation> {
+    return internalDB.createFormAutomation(automationData);
+  },
+
+  async updateFormAutomation(id: string, updates: Partial<FormAutomation>): Promise<FormAutomation | null> {
+    return internalDB.updateFormAutomation(id, updates);
+  },
+
+  async deleteFormAutomation(id: string): Promise<boolean> {
+    return internalDB.deleteFormAutomation(id);
+  },
+
+  async getFormWebhooks(formId?: string): Promise<FormWebhook[]> {
+    return internalDB.getFormWebhooks(formId);
+  },
+
+  async createFormWebhook(webhookData: Omit<FormWebhook, "id" | "created_at"> & { id?: string }): Promise<FormWebhook> {
+    return internalDB.createFormWebhook(webhookData);
+  },
+
+  async deleteFormWebhook(id: string): Promise<boolean> {
+    return internalDB.deleteFormWebhook(id);
   },
 };
 

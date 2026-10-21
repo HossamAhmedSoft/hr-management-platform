@@ -711,7 +711,9 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
     cleanPath === "/teams" ||
     cleanPath.startsWith("/teams/") ||
     cleanPath === "/policy" ||
-    cleanPath.startsWith("/policy/")
+    cleanPath.startsWith("/policy/") ||
+    cleanPath === "/forms" ||
+    cleanPath.startsWith("/forms/")
   ) {
     return true;
   }
